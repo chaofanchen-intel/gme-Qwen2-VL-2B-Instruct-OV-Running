@@ -1,0 +1,42 @@
+{
+  "CPU": {
+    "fp32": {
+      "text_cos_min": 1.0,
+      "query_cos": 1.0,
+      "image_cos": 0.975047,
+      "fused_cos": 0.988341
+    },
+    "int8": {
+      "text_cos_min": 0.998315,
+      "query_cos": 0.998361,
+      "image_cos": 0.971103,
+      "fused_cos": 0.98538
+    },
+    "int4": {
+      "text_cos_min": 0.907792,
+      "query_cos": 0.912175,
+      "image_cos": 0.943903,
+      "fused_cos": 0.957391
+    }
+  },
+  "GPU": {
+    "fp32": {
+      "text_cos_min": 1.0,
+      "query_cos": 1.0,
+      "image_cos": 0.975043,
+      "fused_cos": 0.988341
+    },
+    "int8": {
+      "text_cos_min": 0.997518,
+      "query_cos": 0.998764,
+      "image_cos": 0.967116,
+      "fused_cos": 0.981741
+    },
+    "int4": {
+      "text_cos_min": 0.88632,
+      "query_cos": 0.911044,
+      "image_cos": 0.930794,
+      "fused_cos": 0.948113
+    }
+  }
+}

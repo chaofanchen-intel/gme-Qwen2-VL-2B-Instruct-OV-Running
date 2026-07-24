@@ -1,0 +1,74 @@
+{
+  "backend": "build-openvino (CPU+OpenVINO auto)",
+  "pooling": "last",
+  "per_text": [
+    {
+      "i": 0,
+      "dim": 1536,
+      "cos_vs_golden": 0.97158,
+      "cross_cos": [
+        0.972,
+        0.127,
+        0.228,
+        0.13,
+        0.177
+      ],
+      "argmax_is_self": true
+    },
+    {
+      "i": 1,
+      "dim": 1536,
+      "cos_vs_golden": 0.98778,
+      "cross_cos": [
+        0.117,
+        0.988,
+        0.03,
+        0.081,
+        0.051
+      ],
+      "argmax_is_self": true
+    },
+    {
+      "i": 2,
+      "dim": 1536,
+      "cos_vs_golden": 0.9914,
+      "cross_cos": [
+        0.219,
+        0.024,
+        0.991,
+        0.066,
+        0.109
+      ],
+      "argmax_is_self": true
+    },
+    {
+      "i": 3,
+      "dim": 1536,
+      "cos_vs_golden": 0.98749,
+      "cross_cos": [
+        0.107,
+        0.068,
+        0.061,
+        0.987,
+        0.436
+      ],
+      "argmax_is_self": true
+    },
+    {
+      "i": 4,
+      "dim": 1536,
+      "cos_vs_golden": 0.98444,
+      "cross_cos": [
+        0.107,
+        0.042,
+        0.109,
+        0.429,
+        0.984
+      ],
+      "argmax_is_self": true
+    }
+  ],
+  "raw_no_template_cos_text0": 0.32812,
+  "cos_mean": 0.98454,
+  "cos_min": 0.97158
+}

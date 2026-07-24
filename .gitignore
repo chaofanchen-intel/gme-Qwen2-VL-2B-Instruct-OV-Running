@@ -1,0 +1,33 @@
+# Models
+
+/ov_models/
+
+# IDE / OS
+
+/.cache/
+/.ccls-cache/
+/.direnv/
+/.envrc
+/.idea/
+/.swiftpm
+/.vs/
+/.vscode/
+
+# Build Artifacts
+
+/tags
+/.build/
+/build*
+/release
+/debug
+*build/
+
+# Python
+
+/.venv
+__pycache__/
+*/poetry.lock
+poetry.toml
+poetry.lock
+uv.lock
+env-ref

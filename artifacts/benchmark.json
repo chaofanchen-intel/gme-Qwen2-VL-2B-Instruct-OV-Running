@@ -1,0 +1,88 @@
+{
+  "repeat": 5,
+  "unit": "ms/call (warm, end-to-end incl. tokenize/preprocess)",
+  "python": {
+    "CPU": {
+      "fp32": {
+        "text": 223.54,
+        "query": 236.32,
+        "image": 35610.25,
+        "fused": 36056.36
+      },
+      "int8": {
+        "text": 78.33,
+        "query": 85.06,
+        "image": 23394.23,
+        "fused": 23498.67
+      },
+      "int4": {
+        "text": 87.92,
+        "query": 95.69,
+        "image": 24991.96,
+        "fused": 24828.0
+      }
+    },
+    "GPU": {
+      "fp32": {
+        "text": 173.98,
+        "query": 142.8,
+        "image": 22324.81,
+        "fused": 22298.95
+      },
+      "int8": {
+        "text": 52.85,
+        "query": 52.3,
+        "image": 5172.22,
+        "fused": 5254.54
+      },
+      "int4": {
+        "text": 30.53,
+        "query": 30.53,
+        "image": 5069.72,
+        "fused": 5165.39
+      }
+    }
+  },
+  "cpp": {
+    "CPU": {
+      "fp32": {
+        "text": 224.18,
+        "query": 235.21,
+        "image": 36551.5,
+        "fused": 36356.2
+      },
+      "int8": {
+        "text": 77.99,
+        "query": 85.01,
+        "image": 23441.0,
+        "fused": 23181.0
+      },
+      "int4": {
+        "text": 86.87,
+        "query": 93.91,
+        "image": 24956.0,
+        "fused": 24812.3
+      }
+    },
+    "GPU": {
+      "fp32": {
+        "text": 172.66,
+        "query": 168.69,
+        "image": 19943.5,
+        "fused": 19902.4
+      },
+      "int8": {
+        "text": 40.78,
+        "query": 41.35,
+        "image": 5012.96,
+        "fused": 5105.93
+      },
+      "int4": {
+        "text": 29.39,
+        "query": 29.77,
+        "image": 4983.4,
+        "fused": 5078.0
+      }
+    }
+  }
+}
