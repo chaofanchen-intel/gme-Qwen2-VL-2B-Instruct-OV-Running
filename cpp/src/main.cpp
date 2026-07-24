@@ -3,6 +3,7 @@
 //   gme_embed --package DIR [--device CPU] [--precision int8]
 //             --mode text|image|fused [--instruction STR] [--is-query 0|1]
 //             [--image PATH ...] [--out FILE] [TEXT ...]
+//   gme_embed --package DIR --benchmark [--benchmark-modes text,query]
 //
 // --out writes a binary blob {"GEMB", int32 rows, int32 dim, float32[rows*dim]}
 // consumed by 08_validate_cpp.py to check cosine against the golden embeddings.
@@ -23,8 +24,24 @@ namespace {
     std::cerr << "usage: " << argv0
               << " --package DIR [--device CPU] [--precision int8]"
                  " --mode text|image|fused [--instruction STR] [--is-query 0|1]"
-                 " [--image PATH ...] [--out FILE] [TEXT ...]\n";
+                 " [--image PATH ...] [--out FILE] [TEXT ...]\n"
+                 "       "
+              << argv0
+              << " --package DIR --benchmark [--benchmark-modes text,query,image,fused]"
+                 " [--repeat N] [--instruction STR] [--image PATH] TEXT\n";
     std::exit(2);
+}
+
+bool contains_mode(const std::string& modes, const std::string& wanted) {
+    std::size_t start = 0;
+    while (start <= modes.size()) {
+        const std::size_t end = modes.find(',', start);
+        const std::string value = modes.substr(start, end - start);
+        if (value == wanted) return true;
+        if (end == std::string::npos) return false;
+        start = end + 1;
+    }
+    return false;
 }
 
 void dump(const std::string& path, const gme::Embedding& e) {
@@ -43,6 +60,7 @@ void dump(const std::string& path, const gme::Embedding& e) {
 
 int main(int argc, char** argv) {
     std::string package, device = "CPU", precision = "int8", mode, instruction, out;
+    std::string benchmark_modes = "text,query,image,fused";
     bool is_query = true, benchmark = false;
     int repeat = 1;
     std::vector<std::string> texts, images;
@@ -63,6 +81,7 @@ int main(int argc, char** argv) {
         else if (a == "--out") out = next("--out");
         else if (a == "--repeat") repeat = std::stoi(next("--repeat"));
         else if (a == "--benchmark") benchmark = true;
+        else if (a == "--benchmark-modes") benchmark_modes = next("--benchmark-modes");
         else if (a == "-h" || a == "--help") usage(argv[0]);
         else texts.push_back(a);
     }
@@ -74,9 +93,22 @@ int main(int argc, char** argv) {
                   << " dim=" << model.dim() << "\n";
 
         if (benchmark) {
-            // One process, all modes: amortizes model compile. Needs one text + one image.
-            if (texts.empty() || images.empty()) {
-                std::cerr << "benchmark needs one TEXT and one --image\n";
+            // One process, selected modes: amortizes model compile. Image is only
+            // required when image/fused is selected, enabling text-only sweeps.
+            const bool run_text = contains_mode(benchmark_modes, "text");
+            const bool run_query = contains_mode(benchmark_modes, "query");
+            const bool run_image = contains_mode(benchmark_modes, "image");
+            const bool run_fused = contains_mode(benchmark_modes, "fused");
+            if (!run_text && !run_query && !run_image && !run_fused) {
+                std::cerr << "benchmark-modes must include text, query, image, or fused\n";
+                return 2;
+            }
+            if ((run_text || run_query || run_fused) && texts.empty()) {
+                std::cerr << "selected benchmark modes need one TEXT\n";
+                return 2;
+            }
+            if ((run_image || run_fused) && images.empty()) {
+                std::cerr << "selected image/fused benchmark modes need one --image\n";
                 return 2;
             }
             auto bench = [&](const char* name, const std::function<void()>& fn) {
@@ -88,10 +120,10 @@ int main(int argc, char** argv) {
                 std::cout << "[bench] device=" << device << " precision=" << precision
                           << " mode=" << name << " avg_ms=" << ms << "\n";
             };
-            bench("text",  [&] { model.encode_text({texts[0]}, "", false); });
-            bench("query", [&] { model.encode_text({texts[0]}, instruction, true); });
-            bench("image", [&] { model.encode_image({images[0]}); });
-            bench("fused", [&] { model.encode_fused({texts[0]}, {images[0]}); });
+            if (run_text) bench("text", [&] { model.encode_text({texts[0]}, "", false); });
+            if (run_query) bench("query", [&] { model.encode_text({texts[0]}, instruction, true); });
+            if (run_image) bench("image", [&] { model.encode_image({images[0]}); });
+            if (run_fused) bench("fused", [&] { model.encode_fused({texts[0]}, {images[0]}); });
             return 0;
         }
 

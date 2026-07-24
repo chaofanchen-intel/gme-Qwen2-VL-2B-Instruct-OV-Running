@@ -1,6 +1,53 @@
 {
   "repeat": 5,
   "unit": "ms/call (warm, end-to-end incl. tokenize/preprocess)",
+  "workload": {
+    "batch_size": 1,
+    "text": {
+      "raw_text_chars": 25,
+      "instruction_chars": 0,
+      "prompt_chars": 146,
+      "sequence_tokens": 27
+    },
+    "query": {
+      "raw_text_chars": 25,
+      "instruction_chars": 42,
+      "prompt_chars": 160,
+      "sequence_tokens": 30
+    },
+    "image": {
+      "source_size_wh": [
+        5164,
+        600
+      ],
+      "gme_fetch_resize_wh": [
+        5152,
+        588
+      ],
+      "raw_text_chars": 0,
+      "prompt_chars": 164,
+      "sequence_tokens": 1282,
+      "image_grid_thw": [
+        1,
+        24,
+        210
+      ],
+      "raw_patch_rows": 5040,
+      "visual_tokens": 1260
+    },
+    "fused": {
+      "raw_text_chars": 25,
+      "prompt_chars": 189,
+      "sequence_tokens": 1289,
+      "image_grid_thw": [
+        1,
+        24,
+        210
+      ],
+      "raw_patch_rows": 5040,
+      "visual_tokens": 1260
+    }
+  },
   "python": {
     "CPU": {
       "fp32": {

@@ -1,0 +1,170 @@
+{
+  "repeat": 5,
+  "unit": "ms/call (warm, end-to-end incl. tokenize/preprocess)",
+  "benchmark_type": "text-query-sequence-length-sweep",
+  "sequence_length_definition": "effective unpadded tokens after GME prompt templating",
+  "sequence_length_workloads": {
+    "128": {
+      "text": {
+        "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+        "raw_text_chars": 215,
+        "sequence_tokens": 128
+      },
+      "query": {
+        "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+        "raw_text_chars": 209,
+        "instruction": "Find an image that matches the given text.",
+        "instruction_chars": 42,
+        "sequence_tokens": 128
+      }
+    },
+    "256": {
+      "text": {
+        "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+        "raw_text_chars": 471,
+        "sequence_tokens": 256
+      },
+      "query": {
+        "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+        "raw_text_chars": 465,
+        "instruction": "Find an image that matches the given text.",
+        "instruction_chars": 42,
+        "sequence_tokens": 256
+      }
+    }
+  },
+  "results": {
+    "128": {
+      "python": {
+        "CPU": {
+          "fp32": {
+            "text": 795.91,
+            "query": 797.59
+          },
+          "int8": {
+            "text": 327.53,
+            "query": 327.57
+          },
+          "int4": {
+            "text": 372.39,
+            "query": 372.82
+          }
+        },
+        "GPU": {
+          "fp32": {
+            "text": 236.43,
+            "query": 355.75
+          },
+          "int8": {
+            "text": 53.33,
+            "query": 52.96
+          },
+          "int4": {
+            "text": 43.09,
+            "query": 43.12
+          }
+        }
+      },
+      "cpp": {
+        "CPU": {
+          "fp32": {
+            "text": 797.37,
+            "query": 803.7
+          },
+          "int8": {
+            "text": 432.37,
+            "query": 419.53
+          },
+          "int4": {
+            "text": 370.79,
+            "query": 370.06
+          }
+        },
+        "GPU": {
+          "fp32": {
+            "text": 181.55,
+            "query": 181.31
+          },
+          "int8": {
+            "text": 53.02,
+            "query": 53.08
+          },
+          "int4": {
+            "text": 42.75,
+            "query": 43.24
+          }
+        }
+      }
+    },
+    "256": {
+      "python": {
+        "CPU": {
+          "fp32": {
+            "text": 1567.99,
+            "query": 1572.47
+          },
+          "int8": {
+            "text": 685.23,
+            "query": 688.04
+          },
+          "int4": {
+            "text": 783.39,
+            "query": 773.17
+          }
+        },
+        "GPU": {
+          "fp32": {
+            "text": 332.9,
+            "query": 329.58
+          },
+          "int8": {
+            "text": 76.42,
+            "query": 74.92
+          },
+          "int4": {
+            "text": 72.2,
+            "query": 71.97
+          }
+        }
+      },
+      "cpp": {
+        "CPU": {
+          "fp32": {
+            "text": 1557.37,
+            "query": 1556.04
+          },
+          "int8": {
+            "text": 920.18,
+            "query": 667.5
+          },
+          "int4": {
+            "text": 757.32,
+            "query": 757.78
+          }
+        },
+        "GPU": {
+          "fp32": {
+            "text": 327.39,
+            "query": 329.73
+          },
+          "int8": {
+            "text": 73.42,
+            "query": 73.56
+          },
+          "int4": {
+            "text": 70.87,
+            "query": 70.66
+          }
+        }
+      }
+    }
+  },
+  "follow_up_measurements": {
+    "cpp_cpu_int8_256_repeat20": {
+      "purpose": "repeat-5 text/query asymmetry check",
+      "repeat": 20,
+      "text_ms": 669.046,
+      "query_ms": 669.131
+    }
+  }
+}

@@ -45,6 +45,35 @@ image/fused: 图像 resize + Qwen2-VL 预处理 -> 视觉编码器 -> 视觉 tok
 - 拆 visual / language 两个 IR 是为了避免整图转换时的内存峰值；纯文本给 language IR 传空的 `[0,1536]` 视觉张量（masked_scatter 变空操作）。
 - **视觉注入关键点**：HF processor 会按图像网格把单个 `<|image_pad|>` **展开**成 K 个（K = `grid_t*grid_h*grid_w/merge²` = 视觉合并 token 数）。C++ 端在分词前必须同样展开，否则 image_pad 数与视觉输出行数对不上，图像向量会崩（FP32 也会掉到 ~0.29）。
 
+### 2.1 输出契约：四种输入都输出固定长度 embedding vector
+
+`text`、`query`、`image` 和 `fused` 的最终输出都是处于**同一检索向量空间**的 float32 embedding，而不是 logits、token 序列或分类标签。所有 `gme_language_<prec>.xml` 的输出端口都叫 `embedding`，IR 形状为：
+
+```text
+embedding: float32[B, 1536]
+```
+
+其中 `B` 是 batch 中的输入样本数量；每一行都是一个 **1536 维、L2 归一化** 的向量，$\\lVert e_i \\rVert_2 \approx 1$。因此，两个输出向量的内积就是 cosine similarity：
+
+$$
+\operatorname{similarity}(e_q, e_d) = e_q^T e_d
+$$
+
+可直接将 text query 与 image、text 或 fused corpus embedding 做内积/ANN 检索。`query` 并不是另一种 shape：它和 `text` 都输出 `[B,1536]`，区别仅在于 query 会把用户给定的 instruction 写进 GME system prompt，从而改变向量语义。
+
+| 模式 | 每个输入样本的输出 | 说明 |
+| --- | --- | --- |
+| text | `float32[1536]` | 默认 GME instruction 下的文本 embedding |
+| query | `float32[1536]` | 带 query instruction 的文本 embedding |
+| image | `float32[1536]` | 单张图片的 embedding |
+| fused | `float32[1536]` | 一条文本与一张图片融合后的 embedding |
+
+Python API 返回 `numpy.ndarray[B,1536]`，即使输入只有一个样本也保留 batch 维度；C++ API 返回 `gme::Embedding`，其中 `rows=B`、`dim=1536`、`data` 为行主序的 `float` 数组，长度为 `B*1536`。当前图像/图文 API 为保持一图一输入语义，内部逐样本计算后再沿 batch 维拼接，但最终输出契约不变。
+
+**1536 是模型架构固定的 embedding 维度，不是运行时可调参数。** 当前 checkpoint 的 language hidden size 为 1536，last-token pooling 直接输出该 hidden state，没有额外 projection head。`fp32`、`int8`、`int4`、`int4_gs64` 和 `int4_visint8` 只改变权重存储/计算精度，输出仍是 `float32[B,1536]`。`max_length`、文本 token 长度、`min_image_tokens`、`max_image_tokens`、图像分辨率和 batch size 会影响输入 shape、内存和时延，但**不会**改变 1536 维输出。
+
+若必须使用其他维度，不能只改配置文件或对 IR reshape；需要选用原生维度不同的模型，或训练并部署新的投影层。后者会产生新的 embedding space，不能与现有 1536 维 GME 向量直接做相似度检索，且需要重新进行精度和检索指标验证。
+
 ---
 
 ## 3. 目录结构
@@ -130,6 +159,7 @@ auto e_query = model.encode_text({"..."}, "Find an image that matches the given 
 auto e_image = model.encode_image({"gme_logo.png"});
 auto e_fused = model.encode_fused({"GME logo"}, {"gme_logo.png"});
 // e_*.data 为行主序 [rows*dim] 的已 L2 归一化 float32
+// 此模型的 dim 固定为 1536；e_*.data.size() == e_*.rows * 1536。
 ```
 
 Python 端等价 API 见 `gme_openvino.py`（`GmeOpenVINO(...).get_text_embeddings / get_image_embeddings / get_fused_embeddings / encode / encode_queries / encode_corpus`）。
@@ -193,6 +223,17 @@ Python 端等价 API 见 `gme_openvino.py`（`GmeOpenVINO(...).get_text_embeddin
 
 ### 6.4 时延（`benchmark.json`，warm，ms/次，repeat=5）
 
+所有时延行对应同一个固定 workload，均为 batch size 1，且 `benchmark.json.workload` 会由 `06_benchmark.py` 自动记录：
+
+| 模式 | 业务输入 | GME 模板后的有效序列长度 | 图像处理结果 |
+| --- | --- | ---: | --- |
+| text | `What kind of car is this?`，25 字符 | 27 tokens | 无 |
+| query | 同一文本 + `Find an image that matches the given text.`，42 字符 | 30 tokens | 无 |
+| image | 无用户文本 | 1282 tokens | `gme_logo.png`: `5164×600` → `5152×588`，`grid_thw=[1,24,210]`，5040 raw patch rows，1260 visual tokens |
+| fused | 同一 25 字符文本 + 图像 | 1289 tokens | 与 image 相同 |
+
+这里的 `sequence_tokens` 已包含 system/user/assistant 模板和图像 placeholder 展开，不是裸文本 token 数。文本、instruction、batch size、最终序列长度、图像尺寸和视觉 token 数都会影响时延；特别是注意力计算会随序列长度大致二次增长。因而本节只描述这个 workload，不能直接外推到长文本、大 batch 或普通尺寸图像。
+
 **文本 / query（快）**
 
 | 设备 | 精度 | Python text | C++ text | C++ query |
@@ -225,7 +266,48 @@ Python 端等价 API 见 `gme_openvino.py`（`GmeOpenVINO(...).get_text_embeddin
 
 要点：本次短文本基准中，CPU INT8 对 FP32 约快 3 倍；GPU 量化文本为约 29–53 ms/次；C++ 与 Python 文本时延接近，因为二者使用同一 language IR。
 
-### 6.5 备选方案对照：GGUF + llama.cpp（`llamacpp_validation.json`）
+### 6.5 指定文本长度的时延对比
+
+`06_benchmark.py --sequence-lengths 128,256` 生成了独立结果
+`artifacts/benchmark_sequence_lengths.json`。长度的定义是 **GME 模板展开后的有效、未 padding token 数**，不是原始字符串的字符数或 tokenizer 前的裸文本 token 数。脚本通过实际 tokenizer 反复构造 ASCII filler 并校验 token 数：
+
+| 目标长度 | text filler 字符数 | query filler 字符数 | query instruction 字符数 |
+| ---: | ---: | ---: | ---: |
+| 128 | 215 | 209 | 42 |
+| 256 | 471 | 465 | 42 |
+
+下表为 batch size 1、warm、端到端 `ms/call`，每个单元的格式为 `text / query`，初始 sweep 使用 `repeat=5`：
+
+| 实现 | 设备 | 精度 | 128 tokens | 256 tokens |
+| --- | --- | --- | ---: | ---: |
+| Python | CPU | fp32 | 795.91 / 797.59 | 1567.99 / 1572.47 |
+| Python | CPU | int8 | 327.53 / 327.57 | 685.23 / 688.04 |
+| Python | CPU | int4 | 372.39 / 372.82 | 783.39 / 773.17 |
+| C++ | CPU | fp32 | 797.37 / 803.70 | 1557.37 / 1556.04 |
+| C++ | CPU | int8 | 432.37 / 419.53 | 920.18 / 667.50 |
+| C++ | CPU | int4 | 370.79 / 370.06 | 757.32 / 757.78 |
+| Python | GPU | fp32 | 236.43 / 355.75 | 332.90 / 329.58 |
+| Python | GPU | int8 | 53.33 / 52.96 | 76.42 / 74.92 |
+| Python | GPU | int4 | 43.09 / 43.12 | 72.20 / 71.97 |
+| C++ | GPU | fp32 | 181.55 / 181.31 | 327.39 / 329.73 |
+| C++ | GPU | int8 | 53.02 / 53.08 | 73.42 / 73.56 |
+| C++ | GPU | int4 | 42.75 / 43.24 | 70.87 / 70.66 |
+
+C++ CPU INT8 的 256-token `repeat=5` text/query 差异明显，不能视作 prompt 类型造成的稳定性能差。对同一输入进行 `repeat=20` 复测得到 `669.05 / 669.13 ms`，说明原始值受短采样噪声影响。用于选型或回归阈值时，应至少使用 `--repeat 20`，并在同一设备空闲、相同电源策略下多次运行。
+
+运行示例：
+
+```bash
+# 仅测 text/query；不会执行 image/fused 的长视觉序列。
+./env-ref/bin/python 06_benchmark.py --sequence-lengths 128,256 --repeat 20
+
+# 任意正整数。目标是最终有效长度，脚本会校验实际 token 数。
+./env-ref/bin/python 06_benchmark.py --sequence-lengths 64,128,256,512 --repeat 20
+```
+
+该模式不覆盖 image/fused：图片会引入由 `image_grid_thw` 决定的视觉 token 数。测试图文长度时，应同时固定文本 token 和图像分辨率/视觉 token 数；不能只指定一个总 token 数，因为视觉 token 由图像 processor 动态产生。
+
+### 6.6 备选方案对照：GGUF + llama.cpp（`llamacpp_validation.json`）
 
 用 GME 完整模板 + `--pooling last` 跑 `gme-Qwen2-VL-2B-Instruct-Q4_K_M.gguf`：5 条文本 cosine 均值 **0.9845**、最小 0.9716，且每条最相似的黄金向量均为自身；去掉模板的对照仅 0.328（证明模板必需）。Q4_K_M 精度明显低于 OV INT8，且仅文本（无 mmproj）、当前 build 的 ggml-openvino 后端在 embedding 路径断言失败需 `-dev none -fa off` 强制 CPU。
 
@@ -264,6 +346,8 @@ Python 端等价 API 见 `gme_openvino.py`（`GmeOpenVINO(...).get_text_embeddin
 cd cpp && bash build.sh && cd ..                    # 构建 C++
 ./env-ref/bin/python 05_validate_cpp.py             # C++ 精度     -> cpp_validation.json
 ./env-ref/bin/python 06_benchmark.py                # 时延         -> benchmark.json
+./env-ref/bin/python 06_benchmark.py --sequence-lengths 128,256 --repeat 20
+                                                     # text/query 长度扫描 -> benchmark_sequence_lengths.json
 ./env-ref/bin/python 07_llamacpp_text_check.py      # GGUF 对照    -> llamacpp_validation.json
 ```
 
