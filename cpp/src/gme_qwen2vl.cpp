@@ -23,6 +23,13 @@ const std::map<std::string, std::pair<std::string, std::string>> kPrecisionMap =
     {"int4_visint8", {"gme_language_int4.xml", "gme_visual_int8.xml"}},
 };
 
+const std::map<std::string, std::string> kMonolithicPrecisionMap = {
+    {"fp32", "gme_monolithic_fp32.xml"},
+    {"int8", "gme_monolithic_int8.xml"},
+    {"int4", "gme_monolithic_int4.xml"},
+    {"int4_gs64", "gme_monolithic_int4_gs64.xml"},
+};
+
 std::string tokenizers_library() {
     if (const char* env = std::getenv("GME_TOKENIZERS_LIB")) return env;
 #ifdef GME_OV_TOKENIZERS_LIB
@@ -45,8 +52,8 @@ ov::Tensor output_by_substr(ov::InferRequest& req, const ov::CompiledModel& mode
 }  // namespace
 
 GmeQwen2VL::GmeQwen2VL(const std::string& package_dir, const std::string& device,
-                       const std::string& precision)
-    : device_(device), precision_(precision) {
+                       const std::string& precision, bool monolithic)
+    : device_(device), precision_(precision), monolithic_(monolithic) {
     auto it = kPrecisionMap.find(precision);
     if (it == kPrecisionMap.end()) {
         std::string keys;
@@ -56,6 +63,12 @@ GmeQwen2VL::GmeQwen2VL(const std::string& package_dir, const std::string& device
     const std::string language_xml = package_dir + "/" + it->second.first;
     const std::string visual_xml = package_dir + "/" + it->second.second;
     const std::string tokenizer_xml = package_dir + "/openvino_tokenizer.xml";
+    auto monolithic_it = kMonolithicPrecisionMap.find(precision);
+    if (monolithic_ && monolithic_it == kMonolithicPrecisionMap.end()) {
+        throw std::runtime_error("monolithic IR is unavailable for precision '" + precision +
+                                 "'; choose fp32, int8, int4, or int4_gs64");
+    }
+    const std::string monolithic_xml = monolithic_ ? package_dir + "/" + monolithic_it->second : "";
 
     // The tokenizer IR uses custom ops from openvino-tokenizers.
     core_.add_extension(tokenizers_library());
@@ -66,7 +79,11 @@ GmeQwen2VL::GmeQwen2VL(const std::string& package_dir, const std::string& device
     // Tokenizer always on CPU (string ops); neural IRs on the requested device.
     tokenizer_req_ = core_.compile_model(tokenizer_xml, "CPU").create_infer_request();
     language_req_ = core_.compile_model(language_xml, device, fp32_math).create_infer_request();
-    visual_req_ = core_.compile_model(visual_xml, device, fp32_math).create_infer_request();
+    if (monolithic_) {
+        monolithic_req_ = core_.compile_model(monolithic_xml, device, fp32_math).create_infer_request();
+    } else {
+        visual_req_ = core_.compile_model(visual_xml, device, fp32_math).create_infer_request();
+    }
 }
 
 std::string GmeQwen2VL::build_prompt(const std::string* text, bool has_image,
@@ -142,6 +159,39 @@ GmeQwen2VL::VisualResult GmeQwen2VL::run_visual(const std::string& image_path) {
     return {out, static_cast<std::int64_t>(src.get_shape()[0])};  // rows == merged tokens
 }
 
+Embedding GmeQwen2VL::run_monolithic(const std::string* text, const std::string& image_path,
+                                     const std::string& instruction, bool is_query) {
+    detail::ImageTensors img = detail::preprocess_image(image_path);
+    const std::size_t n = static_cast<std::size_t>(img.num_patches());
+    const std::size_t row_len = img.pixel_values.size() / n;
+    const std::int64_t merged_tokens = img.num_patches() /
+        (detail::MERGE_SIZE * detail::MERGE_SIZE);
+    const std::string prompt = build_prompt(text, true, instruction, is_query, merged_tokens);
+
+    ov::Tensor input_ids, attention_mask;
+    tokenize({prompt}, input_ids, attention_mask);
+    ov::Tensor pixels(ov::element::f32, ov::Shape{n, row_len});
+    std::copy(img.pixel_values.begin(), img.pixel_values.end(), pixels.data<float>());
+    ov::Tensor grid(ov::element::i64, ov::Shape{1, 3});
+    auto* g = grid.data<int64_t>();
+    g[0] = img.grid_t; g[1] = img.grid_h; g[2] = img.grid_w;
+
+    monolithic_req_.set_tensor("input_ids", input_ids);
+    monolithic_req_.set_tensor("attention_mask", attention_mask);
+    monolithic_req_.set_tensor("pixel_values", pixels);
+    monolithic_req_.set_tensor("image_grid_thw", grid);
+    monolithic_req_.infer();
+
+    ov::Tensor out = monolithic_req_.get_output_tensor(0);
+    const auto shape = out.get_shape();
+    Embedding emb;
+    emb.rows = shape[0];
+    emb.dim = shape[1];
+    emb.data.resize(out.get_size());
+    std::copy_n(out.data<float>(), out.get_size(), emb.data.data());
+    return emb;
+}
+
 Embedding GmeQwen2VL::run_language(const std::vector<std::string>& prompts,
                                    const ov::Tensor& image_embeds) {
     ov::Tensor input_ids, attention_mask;
@@ -178,6 +228,12 @@ Embedding GmeQwen2VL::encode_image(const std::vector<std::string>& image_paths,
     Embedding all;
     all.dim = embedding_dim_;
     for (const auto& path : image_paths) {
+        if (monolithic_) {
+            Embedding one = run_monolithic(nullptr, path, instruction, is_query);
+            all.data.insert(all.data.end(), one.data.begin(), one.data.end());
+            all.rows += one.rows;
+            continue;
+        }
         VisualResult v = run_visual(path);
         const std::string prompt = build_prompt(nullptr, true, instruction, is_query, v.merged_tokens);
         Embedding one = run_language({prompt}, v.embeds);
@@ -196,6 +252,12 @@ Embedding GmeQwen2VL::encode_fused(const std::vector<std::string>& texts,
     Embedding all;
     all.dim = embedding_dim_;
     for (std::size_t i = 0; i < texts.size(); ++i) {
+        if (monolithic_) {
+            Embedding one = run_monolithic(&texts[i], image_paths[i], instruction, is_query);
+            all.data.insert(all.data.end(), one.data.begin(), one.data.end());
+            all.rows += one.rows;
+            continue;
+        }
         VisualResult v = run_visual(image_paths[i]);
         const std::string prompt = build_prompt(&texts[i], true, instruction, is_query, v.merged_tokens);
         Embedding one = run_language({prompt}, v.embeds);

@@ -31,3 +31,8 @@ poetry.toml
 poetry.lock
 uv.lock
 env-ref
+env-opt
+
+
+bakup*/
+experiments*/

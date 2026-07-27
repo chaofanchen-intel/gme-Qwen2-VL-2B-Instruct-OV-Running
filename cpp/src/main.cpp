@@ -2,7 +2,7 @@
 //
 //   gme_embed --package DIR [--device CPU] [--precision int8]
 //             --mode text|image|fused [--instruction STR] [--is-query 0|1]
-//             [--image PATH ...] [--out FILE] [TEXT ...]
+//             [--image PATH ...] [--monolithic] [--out FILE] [TEXT ...]
 //   gme_embed --package DIR --benchmark [--benchmark-modes text,query]
 //
 // --out writes a binary blob {"GEMB", int32 rows, int32 dim, float32[rows*dim]}
@@ -24,7 +24,7 @@ namespace {
     std::cerr << "usage: " << argv0
               << " --package DIR [--device CPU] [--precision int8]"
                  " --mode text|image|fused [--instruction STR] [--is-query 0|1]"
-                 " [--image PATH ...] [--out FILE] [TEXT ...]\n"
+                 " [--image PATH ...] [--monolithic] [--out FILE] [TEXT ...]\n"
                  "       "
               << argv0
               << " --package DIR --benchmark [--benchmark-modes text,query,image,fused]"
@@ -61,7 +61,7 @@ void dump(const std::string& path, const gme::Embedding& e) {
 int main(int argc, char** argv) {
     std::string package, device = "CPU", precision = "int8", mode, instruction, out;
     std::string benchmark_modes = "text,query,image,fused";
-    bool is_query = true, benchmark = false;
+    bool is_query = true, benchmark = false, monolithic = false;
     int repeat = 1;
     std::vector<std::string> texts, images;
 
@@ -82,15 +82,16 @@ int main(int argc, char** argv) {
         else if (a == "--repeat") repeat = std::stoi(next("--repeat"));
         else if (a == "--benchmark") benchmark = true;
         else if (a == "--benchmark-modes") benchmark_modes = next("--benchmark-modes");
+        else if (a == "--monolithic") monolithic = true;
         else if (a == "-h" || a == "--help") usage(argv[0]);
         else texts.push_back(a);
     }
     if (package.empty() || (!benchmark && mode.empty())) usage(argv[0]);
 
     try {
-        gme::GmeQwen2VL model(package, device, precision);
+        gme::GmeQwen2VL model(package, device, precision, monolithic);
         std::cerr << "[gme_embed] device=" << model.device() << " precision=" << model.precision()
-                  << " dim=" << model.dim() << "\n";
+              << " dim=" << model.dim() << " monolithic=" << model.monolithic() << "\n";
 
         if (benchmark) {
             // One process, selected modes: amortizes model compile. Image is only
