@@ -40,6 +40,37 @@ image/fused: 图像 resize + Qwen2-VL 预处理 -> 视觉编码器 -> 视觉 tok
        -> 同一个 GME decoder -> 最后有效 token -> L2 归一化
 ```
 
+### 2.0 GME-Qwen2-VL-2B-Instruct 与 Qwen2-VL-2B-Instruct 的具体差异
+
+GME 不是在未改动的 `Qwen2-VL-2B-Instruct` 后面简单接一个小的、可训练的 projection head。它以 Qwen2-VL-2B-Instruct 为初始化来源，针对多模态检索目标微调，并以自定义 `GmeQwen2VL` 类把输出语义由“生成下一个 token”改为“返回检索 embedding”。
+
+本地 checkpoint 的静态检查显示两者都拥有 729 个同名权重条目，语言模型主干同为 1536 hidden size、28 层 decoder、12 个 attention heads、2 个 KV heads，视觉端同为 Qwen2-VL ViT/merger 结构。这说明 GME 的基础网络拓扑没有换成另一种模型；关键差别是**同一类网络的微调权重**和**不同的 forward/output contract**。文件被分到不同 safetensors shard 不能证明每个张量是否相同，但 GME 的模型卡将它标为 Qwen2-VL-2B-Instruct 的 embedding fine-tune，不能用原始 Qwen2-VL 权重代替。
+
+| 方面 | 标准 Qwen2-VL-2B-Instruct | GME-Qwen2-VL-2B-Instruct |
+| --- | --- | --- |
+| 主要任务 | 视觉语言**生成** | text/image/fused **检索 embedding** |
+| 顶层 Transformers 类 | `Qwen2VLForConditionalGeneration` | 自定义 `GmeQwen2VL` / `GmeQwen2VLConfig` |
+| 语言输出消费方式 | 经生成 wrapper 得到 vocabulary logits，用于 next-token decoding | 直接使用 `Qwen2VLModel.last_hidden_state` |
+| 最终输出 | 每个位置的 logits，概念形状 `[B,S,151936]` | 每个样本一个已归一化向量 `[B,1536]` |
+| 池化/归一化 | 生成路径不需要 | `hidden[batch, attention_mask.sum(-1)-1]`，再 L2 normalize |
+| 视觉 token 数 | 标准 processor 的默认策略 | custom config 固定 GME 约束：`min_image_tokens=256`、`max_image_tokens=1280`；单图输入 |
+| 文本模板 | generation/chat template | GME system/user/assistant 模板，末尾显式为 `<|endoftext|>`；默认 instruction 为 `You are a helpful assistant.` |
+
+关于 `lm_head`：两个本地 safetensors index 都没有独立的 `lm_head.*` 条目，因为 Qwen 的 output embedding 与 input embedding tie；但标准 `Qwen2VLForConditionalGeneration` 的生成 forward 仍会计算/暴露 logits。GME custom class 则只实例化 `visual` 和 `Qwen2VLModel`，源码中的 `lm_head` 声明被注释掉，且它的 `forward()` 从 decoder hidden states 直接做 pooling。因此，“没有额外 projection head”不等于“可以把 GME 当作普通生成模型直接运行”；两者最重要的区别是前向图的输出和后处理语义。
+
+### 2.0.1 官方四种模式实际执行的分支
+
+官方公开 API 最终都走 `get_fused_embeddings()` -> `embed()`，但是否运行 visual 由 `images` 是否为 `None` 决定，不是让视觉塔接收空图片：
+
+| 调用模式 | `embed()` 内的 `images` | processor 输出 | `forward()` 是否调用 `self.base.visual(...)` | 语言 decoder 输入 |
+| --- | --- | --- | --- | --- |
+| text | `None` | `input_ids`, `attention_mask`；**没有** `pixel_values` / `image_grid_thw` | **否** | 仅文本 token embedding |
+| query | `None` | 同 text；instruction 改写 system prompt | **否** | 仅文本 token embedding |
+| image | 实际图片，文本为 `None` | token、mask、`pixel_values`、`image_grid_thw` | **是** | 视觉 token 注入 image-pad 位置 |
+| fused | 实际图片和实际文本 | 同 image | **是** | 文本 token 和视觉 token 的融合序列 |
+
+源码依据是官方 `GmeQwen2VL.forward()` 的条件分支：只有 `pixel_values is not None` 才计算 `image_embeds = self.visual(...)` 并赋给 `input_ids == image_token_id` 的位置。text/query 模式的 processor 也不会生成 `pixel_values`，所以官方不会调用 visual，更不存在“传空值仍跑一遍 visual”。
+
 导出为三个可组合 OpenVINO IR（`ov_models/gme-qwen2-vl-2b-instruct-openvino/`）：
 
 | IR | 输入 → 输出 | 说明 |
@@ -48,7 +79,7 @@ image/fused: 图像 resize + Qwen2-VL 预处理 -> 视觉编码器 -> 视觉 tok
 | `gme_visual_<prec>.xml` | `pixel_values`,`image_grid_thw` → 视觉 token 向量 | Qwen2-VL ViT |
 | `gme_language_<prec>.xml` | `input_ids`,`attention_mask`,`image_embeds` → `embedding[B,1536]` | token embedding + 视觉注入(masked_scatter) + decoder + last-token 池化 + L2 归一化 |
 
-- 拆 visual / language 两个 IR 是为了避免整图转换时的内存峰值；纯文本给 language IR 传空的 `[0,1536]` 视觉张量（masked_scatter 变空操作）。
+- 拆 visual / language 两个 IR 是为了避免整图转换时的内存峰值，也与官方 no-image 分支一致。纯文本只调用 `gme_language`；为保持 language IR 固定的三个输入接口，runtime 给 `image_embeds` 传空 `[0,1536]` 张量。它不是“空图片”：不会调用 `gme_visual`，而且 prompt 中没有 image-pad token，因此 `masked_scatter` 没有任何要替换的位置。
 - **视觉注入关键点**：HF processor 会按图像网格把单个 `<|image_pad|>` **展开**成 K 个（K = `grid_t*grid_h*grid_w/merge²` = 视觉合并 token 数）。C++ 端在分词前必须同样展开，否则 image_pad 数与视觉输出行数对不上，图像向量会崩（FP32 也会掉到 ~0.29）。
 
 ### 2.1 输出契约：四种输入都输出固定长度 embedding vector
@@ -205,6 +236,15 @@ visual -> image_embeds -> masked_scatter -> language decoder -> pool -> normaliz
 cpp/build/gme_embed --package "$PKG" --device CPU --precision int8 \
   --monolithic --mode fused --image "$LOGO" "GME logo"
 ```
+
+单 IR 的四个输入都在图的必经路径上：`input_ids`、`attention_mask`、`pixel_values`、`image_grid_thw`。它以 image/fused PyTorch 路径 trace 得到，图内没有“当 pixel_values 为空则跳过 visual”的数据相关控制流。对 text/query 传空 `pixel_values` 并不能复现官方分支：visual encoder 仍会被调度，且没有 image-pad token 可以与视觉输出一对一 `masked_scatter`。用一张 dummy image 虽可让图执行，但会额外运行视觉塔、改变/浪费序列预算，并不等价于官方 text/query。故当前单 IR runtime 的正确策略是：
+
+```text
+text/query  -> language-only IR（无 visual 调用，和官方一致）
+image/fused -> monolithic IR（visual + language 在同一图中）
+```
+
+若要求真正的“一个 XML 覆盖全部四种模式”，需要重新设计模型接口和图控制流，例如为 visual 分支增加显式 `has_image` 开关、能返回零长度视觉 token 的合法空分支，并保证 image-pad token 数量和视觉输出严格匹配。这不是将现有单 IR 的 `pixel_values` 置空即可完成；实现和验证成本高，且对纯文本性能没有收益。
 
 #### 为什么单 IR 会“卡死机”（实测诊断）
 
