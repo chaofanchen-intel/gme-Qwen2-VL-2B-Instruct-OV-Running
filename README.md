@@ -24,8 +24,6 @@ Python OpenVINO 在四种模式的 FP32 结果与官方参考数值等价；C++ 
   `logits`+KV-cache），**不能**用作 GME embedding；要 embedding 必须用返回 hidden-state 的自定义导出（= `02_export.py`）。已实测（见 §2.2）。
 - ❓ **OpenVINO 能否直接跑（GenAI）**：**不能**直接用 `TextEmbeddingPipeline`/`VLMPipeline` 跑 GME——前者假设标准文本编码器并自行 pooling
   （实测在 `is_axis_valid` 处失败），后者要有状态生成图。OpenVINO **Runtime** 则通过本项目自定义 IR 已经“直接在跑”（见 §2.2）。
-- ❓ **能否合成单一 IR**：可以，且精度与双 IR **完全一致**（已在 CPU 验证 fp32/int8/int4，Python 与 C++ `--monolithic` 接口均通过）。
-  但单 IR **峰值内存显著更高**，是你遇到“死机”的根因（见 §2.3“为什么单 IR 会卡死机”）；**默认用双 IR**。
 
 ---
 
@@ -81,6 +79,90 @@ GME 不是在未改动的 `Qwen2-VL-2B-Instruct` 后面简单接一个小的、�
 
 - 拆 visual / language 两个 IR 是为了避免整图转换时的内存峰值，也与官方 no-image 分支一致。纯文本只调用 `gme_language`；为保持 language IR 固定的三个输入接口，runtime 给 `image_embeds` 传空 `[0,1536]` 张量。它不是“空图片”：不会调用 `gme_visual`，而且 prompt 中没有 image-pad token，因此 `masked_scatter` 没有任何要替换的位置。
 - **视觉注入关键点**：HF processor 会按图像网格把单个 `<|image_pad|>` **展开**成 K 个（K = `grid_t*grid_h*grid_w/merge²` = 视觉合并 token 数）。C++ 端在分词前必须同样展开，否则 image_pad 数与视觉输出行数对不上，图像向量会崩（FP32 也会掉到 ~0.29）。
+
+### 2.0.2 Batch 支持、实际并行度与 API 语义
+
+四种模式都接受多个样本并返回 `[B,1536]`，其中 $B$ 是请求内的样本数。需要区分“API 接受一个 batch”与“一个 OpenVINO infer call 同时处理整个 batch”：
+
+| 模式 | Python 输入 | C++ 输入 | 当前执行方式 | `batch_size` 的作用 |
+| --- | --- | --- | --- | --- |
+| text | `list[str]` | `vector<string>` | **真正 batch**：一个 tokenizer call + 一个 language IR call，输入 `[B,S]` | Python 可分块为多个 language IR batch；`None` 表示一次处理全部。 |
+| query | 同 text | 同 text | **真正 batch**：仅 prompt 中的 instruction 不同 | 同 text。 |
+| image | `list[path/URL/PIL.Image]` 或官方风格 `DataLoader` | `vector<local_path>` | **processor + language 真 batch**：visual IR 每张图一次，拼接视觉 token 后一次 language IR batch | Python 按 `batch_size` 分块；C++ 的完整 `vector` 作为一个 batch。 |
+| fused | 等长的 text/image 列表 | 等长的 `vector<string>` | 同 image；文本与图片按下标配对，language IR 一次处理整个 batch | Python 按 `batch_size` 分块；输出顺序与输入一致。 |
+
+Python 的 `get_text_embeddings`、`get_image_embeddings`、`get_fused_embeddings`、`encode`、`encode_queries`、`encode_corpus` 都支持可选 `batch_size`。例如：
+
+```python
+encoder.get_text_embeddings(texts, batch_size=32)
+encoder.get_fused_embeddings(texts, images, batch_size=8)
+```
+
+官方 GME 的 `get_fused_embeddings(..., batch_size=32)` 会让 processor 生成图片 batch。本项目现在采用相同的 Qwen2-VL batch 布局：对第 $i$ 张图片，processor 产生 $P_i$ 行 raw patch 和 $K_i=P_i/4$ 个 image token；一个 mixed-resolution batch 将 patch 行沿第 0 维拼接，并以 `image_grid_thw[B,3]` 保存边界：
+
+```text
+processor: pixel_values[ΣP_i,1176] + image_grid_thw[B,3]
+          -> 对每个 grid_thw[i] 切出 pixel_values[P_i,1176]
+          -> gme_visual（每张图一次） -> image_embeds[K_i,1536]
+          -> concat image_embeds[ΣK_i,1536]
+          -> gme_language(input_ids[B,S], attention_mask[B,S], image_embeds)
+          -> embedding[B,1536]
+```
+
+每行 `input_ids[i]` 已含恰好 $K_i$ 个 `image_token_id`，因此 language IR 对展平的 `image_embeds` 执行 `masked_scatter` 时仍保持官方的输入顺序和逐图片映射；无需将不同分辨率图片强行 resize 到同一尺寸，也不需要按 `grid_thw` 分桶。`batch_size` 只控制一次请求中包含多少个样本，输出顺序与输入顺序一致。当前 visual IR 由单 `image_grid_thw` 样例 trace，CPU/GPU 插件不能可靠地接受 `image_grid_thw[B,3]`；故 visual 阶段逐图是导出图的 shape 限制，language decoder 仍是真正的 batch。
+
+Python 图片输入支持本地路径、HTTP(S)、`file://`、base64 data URL、PIL image，以及官方 identity-collate 风格 `DataLoader` 产生的图片 batch。C++ API 的 image 输入是本地路径 `vector<string>`；其功能与 local-path 官方输入一致，但 C++ 不能直接接收 Python 的 PIL object 或 Python DataLoader。HTTP/base64 需要由调用方先下载/解码为本地文件后传入 C++。
+
+### 2.0.3 图片从 $m\times n$ 像素到 1536 维 embedding 的完整过程
+
+设输入 RGB 图像的原始高宽为 $H_0=m$、$W_0=n$。GME/Qwen2-VL 的图片处理不是直接 resize 到固定 `448x448`；它保持接近原始纵横比，并将尺寸调整为 28 的倍数。28 来自：
+
+$$
+28 = \text{patch size } 14 \times \text{spatial merge size } 2
+$$
+
+下面各维度均描述单张图片；多张图片逐张重复同一流程。
+
+| 阶段 | 操作与状态 | 张量/尺寸 |
+| --- | --- | --- |
+| 0. 解码 | 本地文件、HTTP(S)、`file://`、base64 data URL 或 PIL image 转为 RGB 8-bit 图像 | `[H_0,W_0,3]`，值域 `0..255` |
+| 1. GME `fetch_image` resize | `smart_resize` 保持纵横比近似，$H_1,W_1$ 均为 28 的倍数；像素范围为 $[4\times28^2,16384\times28^2]$ | `[H_1,W_1,3]`；这一步主要规范极小/极大图片 |
+| 2. Qwen2-VL processor resize | 再次 `smart_resize`，$H_2,W_2$ 为 28 的倍数；GME 配置范围为 $[256\times28^2,1280\times28^2]$ 像素，即 $[200704,1003520]$ | `[H_2,W_2,3]` |
+| 3. normalize | RGB 转 `float32`，逐通道做 $x/255$，再减 CLIP mean 并除 CLIP std | `[H_2,W_2,3]` float32 |
+| 4. patchify | 每个空间 patch 是 `14x14`，单图的 temporal patch size 为 2，因此同一图片帧复制两次；每个 raw patch row 展平为 $3\times2\times14\times14=1176$ | `pixel_values[P,1176]` |
+| 5. 图像网格 | $g_t=1$，$g_h=H_2/14$，$g_w=W_2/14$；raw patch 行数 $P=g_tg_hg_w$ | `image_grid_thw=[1,g_h,g_w]`，`P=H_2W_2/196` |
+| 6. `gme_visual` | Qwen2-VL ViT 编码 raw patch rows，并按 spatial merge $2\times2$ 合并 | `image_embeds[K,1536]` |
+| 7. image token 展开 | processor 将 prompt 中一个 `<|image_pad|>` 展开为恰好 $K$ 个 `image_token_id`；每个视觉向量有一个语言序列位置 | $K=P/4=H_2W_2/784$，范围 `256..1280` |
+| 8. `gme_language` 注入 | token lookup 得到 `[1,S,1536]`；`masked_scatter` 将 `image_embeds[K,1536]` 写入上述 $K$ 个位置 | 融合的 `inputs_embeds[1,S,1536]` |
+| 9. decoder + pooling | 28 层 GME Qwen2-VL decoder 输出 `last_hidden_state[1,S,1536]`；取右填充前最后有效 token，索引为 `attention_mask.sum()-1` | `[1,1536]` |
+| 10. normalize | 对最后 token hidden state 做 L2 normalize | 最终 `embedding[1,1536]` |
+
+其中，`S` 是完整 language sequence 的长度：system/user/assistant 模板 token、文本 token、终止 token，以及 $K$ 个 image token 的总和。它不是单纯的用户文本长度。对 image-only，用户文本长度为零但 $S$ 仍包含模板和 $K$ 个视觉位置；对 fused，用户文本 token 追加在视觉 placeholder 后。
+
+举例，`448x448` 图片在第二步后仍为 `448x448`：
+
+$$
+g_h=g_w=448/14=32,\quad P=32\times32=1024,\quad K=1024/4=256
+$$
+
+所以 visual IR 接收 `pixel_values[1024,1176]`、`image_grid_thw=[1,32,32]`，输出 `image_embeds[256,1536]`，prompt 中也必须有 256 个 image-pad token。对于本仓库的超宽 `gme_logo.png`，第一次 resize 后约为 `5152x588`，第二次 processor resize 后为 `2940x336`，因此：
+
+$$
+g_h=24,\quad g_w=210,\quad P=5040,\quad K=1260
+$$
+
+这解释了它远慢于常规图片：visual attention 和后续 decoder sequence 都需要处理约 1260 个视觉 token。
+
+### 2.0.4 text、query、image、fused 的端到端流程对照
+
+| 模式 | prompt / processor | visual IR | language IR 输入 | 最终 embedding |
+| --- | --- | --- | --- | --- |
+| text | 默认 instruction + 用户文本；仅 tokenizer | 不调用 | `input_ids[B,S]`、`attention_mask[B,S]`、空 `image_embeds[0,1536]` | 每条文本一个 `[1536]` |
+| query | 用户 instruction + 用户文本；仅 tokenizer | 不调用 | 同 text；instruction 改变 system 段 token | 每条 query 一个 `[1536]` |
+| image | 默认 instruction + vision placeholder；processor 同时产生 text/image tensors | 调用，产生 `[K,1536]` | image token 已展开为 $K$ 个位置；注入视觉 token | 每张图一个 `[1536]` |
+| fused | 默认或 query instruction + vision placeholder + 文本；processor 同时产生 tensors | 调用，产生 `[K,1536]` | 文本 token 与 $K$ 个视觉 token 在同一 `[1,S,1536]` 序列 | 每个 text-image 对一个 `[1536]` |
+
+`is_query=False` 或 `instruction=None` 时，官方和本项目都回到默认 instruction `You are a helpful assistant.`；只有 `is_query=True` 且传入 instruction 时才使用用户 instruction。所有模式最终都由同一 decoder 的同一 last-token pooling 与 L2 normalize 产生同一 1536 维检索空间的向量。
 
 ### 2.1 输出契约：四种输入都输出固定长度 embedding vector
 
@@ -200,79 +282,11 @@ image/text input
 
 这里的 `S` 和 `K` 是动态的：图片模式中，processor 先把单个 `<|image_pad|>` 展开成正好 `K` 个 image token，language IR 才能执行一对一 `masked_scatter`。例如本项目的超宽 `gme_logo.png` 得到 `K=1260`；这个数字会影响时延，不会改变最终 embedding 的 1536 维度。
 
-#### 能否合成为一个 IR？
+#### 为什么保持两个 IR
 
-**理论上可以，且本项目已经导出实验性单 IR。** 单一图的输入定义为：
+当前仅保留双 IR 部署：`text/query` 只执行 `gme_language`，而 `image/fused` 执行 `gme_visual` 后把视觉 token 交给 `gme_language`。这与官方 `pixel_values is not None` 分支一致，避免纯文本无意义地执行视觉塔。
 
-```text
-input_ids, attention_mask, pixel_values, image_grid_thw
-```
-
-并在同一 OpenVINO graph 内连接：
-
-```text
-visual -> image_embeds -> masked_scatter -> language decoder -> pool -> normalize
-```
-
-这样会减少一次 runtime 调度和 `image_embeds[K,1536]` 的宿主侧交接。它不会减少模型权重总量：当前 FP32 `.bin` 大约为 language `6.17 GB` 加 visual `2.66 GB`，合图后仍接近两者之和。
-
-图拼接方式曾在内存中成功构造，但当前 OpenVINO `2026.2` Python serializer 不能序列化跨 IR 节点所有权的组合图。最终使用 `08_compose_monolithic.py --method torch`，以 256 visual-token 的最小样例重新 trace 全部视觉塔、28 层语言 decoder、visual-token 注入、pooling 和 normalize，生成 `gme_monolithic_fp32.xml`。以更大的参考图片进行过 FP32 fused GPU 检查，记录在 `artifacts/monolithic_validation.json`，cosine 为 `0.999999916`。
-
-单 IR 的量化产物也已经生成，视觉 rotary 子图被显式排除：
-
-单 IR 在 **CPU** 上已用 golden 完成精度校验（image + fused），结果与双 IR **逐位一致**（数学相同，仅算子编排不同）；C++ `--monolithic` 接口也已验证（int8 image = 0.971103，与双 IR C++ 一致）：
-
-| 单 IR precision | 文件 | `.bin` 大小 | image cos | fused cos | 当前状态 |
-| --- | --- | ---: | ---: | ---: | --- |
-| FP32 | `gme_monolithic_fp32.xml` | 8.3 GiB | 1.000000 | 1.000000 | CPU 已验证；GPU fused 也做过一次 (0.99999992) |
-| INT8 | `gme_monolithic_int8.xml` | 2.1 GiB | 0.992512 | 0.997980 | CPU 已验证（与双 IR int8 相同） |
-| INT4 gs128 | `gme_monolithic_int4.xml` | 1.2 GiB | 0.936853 | 0.962501 | CPU 已验证（与双 IR int4 相同） |
-| INT4 gs64 | `gme_monolithic_int4_gs64.xml` | 1.3 GiB | — | — | 已生成（未单独跑精度矩阵） |
-
-这不是所有模式的“单 IR”：`image`/`fused` 使用 `gme_monolithic_<precision>.xml`，`text`/`query` 仍安全地回退到保留的 `gme_language_<precision>.xml` 路径，因为单体图强制要求有效图像输入。Python 使用 `GmeOpenVINOMonolithic`；C++ 在 `gme_embed` 上加 `--monolithic`。例如：
-
-```bash
-# image/fused 使用单 IR；text/query 仍自动使用双 IR language-only 快路径。
-cpp/build/gme_embed --package "$PKG" --device CPU --precision int8 \
-  --monolithic --mode fused --image "$LOGO" "GME logo"
-```
-
-单 IR 的四个输入都在图的必经路径上：`input_ids`、`attention_mask`、`pixel_values`、`image_grid_thw`。它以 image/fused PyTorch 路径 trace 得到，图内没有“当 pixel_values 为空则跳过 visual”的数据相关控制流。对 text/query 传空 `pixel_values` 并不能复现官方分支：visual encoder 仍会被调度，且没有 image-pad token 可以与视觉输出一对一 `masked_scatter`。用一张 dummy image 虽可让图执行，但会额外运行视觉塔、改变/浪费序列预算，并不等价于官方 text/query。故当前单 IR runtime 的正确策略是：
-
-```text
-text/query  -> language-only IR（无 visual 调用，和官方一致）
-image/fused -> monolithic IR（visual + language 在同一图中）
-```
-
-若要求真正的“一个 XML 覆盖全部四种模式”，需要重新设计模型接口和图控制流，例如为 visual 分支增加显式 `has_image` 开关、能返回零长度视觉 token 的合法空分支，并保证 image-pad token 数量和视觉输出严格匹配。这不是将现有单 IR 的 `pixel_values` 置空即可完成；实现和验证成本高，且对纯文本性能没有收益。
-
-#### 为什么单 IR 会“卡死机”（实测诊断）
-
-单 IR 的问题不是精度（精度与双 IR 完全一致），而是**峰值内存**。在一张 compiled graph 里，视觉塔的中间激活**无法在 decoder 运行前释放**，于是 visual 激活 + language 激活 + 全部权重必须同时驻留。已实测（本机 30 GB RAM + 8 GB swap）：
-
-| 场景（超宽 `gme_logo`，1260 visual token，FP32，CPU） | 峰值 RSS | 结果 |
-| --- | ---: | --- |
-| 双 IR（先跑 visual，释放后再跑 language） | **11.85 GB** | ✅ cos=1.0 |
-| 单 IR（visual+language 同图） | **17.4 GB** | ✅ cos=1.0，但多用 ~5.6 GB |
-| 单 IR **转换**时以原始超宽 logo 作 trace 样例 | **>28 GB** | ❌ 28 GB 上限下被 OOM 杀死（exit 137） |
-
-诊断结论——三条会导致死机，机制都是**内存打满 → 用满 8 GB swap → 剧烈换页 → 系统无响应**（因此日志里往往看不到 OOM-kill）：
-
-1. **转换单体图时用了真实/大图作样例**：ViT 对 5040 个 patch 的自注意力在 trace 时以 FP32 物化（5040² × 16 head），叠加整模型 + OV 图 → 峰值 >28 GB。`08_compose_monolithic.py` 用 **256-token 最小样例**正是为规避这一点——如果你自己改用大图作样例转换，就会复现死机。
-2. **在 iGPU 上跑单 IR + 大图**：Intel 集显与系统**共享同一 RAM**，FP32 单 IR（权重 8.8 GB）+ visual/language 激活叠加 → `CL_OUT_OF_RESOURCES` / 内存压满 → 死机（这正是你遇到的现象）。
-3. **FP32 + swap 打开 + 其他程序占用**：17.4 GB 峰值本身在 30 GB 上能过，但一旦叠加浏览器/IDE 等占用并触发 swap，就会抖动到卡死。
-
-**安全运行/验证配方**（越界时被干净地 OOM 杀死，而不是拖垮整机）：
-
-```bash
-# 关键：设内存上限 + 关闭该 cgroup 的 swap，避免 swap 抖动死机
-systemd-run --user --scope -p MemoryMax=24G -p MemorySwapMax=0 \
-  ./env-ref/bin/python 09_validate_monolithic.py --execute      # 默认只用 448 小图、CPU
-```
-
-并遵循：**大图优先用双 IR（默认）**；确需单 IR 时用 **CPU 而非 iGPU**、用 **INT8**、并把 `max_image_tokens` 调小（导出时）以减少 visual token 数。`09_validate_monolithic.py` 已内置保护：默认只提示，必须 `--execute` 才加载模型；1260-token logo 这种高风险负载还需再加 `--include-large-logo`。
-
-除内存之外，双 IR 还有工程优势：visual 与 language 可分别量化、分别验证，当前就支持 `int4_visint8` 这类不同精度组合；也可以为两个组件配置不同设备。代价是 image/fused 模式有一次额外的 inference 调度和中间向量传递。对于当前目标，双 IR 仍是**默认、完整验证且资源风险较低**的部署路线；单 IR 是待进一步受控验证的实验性 image/fused 优化路线。
+双 IR 也便于分别量化 visual 与 language，支持 `int4_visint8` 等混合精度；并且 visual 推理完成后可释放其临时张量，再执行语言 decoder，降低大图的峰值内存。代价是 image/fused 有一次中间 `image_embeds` 传递，但这是当前准确性、资源安全与功能完整性之间更合适的取舍。
 
 ---
 
@@ -291,15 +305,12 @@ gme-Qwen2-VL-2B-Instruct-Running/
 ├─ 05_validate_cpp.py           # 驱动 C++ gme_embed，与黄金向量比对
 ├─ 06_benchmark.py              # Python + C++ 时延基准（fp32/int8/int4 × 模式 × CPU/GPU）
 ├─ 07_llamacpp_text_check.py    # GGUF/llama.cpp 文本向量对照（备选方案评估）
-├─ 08_compose_monolithic.py      # 实验：导出 image/fused 单 IR（默认不重导出已有文件）
-├─ 09_validate_monolithic.py     # 实验：单 IR 对照；必须 --execute 才会加载大模型
-├─ 10_quantize_monolithic.py     # 实验：生成单 IR 的 INT8/INT4 变体（默认跳过已有文件）
-├─ gme_openvino_monolithic.py    # 实验：image/fused 单 IR Python API，text/query 回退双 IR
+├─ 08_validate_batch.py          # 双 IR batch vs sequential 准确性回归（Python + C++）
 ├─ cpp/                         # C++ 运行时（主实现）
 │  ├─ include/gme_qwen2vl.hpp   #   GmeQwen2VL 类
 │  ├─ src/gme_qwen2vl.cpp       #   tokenizer/visual/language IR 编排 + prompt 模板 + image_pad 展开
 │  ├─ src/image_preprocess.*    #   Qwen2-VL 图像预处理 (OpenCV: smart_resize+normalize+patchify)
-│  ├─ src/main.cpp              #   gme_embed CLI（--mode / --benchmark / --monolithic / --out）
+│  ├─ src/main.cpp              #   gme_embed CLI（--mode / --benchmark / --out）
 │  ├─ CMakeLists.txt, build.sh  #   对接 benchmark/openvino/install
 │  └─ build/gme_embed           #   构建产物
 ├─ ov_models/gme-qwen2-vl-2b-instruct-openvino/   # 模型包（3类IR × 各精度 + tokenizer IR + 配置）
@@ -381,6 +392,7 @@ Python 端等价 API 见 `gme_openvino.py`（`GmeOpenVINO(...).get_text_embeddin
   - `05_validate_cpp.py`：驱动 C++ `gme_embed --out`，读回二进制向量与黄金比对 → `artifacts/cpp_validation.json`。该脚本报告所有模式；当前只将 C++ FP32 text/query 视为参考级精度，image/fused 的数值差异作为回归指标归档。
 - **时延**：`06_benchmark.py`，warm、端到端每次调用（含分词/预处理 + 推理，不含一次性加载/编译），repeat=5，
   单条短文本 + `gme_logo.png` → `artifacts/benchmark.json`。C++ 用进程内 `--benchmark` 一次编译跑完 4 种模式。
+- **batch 功能与准确性**：`08_validate_batch.py` 在受限内存的 CPU 进程中，用两张 `448x448` 图片比较 batch=2 与逐样本输出。结果写入 `artifacts/batch_validation.json`；Python 覆盖 text/image/fused，C++ 覆盖 fused。
 - **备选方案对照**：`07_llamacpp_text_check.py`，用完整 GME 模板 + `--pooling last` 跑 GGUF 文本向量 → `artifacts/llamacpp_validation.json`。
 
 ---
@@ -512,7 +524,54 @@ C++ CPU INT8 的 256-token `repeat=5` text/query 差异明显，不能视作 pro
 
 该模式不覆盖 image/fused：图片会引入由 `image_grid_thw` 决定的视觉 token 数。测试图文长度时，应同时固定文本 token 和图像分辨率/视觉 token 数；不能只指定一个总 token 数，因为视觉 token 由图像 processor 动态产生。
 
-### 6.6 备选方案对照：GGUF + llama.cpp（`llamacpp_validation.json`）
+### 6.6 Batch 功能性、准确性与吞吐
+
+`08_validate_batch.py` 使用两条文本、两张 `448x448` 图片、FP32、CPU、`batch_size=2`，对比 batch 与相同样本逐条推理。结果如下：
+
+| 后端 | 模式 | batch vs sequential cosine |
+| --- | --- | --- |
+| Python | text | `[1.0, 1.0]` |
+| Python | image | `[1.0, 1.0]` |
+| Python | fused | `[1.0, 1.0]` |
+| C++ | fused | `[1.0, 1.0]` |
+
+这验证了双 IR batch 的顺序和 image-token 映射正确：每张图片的 $K_i$ 个 visual token 被写入对应第 $i$ 条 prompt 的 $K_i$ 个 image-pad 位置，不会跨样本串扰。复现命令：
+
+```bash
+source ../benchmark/openvino/install/setupvars.sh
+systemd-run --user --scope -p MemoryMax=20G -p MemorySwapMax=0 \
+  ./env-ref/bin/python 08_validate_batch.py
+```
+
+对短 text、GPU、INT8、warm、20 次调用的吞吐小测，batch 增大可以显著降低每个向量的成本：
+
+| batch size | 每次 batch 调用 | 每个 embedding |
+| ---: | ---: | ---: |
+| 1 | 41.29 ms | 41.29 ms |
+| 2 | 58.86 ms | 29.43 ms |
+| 4 | 53.16 ms | 13.29 ms |
+
+该结果是单机 iGPU 的短文本 workload，不是服务级 SLA；但它说明批量是当前最可靠的低延迟/高吞吐优化。在线服务可按最大等待时间形成 micro-batch，例如积累 2–4 条请求后调用 `get_text_embeddings(..., batch_size=4)`。
+
+### 6.7 延迟优化边界与建议
+
+GME-Qwen2-VL-2B-Instruct 是约 2.2B 参数、28 层 decoder 的检索模型。即使最终只输出一个 1536 维向量，仍必须完成所有输入 token 的 decoder forward；它不能与数十到数百 MB 的 encoder-only embedding 模型直接比较单请求时延。当前 GPU INT8 短文本 batch=1 约 41 ms，已经接近该模型和本机 iGPU 的合理范围。
+
+当前已采用且建议保留的优化：
+
+* 默认使用 INT8；它在本机保持约 `0.99+` 的图像/图文余弦，并明显降低内存与 GPU 时间。
+* 通过 batch/micro-batch 降低每个向量的成本；对 CPU/GPU 都有效。
+* 限制 text/query 的最终 token 长度；decoder attention 随序列长度增长显著增加。
+* 对图片控制 `max_image_tokens`，并以实际检索指标验证质量；视觉 token 同时增加 visual 和 language 的工作量。
+* 对 GPU 使用模型缓存和复用同一个 `GmeOpenVINO`/`GmeQwen2VL` 实例；不要为每个请求重新加载或编译 IR。
+
+当前不建议为了短文本延迟强行增加的优化：
+
+* CPU 上 INT4 不保证比 INT8 更快，现有基准已经显示 INT4 可能因解压/反量化开销而变慢。
+* 当前 language IR 的 text 路径需要空 `image_embeds[0,1536]`；本机 GPU 插件在尝试将这一输入固定为静态 shape 时出现 input-layout 不兼容。因此尚未引入静态 shape cache，避免增加不稳定的专用分支。若以后导出专用 text-only IR，再单独 benchmark 后决定是否加入。
+* 不再维护单体 visual+language IR；它不能改善官方 text/query 分支，且峰值资源更高。
+
+### 6.8 备选方案对照：GGUF + llama.cpp（`llamacpp_validation.json`）
 
 用 GME 完整模板 + `--pooling last` 跑 `gme-Qwen2-VL-2B-Instruct-Q4_K_M.gguf`：5 条文本 cosine 均值 **0.9845**、最小 0.9716，且每条最相似的黄金向量均为自身；去掉模板的对照仅 0.328（证明模板必需）。Q4_K_M 精度明显低于 OV INT8，且仅文本（无 mmproj）、当前 build 的 ggml-openvino 后端在 embedding 路径断言失败需 `-dev none -fa off` 强制 CPU。
 
@@ -554,23 +613,8 @@ cd cpp && bash build.sh && cd ..                    # 构建 C++
 ./env-ref/bin/python 06_benchmark.py --sequence-lengths 128,256 --repeat 20
                                                      # text/query 长度扫描 -> benchmark_sequence_lengths.json
 ./env-ref/bin/python 07_llamacpp_text_check.py      # GGUF 对照    -> llamacpp_validation.json
+./env-ref/bin/python 08_validate_batch.py           # batch 准确性 -> batch_validation.json
 ```
-
-单 IR 实验不属于默认复现清单。仅在机器有足够内存/显存并且确认负载可控时，才执行以下命令：
-
-```bash
-# 仅使用已存在的 448x448 小图，CPU，FP32；仍会加载大模型，需显式确认。
-./env-ref/bin/python 09_validate_monolithic.py \
-  --execute --devices CPU --precisions fp32 \
-  --workloads logo_448_approximately_256_visual_tokens
-
-# 1260 visual-token logo 属高风险工作负载；只有明确接受资源风险才启用。
-./env-ref/bin/python 09_validate_monolithic.py \
-  --execute --devices GPU --precisions fp32 \
-  --workloads golden_logo_1260_visual_tokens --include-large-logo
-```
-
-不要在当前机器上重新执行 `08_compose_monolithic.py --force`、`10_quantize_monolithic.py` 或不带筛选条件的单 IR 验证；这些操作会加载、转换或压缩约 8.3 GiB 的单体 FP32 模型，并可能造成很高的 RAM/iGPU 内存峰值。
 
 归档复现前置条件：`env-ref` 中的 Transformers 固定为 `4.51.3`；所有 Python 验证和 C++ CLI 均须先加载
 `../benchmark/openvino/install/setupvars.sh`，以使用本仓库优化后的 OpenVINO Runtime 与 GPU 插件。若重新导出或更换

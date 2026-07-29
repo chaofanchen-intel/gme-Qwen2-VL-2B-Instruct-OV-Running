@@ -9,7 +9,7 @@ image-processor assets:
 * ``gme_visual_fp32.xml``: Qwen2-VL's visual encoder.
 
 Splitting the two neural subgraphs avoids the excessive conversion-memory peak
-of a monolithic visual-language graph.  The runtime only passes the visual
+of a complete visual-language graph. The runtime only passes the visual
 encoder output to the language IR; all learned model computation remains in
 OpenVINO while the official processor retains tokenization and pixel-preprocess
 parity.

@@ -1,0 +1,29 @@
+{
+  "device": "CPU",
+  "precision": "fp32",
+  "batch_size": 2,
+  "image_size": [
+    448,
+    448
+  ],
+  "python": {
+    "text_cos_vs_sequential": [
+      1.0,
+      1.0
+    ],
+    "image_cos_vs_sequential": [
+      1.0,
+      1.0
+    ],
+    "fused_cos_vs_sequential": [
+      1.0,
+      1.0
+    ]
+  },
+  "cpp": {
+    "fused_cos_vs_sequential": [
+      1.0,
+      1.0
+    ]
+  }
+}

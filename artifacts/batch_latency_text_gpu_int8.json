@@ -1,0 +1,20 @@
+{
+  "device": "GPU",
+  "precision": "int8",
+  "mode": "text",
+  "repeat": 20,
+  "results": {
+    "1": {
+      "batch_call_ms": 41.288,
+      "ms_per_embedding": 41.288
+    },
+    "2": {
+      "batch_call_ms": 58.858,
+      "ms_per_embedding": 29.429
+    },
+    "4": {
+      "batch_call_ms": 53.16,
+      "ms_per_embedding": 13.29
+    }
+  }
+}

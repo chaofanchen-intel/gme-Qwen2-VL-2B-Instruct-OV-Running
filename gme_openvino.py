@@ -27,12 +27,18 @@ MAX_PIXELS = 16384 * 28 * 28
 MAX_RATIO = 200
 
 
-def _as_list(value: str | Image.Image | Sequence[str | Image.Image] | None) -> list | None:
+def _as_list(value: str | Path | Image.Image | Sequence[str | Path | Image.Image] | None) -> list | None:
     if value is None:
         return None
-    if isinstance(value, (str, Image.Image)):
+    if isinstance(value, (str, Path, Image.Image)):
         return [value]
-    return list(value)
+    values = list(value)
+    # Official GME accepts a DataLoader for images. Its batches are normally
+    # lists (the official collate function is identity), so flatten those while
+    # keeping every actual image object/path as one sample.
+    if values and all(isinstance(item, (list, tuple)) for item in values):
+        return [item for batch in values for item in batch]
+    return values
 
 
 def _round_by_factor(value: int, factor: int) -> int:
@@ -56,18 +62,20 @@ def _resize_for_gme(image: Image.Image) -> Image.Image:
     return image.resize((resized_width, resized_height))
 
 
-def load_image(value: str | Image.Image) -> Image.Image:
+def load_image(value: str | Path | Image.Image) -> Image.Image:
     """Load and resize an image exactly as the official GME inference helper."""
     if isinstance(value, Image.Image):
         image = value
-    elif value.startswith(("http://", "https://")):
-        image = Image.open(requests.get(value, stream=True, timeout=30).raw)
-    elif value.startswith("file://"):
-        image = Image.open(value[7:])
-    elif value.startswith("data:image") and "base64," in value:
-        image = Image.open(BytesIO(base64.b64decode(value.split("base64,", 1)[1])))
     else:
-        image = Image.open(value)
+        value = str(value)
+        if value.startswith(("http://", "https://")):
+            image = Image.open(requests.get(value, stream=True, timeout=30).raw)
+        elif value.startswith("file://"):
+            image = Image.open(value[7:])
+        elif value.startswith("data:image") and "base64," in value:
+            image = Image.open(BytesIO(base64.b64decode(value.split("base64,", 1)[1])))
+        else:
+            image = Image.open(value)
     return _resize_for_gme(image.convert("RGB"))
 
 
@@ -75,9 +83,10 @@ class GmeOpenVINO:
     """GME encoder backed entirely by OpenVINO Runtime neural computation.
 
     One image per input is supported, matching the official model limitation.
-    Image-containing batches are evaluated one sample at a time because the
-    visual IR is exported for the model's one-image-per-sample contract; text
-    inputs are batched in one language inference.
+    Text batches run one tokenizer and language inference. Image-containing
+    batches run the visual IR once per image because that IR was traced with a
+    single ``image_grid_thw`` row; their visual-token rows are then concatenated
+    for one batched language inference, preserving official output semantics.
     """
 
     def __init__(
@@ -171,22 +180,51 @@ class GmeOpenVINO:
         empty_images = np.empty((0, self.config["embedding_dim"]), dtype=np.float32)
         return self._language_embedding(inputs, empty_images)
 
-    def _encode_with_image(self, text: str | None, image: str | Image.Image, instruction: str) -> np.ndarray:
+    @staticmethod
+    def _batches(values: list, batch_size: int | None):
+        if batch_size is None:
+            yield values
+            return
+        if batch_size < 1:
+            raise ValueError("batch_size must be positive")
+        for start in range(0, len(values), batch_size):
+            yield values[start : start + batch_size]
+
+    def _encode_text(self, texts: list[str], instruction: str, batch_size: int | None) -> np.ndarray:
+        return np.concatenate(
+            [self._encode_text_batch(batch, instruction) for batch in self._batches(texts, batch_size)], axis=0
+        )
+
+    def _encode_image_batch(
+        self,
+        texts: list[str | None],
+        images: list[str | Image.Image],
+        instruction: str,
+    ) -> np.ndarray:
+        if len(texts) != len(images) or not images:
+            raise ValueError("image batch needs matching, non-empty texts and images")
         inputs = self.processor(
-            text=[self._prompt(text, has_image=True, instruction=instruction)],
-            images=[load_image(image)],
+            text=[self._prompt(text, has_image=True, instruction=instruction) for text in texts],
+            images=[load_image(image) for image in images],
             padding=True,
             truncation=True,
             max_length=self.max_length,
             return_tensors="np",
         )
-        visual_result = self.visual(
-            {
-                "pixel_values": inputs["pixel_values"],
-                "image_grid_thw": inputs["image_grid_thw"],
-            }
-        )
-        image_embeds = self._output(visual_result, self.visual)
+        patch_counts = np.prod(inputs["image_grid_thw"], axis=1, dtype=np.int64)
+        offset = 0
+        visual_embeddings = []
+        for patch_count, grid in zip(patch_counts, inputs["image_grid_thw"]):
+            end = offset + int(patch_count)
+            visual_result = self.visual(
+                {
+                    "pixel_values": inputs["pixel_values"][offset:end],
+                    "image_grid_thw": np.asarray([grid], dtype=inputs["image_grid_thw"].dtype),
+                }
+            )
+            visual_embeddings.append(self._output(visual_result, self.visual))
+            offset = end
+        image_embeds = np.concatenate(visual_embeddings, axis=0)
         return self._language_embedding(inputs, image_embeds)
 
     def get_text_embeddings(
@@ -194,23 +232,31 @@ class GmeOpenVINO:
         texts: str | Sequence[str],
         instruction: str | None = None,
         is_query: bool = True,
+        batch_size: int | None = None,
     ) -> np.ndarray:
         values = _as_list(texts)
         if not values or not all(isinstance(text, str) for text in values):
             raise ValueError("texts must be a non-empty string or sequence of strings")
-        return self._encode_text_batch(values, self._instruction(instruction, is_query))
+        return self._encode_text(values, self._instruction(instruction, is_query), batch_size)
 
     def get_image_embeddings(
         self,
         images: str | Image.Image | Sequence[str | Image.Image],
         instruction: str | None = None,
         is_query: bool = True,
+        batch_size: int | None = None,
     ) -> np.ndarray:
         values = _as_list(images)
         if not values:
             raise ValueError("images must be a non-empty image or image sequence")
         prompt = self._instruction(instruction, is_query)
-        return np.concatenate([self._encode_with_image(None, image, prompt) for image in values], axis=0)
+        return np.concatenate(
+            [
+                self._encode_image_batch([None] * len(batch), batch, prompt)
+                for batch in self._batches(values, batch_size)
+            ],
+            axis=0,
+        )
 
     def get_fused_embeddings(
         self,
@@ -218,6 +264,7 @@ class GmeOpenVINO:
         images: str | Image.Image | Sequence[str | Image.Image] | None = None,
         instruction: str | None = None,
         is_query: bool = True,
+        batch_size: int | None = None,
     ) -> np.ndarray:
         text_values = _as_list(texts)
         image_values = _as_list(images)
@@ -225,13 +272,18 @@ class GmeOpenVINO:
         if image_values is None:
             if text_values is None:
                 raise ValueError("provide texts, images, or both")
-            return self._encode_text_batch(text_values, prompt)
+            return self._encode_text(text_values, prompt, batch_size)
         if text_values is None:
-            return np.concatenate([self._encode_with_image(None, image, prompt) for image in image_values], axis=0)
+            return self.get_image_embeddings(image_values, instruction=instruction, is_query=is_query, batch_size=batch_size)
         if len(text_values) != len(image_values):
             raise ValueError("texts and images must have the same length")
         return np.concatenate(
-            [self._encode_with_image(text, image, prompt) for text, image in zip(text_values, image_values)],
+            [
+                self._encode_image_batch(
+                    [text for text, _ in batch], [image for _, image in batch], prompt
+                )
+                for batch in self._batches(list(zip(text_values, image_values)), batch_size)
+            ],
             axis=0,
         )
 
@@ -241,19 +293,26 @@ class GmeOpenVINO:
         *,
         instruction: str | None = None,
         is_query: bool = True,
+        batch_size: int | None = None,
     ) -> np.ndarray:
         """Compatibility alias for text encoding used by embedding clients."""
-        return self.get_text_embeddings(sentences, instruction=instruction, is_query=is_query)
+        return self.get_text_embeddings(sentences, instruction=instruction, is_query=is_query, batch_size=batch_size)
 
     def encode_queries(
         self,
         queries: str | Sequence[str],
         *,
         instruction: str | None = None,
+        batch_size: int | None = None,
     ) -> np.ndarray:
-        return self.get_text_embeddings(queries, instruction=instruction, is_query=True)
+        return self.get_text_embeddings(queries, instruction=instruction, is_query=True, batch_size=batch_size)
 
-    def encode_corpus(self, corpus: Sequence[dict[str, str]] | dict[str, Sequence[str]]) -> np.ndarray:
+    def encode_corpus(
+        self,
+        corpus: Sequence[dict[str, str]] | dict[str, Sequence[str]],
+        *,
+        batch_size: int | None = None,
+    ) -> np.ndarray:
         """Encode sentence-transformers-style corpus rows with GME corpus prompts."""
         if isinstance(corpus, dict):
             texts = corpus.get("text")
@@ -265,4 +324,4 @@ class GmeOpenVINO:
             rows = [f"{titles[index]} {text}".strip() if titles else text for index, text in enumerate(texts)]
         else:
             rows = [f"{row.get('title', '')} {row['text']}".strip() for row in corpus]
-        return self.get_text_embeddings(rows, is_query=False)
+        return self.get_text_embeddings(rows, is_query=False, batch_size=batch_size)

@@ -1,5 +1,0 @@
-{
-  "model": "gme_monolithic_fp32.xml",
-  "device": "GPU",
-  "fused_cosine": 0.9999999160475371
-}
