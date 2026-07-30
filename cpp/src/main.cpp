@@ -1,9 +1,17 @@
 // gme_embed: CLI for the GME-Qwen2-VL OpenVINO C++ runtime.
 //
-//   gme_embed --package DIR [--device CPU] [--precision int8]
+//   gme_embed --package DIR [--device CPU] [--precision int8] [--streams N]
+//             [--batch-mode auto|per_sample|padded]
 //             --mode text|image|fused [--instruction STR] [--is-query 0|1]
 //             [--image PATH ...] [--out FILE] [TEXT ...]
 //   gme_embed --package DIR --benchmark [--benchmark-modes text,query]
+//
+// Any batch size works with no per-batch-size export; see gme_qwen2vl.hpp.
+// --streams 1 (default) runs one request on every core: lowest single-sample
+// latency. --streams 0 lets the plugin choose, overlapping a batch's samples
+// across streams (~1.8x on 16 cores); results are identical either way.
+// --batch-mode auto (default) decodes per sample on CPU and as one padded [B,S]
+// call on GPU, which is where each is faster.
 //
 // --out writes a binary blob {"GEMB", int32 rows, int32 dim, float32[rows*dim]}
 // consumed by 08_validate_cpp.py to check cosine against the golden embeddings.
@@ -24,6 +32,7 @@ namespace {
     std::cerr << "usage: " << argv0
               << " --package DIR [--device CPU] [--precision int8]"
                  " --mode text|image|fused [--instruction STR] [--is-query 0|1]"
+                 " [--streams N] [--batch-mode auto|per_sample|padded]\n"
                  " [--image PATH ...] [--out FILE] [TEXT ...]\n"
                  "       "
               << argv0
@@ -60,9 +69,10 @@ void dump(const std::string& path, const gme::Embedding& e) {
 
 int main(int argc, char** argv) {
     std::string package, device = "CPU", precision = "int8", mode, instruction, out;
+    std::string batch_mode = "auto";
     std::string benchmark_modes = "text,query,image,fused";
     bool is_query = true, benchmark = false;
-    int repeat = 1;
+    int repeat = 1, streams = 1;
     std::vector<std::string> texts, images;
 
     for (int i = 1; i < argc; ++i) {
@@ -80,6 +90,8 @@ int main(int argc, char** argv) {
         else if (a == "--image") images.push_back(next("--image"));
         else if (a == "--out") out = next("--out");
         else if (a == "--repeat") repeat = std::stoi(next("--repeat"));
+        else if (a == "--streams") streams = std::stoi(next("--streams"));
+        else if (a == "--batch-mode") batch_mode = next("--batch-mode");
         else if (a == "--benchmark") benchmark = true;
         else if (a == "--benchmark-modes") benchmark_modes = next("--benchmark-modes");
         else if (a == "-h" || a == "--help") usage(argv[0]);
@@ -88,9 +100,10 @@ int main(int argc, char** argv) {
     if (package.empty() || (!benchmark && mode.empty())) usage(argv[0]);
 
     try {
-          gme::GmeQwen2VL model(package, device, precision);
+        gme::GmeQwen2VL model(package, device, precision, streams, batch_mode);
         std::cerr << "[gme_embed] device=" << model.device() << " precision=" << model.precision()
-              << " dim=" << model.dim() << "\n";
+                  << " dim=" << model.dim() << " streams=" << streams
+                  << " batch_mode=" << model.batch_mode() << "\n";
 
         if (benchmark) {
             // One process, selected modes: amortizes model compile. Image is only

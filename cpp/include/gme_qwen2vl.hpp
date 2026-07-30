@@ -13,6 +13,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -35,9 +36,24 @@ public:
     // package_dir: the exported gme-qwen2-vl-2b-instruct-openvino directory.
     // device:      OpenVINO device for the neural IRs ("CPU", "GPU", ...).
     // precision:   "fp32" | "int8" | "int4" | "int4_gs64" | "int4_visint8".
+    // streams:     execution streams per IR. 1 (default) is the LATENCY hint: one
+    //              request gets every core, best for a single sample. 0 lets the
+    //              plugin pick (THROUGHPUT), or pass an explicit count; batches then
+    //              overlap across streams (~1.8x on 16 cores) while a lone sample is
+    //              ~1.3x slower. Output is identical either way.
+    // batch_mode:  how the language IR consumes a batch. "per_sample" issues one
+    //              request per sample at its true length, making a batch
+    //              bit-identical to the same items encoded one by one; "padded"
+    //              issues one [B,S] request the way the official model does.
+    //              "auto" (default) picks per device, where each is faster:
+    //              per_sample on CPU (a padded call is no faster there, 1.00x,
+    //              and per_sample also drops the padding work), padded on GPU
+    //              (per-submission overhead dominates: 2.4x faster per embedding).
     GmeQwen2VL(const std::string& package_dir,
                const std::string& device = "CPU",
-               const std::string& precision = "int8");
+               const std::string& precision = "int8",
+               int streams = 1,
+               const std::string& batch_mode = "auto");
 
     // Text-only, batched. instruction is used only when is_query is true and it is
     // non-empty; otherwise the default GME instruction is applied.
@@ -46,8 +62,9 @@ public:
                           bool is_query = true);
 
     // Image-only batch API: returns one embedding per image, in input order.
-    // The visual IR is called once per image, then language decoding runs as a
-    // batch over concatenated visual-token rows.
+    // Any batch size works with no per-batch-size export: the visual IR runs once
+    // per image and the language IR once per sample, both dispatched concurrently
+    // over the request pool. See run_visual/run_language for why that is exact.
     Embedding encode_image(const std::vector<std::string>& image_paths,
                            const std::string& instruction = "",
                            bool is_query = true);
@@ -61,6 +78,7 @@ public:
     std::size_t dim() const { return embedding_dim_; }
     const std::string& device() const { return device_; }
     const std::string& precision() const { return precision_; }
+    const std::string& batch_mode() const { return batch_mode_; }
 
 private:
     // has_image expands the <|image_pad|> placeholder to n_image_pad copies
@@ -73,23 +91,37 @@ private:
     void tokenize(const std::vector<std::string>& prompts,
                   ov::Tensor& input_ids, ov::Tensor& attention_mask);
 
-    // Run the single-grid visual IR separately for each image, concatenate its
-    // output rows to [sum(K_i),1536], and retain each K_i for prompt expansion.
+    // Run the visual IR once per image. Qwen2-VL's vision tower has no batch
+    // dimension: images become one patch sequence whose attention is block-diagonal
+    // per image, so per-image invocation is bit-identical to passing several
+    // image_grid_thw rows at once, and cheaper -- a shared sequence costs
+    // O((sum L)^2) attention rather than O(sum L^2). It is also the only thing a
+    // traced IR accepts, since rot_pos_emb loops over the grid rows in Python and
+    // tracing bakes that count in.
     struct VisualResult {
-        ov::Tensor embeds;
+        std::vector<ov::Tensor> embeds;           // one [K_i, dim] tensor per image
         std::vector<std::int64_t> merged_tokens;  // K_i image-pad tokens per input image
     };
     VisualResult run_visual(const std::vector<std::string>& image_paths);
 
-    // Run the language IR; image_embeds may be an empty [0, dim] tensor for text-only.
-    Embedding run_language(const std::vector<std::string>& prompts, const ov::Tensor& image_embeds);
+    // Run the language IR over the batch, per batch_mode_. image_embeds is null
+    // for text-only, else one [K_i, dim] tensor per prompt.
+    Embedding run_language(const std::vector<std::string>& prompts,
+                           const std::vector<ov::Tensor>* image_embeds);
+
+    // Dispatch `jobs` independent inferences over the pool, `feed` filling a
+    // request's inputs and `sink` consuming its output, both by job index.
+    static void run_pool(std::vector<ov::InferRequest>& pool, std::size_t jobs,
+                         const std::function<void(std::size_t, ov::InferRequest&)>& feed,
+                         const std::function<void(std::size_t, ov::InferRequest&)>& sink);
 
     ov::Core core_;
     ov::InferRequest tokenizer_req_;
-    ov::InferRequest language_req_;
-    ov::InferRequest visual_req_;
+    std::vector<ov::InferRequest> language_pool_;
+    std::vector<ov::InferRequest> visual_pool_;
     std::string device_;
     std::string precision_;
+    std::string batch_mode_;  // resolved: "per_sample" or "padded"
     std::size_t embedding_dim_ = 1536;
 };
 

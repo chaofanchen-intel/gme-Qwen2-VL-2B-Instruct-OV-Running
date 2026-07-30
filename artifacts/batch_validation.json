@@ -1,29 +1,192 @@
 {
   "device": "CPU",
-  "precision": "fp32",
-  "batch_size": 2,
-  "image_size": [
-    448,
-    448
+  "sizes": [
+    1,
+    2,
+    3,
+    5
   ],
-  "python": {
-    "text_cos_vs_sequential": [
-      1.0,
-      1.0
+  "image_sizes": [
+    [
+      448,
+      448
     ],
-    "image_cos_vs_sequential": [
-      1.0,
-      1.0
+    [
+      336,
+      336
     ],
-    "fused_cos_vs_sequential": [
-      1.0,
-      1.0
+    [
+      448,
+      336
+    ],
+    [
+      280,
+      280
+    ],
+    [
+      336,
+      448
     ]
+  ],
+  "N=1 text": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 1
   },
-  "cpp": {
-    "fused_cos_vs_sequential": [
-      1.0,
-      1.0
-    ]
+  "N=1 image": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 1
+  },
+  "N=1 fused": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 1
+  },
+  "N=1 text batch_size=2": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 1
+  },
+  "N=2 text": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 2
+  },
+  "N=2 image": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 2
+  },
+  "N=2 fused": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 2
+  },
+  "N=2 text batch_size=2": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 2
+  },
+  "N=3 text": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 3
+  },
+  "N=3 image": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 3
+  },
+  "N=3 fused": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 3
+  },
+  "N=3 text batch_size=2": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 3
+  },
+  "N=5 text": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "N=5 image": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "N=5 fused": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "N=5 text batch_size=2": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "padded text vs sequential": {
+    "min_cos": 0.9999262081,
+    "bit_exact": false,
+    "rows": 5
+  },
+  "padded fused vs sequential": {
+    "min_cos": 0.9999080241,
+    "bit_exact": false,
+    "rows": 3
+  },
+  "pool_size_auto": 4,
+  "streams text": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "streams fused": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 3
+  },
+  "official text (per_sample)": {
+    "min_cos": 0.9999998934,
+    "bit_exact": false,
+    "rows": 3
+  },
+  "official image (per_sample)": {
+    "min_cos": 0.9999997442,
+    "bit_exact": false,
+    "rows": 3
+  },
+  "official fused (per_sample)": {
+    "min_cos": 0.9999998971,
+    "bit_exact": false,
+    "rows": 3
+  },
+  "official text (padded)": {
+    "min_cos": 0.9999998932,
+    "bit_exact": false,
+    "rows": 3
+  },
+  "official image (padded)": {
+    "min_cos": 0.9999997444,
+    "bit_exact": false,
+    "rows": 3
+  },
+  "official fused (padded)": {
+    "min_cos": 0.9999998971,
+    "bit_exact": false,
+    "rows": 3
+  },
+  "cpp fused batch vs sequential": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 3
+  },
+  "cpp fused streams=0 vs 1": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 3
+  },
+  "cpp text vs python (per_sample)": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 3
+  },
+  "cpp fused vs python (per_sample)": {
+    "min_cos": 0.9988935744,
+    "bit_exact": false,
+    "rows": 3
+  },
+  "cpp text vs python (padded)": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 3
+  },
+  "cpp fused vs python (padded)": {
+    "min_cos": 0.9988935744,
+    "bit_exact": false,
+    "rows": 3
   }
 }

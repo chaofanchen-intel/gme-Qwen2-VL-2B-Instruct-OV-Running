@@ -82,14 +82,18 @@ GME 不是在未改动的 `Qwen2-VL-2B-Instruct` 后面简单接一个小的、�
 
 ### 2.0.2 Batch 支持、实际并行度与 API 语义
 
-四种模式都接受多个样本并返回 `[B,1536]`，其中 $B$ 是请求内的样本数。需要区分“API 接受一个 batch”与“一个 OpenVINO infer call 同时处理整个 batch”：
+四种模式都接受任意数量的样本并返回 `[B,1536]`，其中 $B$ 是请求内的样本数，**不需要为不同 $B$ 重新导出模型**。
 
-| 模式 | Python 输入 | C++ 输入 | 当前执行方式 | `batch_size` 的作用 |
+关键设计：一个 GME batch 里的样本彼此完全独立，因此两端运行时都把它派发为 **$B$ 个单样本 infer request**，而不是一次 `[B,S]` 的 padded 大推理。
+
+| 模式 | Python 输入 | C++ 输入 | 执行方式 | `batch_size` 的作用 |
 | --- | --- | --- | --- | --- |
-| text | `list[str]` | `vector<string>` | **真正 batch**：一个 tokenizer call + 一个 language IR call，输入 `[B,S]` | Python 可分块为多个 language IR batch；`None` 表示一次处理全部。 |
-| query | 同 text | 同 text | **真正 batch**：仅 prompt 中的 instruction 不同 | 同 text。 |
-| image | `list[path/URL/PIL.Image]` 或官方风格 `DataLoader` | `vector<local_path>` | **processor + language 真 batch**：visual IR 每张图一次，拼接视觉 token 后一次 language IR batch | Python 按 `batch_size` 分块；C++ 的完整 `vector` 作为一个 batch。 |
-| fused | 等长的 text/image 列表 | 等长的 `vector<string>` | 同 image；文本与图片按下标配对，language IR 一次处理整个 batch | Python 按 `batch_size` 分块；输出顺序与输入一致。 |
+| text | `list[str]` | `vector<string>` | 一个 tokenizer call，然后每条一个 language request（按各自真实长度，不含 padding） | 分块上限，控制 tokenizer 一次产生的数组大小；`None` 表示不分块。 |
+| query | 同 text | 同 text | 同 text，仅 prompt 中的 instruction 不同 | 同 text。 |
+| image | `list[path/URL/PIL.Image]` 或官方风格 `DataLoader` | `vector<local_path>` | 每张图一个 visual request，每个样本一个 language request | 同 text；输出顺序与输入一致。 |
+| fused | 等长的 text/image 列表 | 等长的 `vector<string>` | 同 image；文本与图片按下标配对 | 同 text；输出顺序与输入一致。 |
+
+这带来一个比 padded batch 更强的性质：**batch 结果与逐条推理逐位相同（bit-identical）**。padded batch 做不到这一点——一行的输出会随同批次里最长样本的长度而轻微漂移。
 
 Python 的 `get_text_embeddings`、`get_image_embeddings`、`get_fused_embeddings`、`encode`、`encode_queries`、`encode_corpus` 都支持可选 `batch_size`。例如：
 
@@ -97,6 +101,29 @@ Python 的 `get_text_embeddings`、`get_image_embeddings`、`get_fused_embedding
 encoder.get_text_embeddings(texts, batch_size=32)
 encoder.get_fused_embeddings(texts, images, batch_size=8)
 ```
+
+#### `batch_mode`：哪种更快是设备的属性，不是实现的属性
+
+language IR 支持两种消费 batch 的方式，`batch_mode="auto"`（默认）按设备实测结果自动选：
+
+| | `per_sample`（CPU 默认） | `padded`（GPU 默认） |
+| --- | --- | --- |
+| 调用方式 | 每条一个 request，按真实长度，无 padding | 一次 `[B,S]` 调用，与官方一致 |
+| batch vs 逐条 | **逐位相同** | 约 0.9999（随同批最长样本漂移） |
+| CPU（16 核，$N$=4/8） | 基准；配合 `streams` 再快 **1.9x** | **1.00x / 0.99x**——padded 在 CPU 上不带来任何加速 |
+| GPU（$N$=4，短文本） | 53–71 ms/emb | **22 ms/emb（快 2.4x）** |
+
+CPU 上单个 request 已占满全部核心，padded 只是多算了 padding；GPU 上则是每次提交的固定开销占主导，合并成一次调用才划算，而且多 stream 在 GPU 上救不回来（实测 0.34–0.41x）。
+
+**CPU 的吞吐来自 `streams`：**
+
+```python
+GmeOpenVINO(pkg, precision="int8", streams=1)       # 默认：单 stream 独占全核，单条延迟最低
+GmeOpenVINO(pkg, precision="int8", streams="auto")  # 插件自选（16 核上为 4）：批量约 1.8x
+GmeOpenVINO(pkg, device="GPU", batch_mode="auto")   # GPU 自动选 padded
+```
+
+C++ 对应 `--streams N`（`1` 为默认的 LATENCY，`0` 交给插件自选）与 `--batch-mode auto|per_sample|padded`。多 stream 的代价是单条样本约慢 1.3x、每多一个 stream 约 +0.2 GB；**`streams` 不改变输出，两种设置逐位相同**。
 
 官方 GME 的 `get_fused_embeddings(..., batch_size=32)` 会让 processor 生成图片 batch。本项目现在采用相同的 Qwen2-VL batch 布局：对第 $i$ 张图片，processor 产生 $P_i$ 行 raw patch 和 $K_i=P_i/4$ 个 image token；一个 mixed-resolution batch 将 patch 行沿第 0 维拼接，并以 `image_grid_thw[B,3]` 保存边界：
 
@@ -109,7 +136,17 @@ processor: pixel_values[ΣP_i,1176] + image_grid_thw[B,3]
           -> embedding[B,1536]
 ```
 
-每行 `input_ids[i]` 已含恰好 $K_i$ 个 `image_token_id`，因此 language IR 对展平的 `image_embeds` 执行 `masked_scatter` 时仍保持官方的输入顺序和逐图片映射；无需将不同分辨率图片强行 resize 到同一尺寸，也不需要按 `grid_thw` 分桶。`batch_size` 只控制一次请求中包含多少个样本，输出顺序与输入顺序一致。当前 visual IR 由单 `image_grid_thw` 样例 trace，CPU/GPU 插件不能可靠地接受 `image_grid_thw[B,3]`；故 visual 阶段逐图是导出图的 shape 限制，language decoder 仍是真正的 batch。
+每行 `input_ids[i]` 已含恰好 $K_i$ 个 `image_token_id`，因此 language IR 对 `image_embeds` 执行 `masked_scatter` 时仍保持官方的输入顺序和逐图片映射；无需将不同分辨率图片强行 resize 到同一尺寸，也不需要按 `grid_thw` 分桶。
+
+#### 为什么 visual 阶段是逐图，而这不是妥协
+
+Qwen2-VL 的视觉塔**根本没有 batch 维**：多张图的 patch 被拼成一条长序列，图与图之间靠 `cu_seqlens` 形成的**块对角注意力**彼此隔离。所以"逐图跑再拼接"与"一次喂多行 `image_grid_thw`"在数学上是同一个计算，实测**逐位相同**（max abs diff = 0.0）。
+
+而且逐图更快：共享序列的注意力开销是 $O((\sum_i L_i)^2)$，逐图是 $O(\sum_i L_i^2)$。实测两张 448×448 图片，逐图 2599 ms，"真 batch" 3209 ms——**逐图快 1.23x**。
+
+至于导出：`transformers` 的 `Qwen2VisionTransformerPretrainedModel.rot_pos_emb` 用 `for t, h, w in grid_thw:` 在 **Python 层**按图片数循环（`VisionAttention` 里的 `lengths.tolist()` + `torch.split` 同理），trace 会把循环次数烘死。所以 `[?,3]` 只是名义上的动态维——一个按 $B$=1 trace 的 IR 喂 2 行会直接抛异常，按 $B$=2 导出的 IR 又只接受恰好 2 行。这正是"换个 batch 就要重新导出"的根源；逐图调用则一次导出、任意 $N$ 通用。
+
+官方 PyTorch 没有这个限制，因为它是 eager 执行、Python 循环每次重跑——限制只来自"转成静态图"这个动作，不来自模型本身。language IR 则是标准 `[B,S]` 张量运算、没有按 batch 的 Python 循环，所以它的动态维是真的；但如上所述，用它做 padded batch 在 CPU 上并不带来加速。
 
 Python 图片输入支持本地路径、HTTP(S)、`file://`、base64 data URL、PIL image，以及官方 identity-collate 风格 `DataLoader` 产生的图片 batch。C++ API 的 image 输入是本地路径 `vector<string>`；其功能与 local-path 官方输入一致，但 C++ 不能直接接收 Python 的 PIL object 或 Python DataLoader。HTTP/base64 需要由调用方先下载/解码为本地文件后传入 C++。
 
@@ -187,7 +224,7 @@ $$
 | image | `float32[1536]` | 单张图片的 embedding |
 | fused | `float32[1536]` | 一条文本与一张图片融合后的 embedding |
 
-Python API 返回 `numpy.ndarray[B,1536]`，即使输入只有一个样本也保留 batch 维度；C++ API 返回 `gme::Embedding`，其中 `rows=B`、`dim=1536`、`data` 为行主序的 `float` 数组，长度为 `B*1536`。当前图像/图文 API 为保持一图一输入语义，内部逐样本计算后再沿 batch 维拼接，但最终输出契约不变。
+Python API 返回 `numpy.ndarray[B,1536]`，即使输入只有一个样本也保留 batch 维度；C++ API 返回 `gme::Embedding`，其中 `rows=B`、`dim=1536`、`data` 为行主序的 `float` 数组，长度为 `B*1536`。两端内部都逐样本计算后再沿 batch 维拼接（见 2.0.2），输出契约与顺序不变。
 
 **1536 是模型架构固定的 embedding 维度，不是运行时可调参数。** 当前 checkpoint 的 language hidden size 为 1536，last-token pooling 直接输出该 hidden state，没有额外 projection head。`fp32`、`int8`、`int4`、`int4_gs64` 和 `int4_visint8` 只改变权重存储/计算精度，输出仍是 `float32[B,1536]`。`max_length`、文本 token 长度、`min_image_tokens`、`max_image_tokens`、图像分辨率和 batch size 会影响输入 shape、内存和时延，但**不会**改变 1536 维输出。
 
@@ -305,7 +342,7 @@ gme-Qwen2-VL-2B-Instruct-Running/
 ├─ 05_validate_cpp.py           # 驱动 C++ gme_embed，与黄金向量比对
 ├─ 06_benchmark.py              # Python + C++ 时延基准（fp32/int8/int4 × 模式 × CPU/GPU）
 ├─ 07_llamacpp_text_check.py    # GGUF/llama.cpp 文本向量对照（备选方案评估）
-├─ 08_validate_batch.py          # 双 IR batch vs sequential 准确性回归（Python + C++）
+├─ 08_validate_batch.py          # batch 正确性回归：任意 N、两种 batch_mode、官方对照（Python + C++）
 ├─ cpp/                         # C++ 运行时（主实现）
 │  ├─ include/gme_qwen2vl.hpp   #   GmeQwen2VL 类
 │  ├─ src/gme_qwen2vl.cpp       #   tokenizer/visual/language IR 编排 + prompt 模板 + image_pad 展开
@@ -392,7 +429,7 @@ Python 端等价 API 见 `gme_openvino.py`（`GmeOpenVINO(...).get_text_embeddin
   - `05_validate_cpp.py`：驱动 C++ `gme_embed --out`，读回二进制向量与黄金比对 → `artifacts/cpp_validation.json`。该脚本报告所有模式；当前只将 C++ FP32 text/query 视为参考级精度，image/fused 的数值差异作为回归指标归档。
 - **时延**：`06_benchmark.py`，warm、端到端每次调用（含分词/预处理 + 推理，不含一次性加载/编译），repeat=5，
   单条短文本 + `gme_logo.png` → `artifacts/benchmark.json`。C++ 用进程内 `--benchmark` 一次编译跑完 4 种模式。
-- **batch 功能与准确性**：`08_validate_batch.py` 在受限内存的 CPU 进程中，用两张 `448x448` 图片比较 batch=2 与逐样本输出。结果写入 `artifacts/batch_validation.json`；Python 覆盖 text/image/fused，C++ 覆盖 fused。
+- **batch 功能与准确性**：`08_validate_batch.py` 在受限内存的 CPU 进程中，用**长度不等的文本**和**五种不同尺寸的图片**（刻意做成 ragged，以便暴露任何对 padding 或统一 grid 的隐含依赖），对 $N\in\{1,2,3,5\}$ 比较 batch 与逐样本输出，并覆盖 `per_sample`/`padded` 两种 `batch_mode`、`streams` 不变性、以及与官方 PyTorch 的对照。结果写入 `artifacts/batch_validation.json`；Python 覆盖 text/image/fused，C++ 覆盖 text/fused。
 - **备选方案对照**：`07_llamacpp_text_check.py`，用完整 GME 模板 + `--pooling last` 跑 GGUF 文本向量 → `artifacts/llamacpp_validation.json`。
 
 ---
@@ -526,16 +563,30 @@ C++ CPU INT8 的 256-token `repeat=5` text/query 差异明显，不能视作 pro
 
 ### 6.6 Batch 功能性、准确性与吞吐
 
-`08_validate_batch.py` 使用两条文本、两张 `448x448` 图片、FP32、CPU、`batch_size=2`，对比 batch 与相同样本逐条推理。结果如下：
+`08_validate_batch.py` 用**长度不等的文本**和**五种不同尺寸的图片**（448x448 / 336x336 / 448x336 / 280x280 / 336x448），对 $N\in\{1,2,3,5\}$ 比较 batch 与逐条推理。刻意做成 ragged，是为了让任何对 padding 或统一 grid 的隐含依赖暴露出来。
 
-| 后端 | 模式 | batch vs sequential cosine |
-| --- | --- | --- |
-| Python | text | `[1.0, 1.0]` |
-| Python | image | `[1.0, 1.0]` |
-| Python | fused | `[1.0, 1.0]` |
-| C++ | fused | `[1.0, 1.0]` |
+**任意 $N$ 都不需要重新导出模型，且 `per_sample`（CPU 默认）下 batch 与逐条逐位相同：**
 
-这验证了双 IR batch 的顺序和 image-token 映射正确：每张图片的 $K_i$ 个 visual token 被写入对应第 $i$ 条 prompt 的 $K_i$ 个 image-pad 位置，不会跨样本串扰。复现命令：
+| 后端 | 模式 | $N$ | batch vs sequential |
+| --- | --- | ---: | --- |
+| Python | text / image / fused | 1, 2, 3, 5 | **bit-exact**（全部 12 组） |
+| Python | text（`batch_size=2` 分块） | 1, 2, 3, 5 | **bit-exact** |
+| C++ | fused | 3 | **bit-exact** |
+
+对照之下，`padded` 模式（GPU 默认，也是官方的做法）在 INT8、ragged 输入上是 `text 0.99993 / fused 0.99991`——**低于本仓库自己的 0.9999 验收线**。这不是 bug，而是 padded batch 的固有性质：一行的解码会看到多少 padding，取决于同批次里最长的样本。`per_sample` 从根本上消除了这一项。
+
+**`streams` 只影响吞吐，不影响数值**（`streams=1` vs `"auto"`，pool 1 → 4）：text 与 fused 均为 bit-exact。
+
+**与官方 PyTorch（FP32、$N$=3 ragged）对照，两种模式都落在 0.99999 以上：**
+
+| 模式 | text | image | fused |
+| --- | ---: | ---: | ---: |
+| `per_sample` | 0.99999989 | 0.99999974 | 0.99999990 |
+| `padded` | 0.99999989 | 0.99999974 | 0.99999990 |
+
+**C++ 与 Python 对照**：text 在两种模式下都 **bit-exact**——这把两端的 batch 实现钉死在一起。fused 为 0.998894（两种模式完全相同），即 6.5 节记录的 OpenCV-vs-PIL resize 差异；它在两种 batch_mode 下取值一致，说明该差异来自图像预处理而非批处理。
+
+复现命令：
 
 ```bash
 source ../benchmark/openvino/install/setupvars.sh
@@ -543,15 +594,26 @@ systemd-run --user --scope -p MemoryMax=20G -p MemorySwapMax=0 \
   ./env-ref/bin/python 08_validate_batch.py
 ```
 
-对短 text、GPU、INT8、warm、20 次调用的吞吐小测，batch 增大可以显著降低每个向量的成本：
+#### 吞吐：CPU 靠 `streams`，GPU 靠 `padded`
 
-| batch size | 每次 batch 调用 | 每个 embedding |
-| ---: | ---: | ---: |
-| 1 | 41.29 ms | 41.29 ms |
-| 2 | 58.86 ms | 29.43 ms |
-| 4 | 53.16 ms | 13.29 ms |
+CPU（16 核、INT8、warm）上把样本塞进一次 padded 调用**完全没有加速**，真正有效的是多 stream 并发：
 
-该结果是单机 iGPU 的短文本 workload，不是服务级 SLA；但它说明批量是当前最可靠的低延迟/高吞吐优化。在线服务可按最大等待时间形成 micro-batch，例如积累 2–4 条请求后调用 `get_text_embeddings(..., batch_size=4)`。
+| workload | `streams=1` | `streams="auto"`（4 流） | 加速 |
+| --- | ---: | ---: | ---: |
+| text ×8 | 0.67 s | 0.37 s | **1.81x** |
+| image ×4 | 10.23 s | 5.81 s | **1.76x** |
+
+作为对照，同一 language IR 上 padded batch 的归一化吞吐为 $B$=1/4/8 → 1.00x/1.00x/0.99x。代价是单条样本在多 stream 下约慢 1.3x（language 443→578 ms，visual 2221→3350 ms），每多一个 stream 约 +0.2 GB。
+
+GPU（iGPU、INT8、短文本、$N$=4）则相反，per-request 提交开销占主导：
+
+| 方式 | 每次调用 | 每个 embedding |
+| --- | ---: | ---: |
+| padded $B$=4 | 88.15 ms | **22.04 ms** |
+| 4× $B$=1 串行 | 285.94 ms | 71.49 ms |
+| 4× $B$=1 异步（4 请求） | 212.80 ms | 53.20 ms |
+
+所以 GPU 上 `batch_mode="auto"` 选 `padded`（快 2.4x），且多 stream 救不回来（0.34–0.41x）。这些都是单机短文本 workload，不是服务级 SLA；在线服务仍建议按最大等待时间形成 micro-batch。
 
 ### 6.7 延迟优化边界与建议
 
@@ -560,7 +622,7 @@ GME-Qwen2-VL-2B-Instruct 是约 2.2B 参数、28 层 decoder 的检索模型。�
 当前已采用且建议保留的优化：
 
 * 默认使用 INT8；它在本机保持约 `0.99+` 的图像/图文余弦，并明显降低内存与 GPU 时间。
-* 通过 batch/micro-batch 降低每个向量的成本；对 CPU/GPU 都有效。
+* 通过 micro-batch 降低每个向量的成本，但**手段按设备不同**（见 6.6）：GPU 上靠 `batch_mode="padded"`（默认自动选中，约 2.4x），CPU 上靠 `streams="auto"` 多流并发（约 1.8x）——在 CPU 上单纯把样本合成一次 padded 调用是 1.00x，没有收益。
 * 限制 text/query 的最终 token 长度；decoder attention 随序列长度增长显著增加。
 * 对图片控制 `max_image_tokens`，并以实际检索指标验证质量；视觉 token 同时增加 visual 和 language 的工作量。
 * 对 GPU 使用模型缓存和复用同一个 `GmeOpenVINO`/`GmeQwen2VL` 实例；不要为每个请求重新加载或编译 IR。
