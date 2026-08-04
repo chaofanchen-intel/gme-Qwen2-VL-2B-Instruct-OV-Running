@@ -317,6 +317,20 @@ Python GPU image：
 | `padded` | 1 | 43.8 (43.8) | 140.7 (35.2) | 260.2 (32.5) | 546.6 (34.2) |
 | `padded` | auto | 47.3 (47.3) | 143.5 (35.9) | 265.4 (33.2) | 547.6 (34.2) |
 
+#### GPU INT4 text（1024 tokens）
+
+新增复测仅覆盖 GME Python/GPU/INT4/text，输入固定为 1024 tokens，不包含 CPU、C++ 或 image。
+
+| batch_mode | streams | N=1 | N=4 | N=8 | N=16 | N=32 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `per_sample` | 1 | 500.6 (500.6) | 2064.9 (516.2) | 4110.0 (513.8) | 8239.2 (515.0) | 16379.2 (511.9) |
+| `per_sample` | auto | 400.9 (400.9) | 1471.3 (367.8) | 2848.2 (356.0) | 6474.2 (404.6) | 10825.8 (338.3) |
+| `padded` | 1 | 283.8 (283.8) | 1161.8 (290.4) | 2337.2 (292.1) | 4654.8 (290.9) | 9416.6 (294.3) |
+| `padded` | auto | 292.5 (292.5) | 1172.3 (293.1) | 2350.6 (293.8) | 4689.6 (293.1) | 9624.4 (300.8) |
+
+**1024-token 结论**：GPU Python INT4 使用 `padded + streams=1` 时约 `284–294 ms/embedding`，
+而 `per_sample + streams=1` 约 `512–516 ms/embedding`；长序列下 padded 的 request 合并收益约 1.8x。
+
 #### Image（448x448，256 visual tokens）
 
 | 设备/精度 | batch_mode | streams | N=1 | N=4 | N=8 |
@@ -409,6 +423,7 @@ INT4 仅在业务检索质量验证通过后作为 GPU 文本低延迟配置启�
 - `artifacts/benchmark_matrix_image_sizes_r20_int8_int4.json`；
 - `artifacts/benchmark_matrix_batch_r20_int8.json`；
 - `artifacts/benchmark_matrix_batch_r20_int4.json`；
+- `artifacts/benchmark_matrix_batch_text1024_r20_int4_python_gpu.json`：GME Python/GPU/INT4/text-only，1024 tokens；
 - `artifacts/benchmark_cpp_gpu_1024_retest_r20.json`。
 
 **汇报口径建议**：主汇报使用本文件；需要实现细节、完整表格或复现命令时，再下钻 README 和 PERFORMANCE_REPORT。

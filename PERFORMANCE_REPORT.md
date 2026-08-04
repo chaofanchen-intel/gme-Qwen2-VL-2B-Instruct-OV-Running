@@ -424,6 +424,17 @@ image（`448x448`，N ∈ 1,2,4,8）：
 | padded | 1 | 43.8 (43.8) | 72.7 (36.4) | 140.7 (35.2) | 260.2 (32.5) | 546.6 (34.2) | 1088.7 (34.0) |
 | padded | auto | 47.3 (47.3) | 73.7 (36.8) | 143.5 (35.9) | 265.4 (33.2) | 547.6 (34.2) | 1101.1 (34.4) |
 
+#### GPU int4 text：1024 tokens
+
+以下为新增的 GPU/Python/INT4/text-only 结果，输入长度固定为 1024 tokens；不包含 CPU、C++ 或 image。
+
+| batch_mode | streams | N=1 | N=2 | N=4 | N=8 | N=16 | N=32 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| per_sample | 1 | 500.6 (500.6) | 1033.3 (516.6) | 2064.9 (516.2) | 4110.0 (513.8) | 8239.2 (515.0) | 16379.2 (511.9) |
+| per_sample | auto | 400.9 (400.9) | 707.6 (353.8) | 1471.3 (367.8) | 2848.2 (356.0) | 6474.2 (404.6) | 10825.8 (338.3) |
+| padded | 1 | 283.8 (283.8) | 594.6 (297.3) | 1161.8 (290.4) | 2337.2 (292.1) | 4654.8 (290.9) | 9416.6 (294.3) |
+| padded | auto | 292.5 (292.5) | 599.7 (299.9) | 1172.3 (293.1) | 2350.6 (293.8) | 4689.6 (293.1) | 9624.4 (300.8) |
+
 #### GPU int4 image
 
 | batch_mode | streams | N=1 | N=2 | N=4 | N=8 |
@@ -454,6 +465,8 @@ Python 使用 Pillow，图像预处理路径本身不同。
   吞吐收益来自 `streams="auto"`，text 最佳约 171.9–173.4 ms/emb，image 最佳约 1476.5–1479.5 ms/emb。
 - [x] GPU 上 padded 优势成立：int8 text 最佳约 32.6–34.0 ms/emb，per-sample 约 52.4–53.1 ms/emb；
   int4 text 最佳约 32.2–34.0 ms/emb，per-sample 约 41.8–43.2 ms/emb。
+- [x] GPU INT4 1024-token text 复测确认 padded 优势仍成立：`padded + streams=1` 约 284–294 ms/emb，
+  `per_sample + streams=1` 约 512–516 ms/emb；长序列下合并成一个 padded request 的收益约 1.8x。
 - [x] CPU `streams="auto"` 的吞吐收益成立，但单样本代价明显：int8 text 从约 326–332 ms 增至 553–559 ms，
   int4 text 从约 371–397 ms 增至 704–709 ms；测试 scope 峰值内存约 14 GiB。
 - [x] 建议默认 micro-batch：CPU text 使用 `per_sample + streams="auto"`，按延迟预算优先 N=4–8；CPU image 优先 N=4。
