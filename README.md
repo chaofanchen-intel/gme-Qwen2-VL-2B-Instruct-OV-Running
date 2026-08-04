@@ -234,6 +234,8 @@ Python 图片输入支持本地路径、HTTP(S)、`file://`、base64 data URL、
 | `images` 混合 `None` 与图片 | 抛 `ValueError` | ⚠️ 官方在这种输入上直接崩（`input_images` 被置 `None` 后又 `.append`）。支持的输入面相同，只是失败方式更清楚 |
 | `texts` 比 `images` 长 | 按 `zip` 截断 | ✅ 官方靠这条实现末尾不满的 batch（`none_batch` 是整批 `None`） |
 | `max_length=1800` 截断 | 两端一致 | ✅ 见下 |
+| 极端尺寸图片（边 < 28px、长宽比 > 200:1） | 与官方同样 `max(factor,…)` 放大 / warning+clamp | ✅ 曾经两端都抛异常，见 §2.0.2.2 第 5 条 |
+| `GmeQwen2VL(..., min_image_tokens=256, max_image_tokens=1280, max_length=1800)` | 构造函数同名参数 | ✅ 曾经只能改包配置文件；现两端构造函数都可覆盖（C++ 的 `max_length` 只能收缩，见 §4.3/§4.4/§4.5） |
 | 返回值 | `np.ndarray[B,1536]` float32 | ⚠️ 官方返回 `torch.Tensor` float16；本项目全程 float32（精度更高，L2 归一化后可直接内积） |
 
 **`max_length` 截断（曾经的 C++/Python 不一致，已修）**：Python 走 HF processor 的 `truncation=True, max_length=1800`，
@@ -244,7 +246,7 @@ Python 图片输入支持本地路径、HTTP(S)、`file://`、base64 data URL、
 （`08_validate_batch.py` §G）。注意截断发生在 image-pad 展开**之后**，所以超长文本 + 大图仍可能因截断切掉视觉位置而报错——
 官方有同样的行为。
 
-#### 2.0.2.2 已修的两个静默正确性问题
+#### 2.0.2.2 已修的静默正确性问题
 
 1. **request pool 的行重复（Python，影响 image 与 text batch）**：`_RequestPool` 原先用 `ov.AsyncInferQueue`，
    实测会把 job 0 的输出**重复写进 job 1**：两张 grid 相同（例如都落在 `[1,32,32]`）但内容不同的图片，batch 结果第 1 行
@@ -256,6 +258,26 @@ Python 图片输入支持本地路径、HTTP(S)、`file://`、base64 data URL、
 2. **读取 OpenVINO 输出时的别名**：request 会复用输出缓冲区，`np.asarray(result[port])` **不复制**，
    连续两次推理后先前的数组会指向新数据。本项目的输出读取一律改为显式复制；`experiments/probe_visual_batch.py`
    的注释里记录了这一点，因为它曾让一次对照实验得出相反结论。
+3. **C++ 按 EXIF 自动旋转图片（影响 image 与 fused）**：`cv::imread(path, IMREAD_COLOR)` 会依据 JPEG 的
+   EXIF orientation flag 旋转图片（OpenCV 头文件明写：*"the EXIF orientation will be taken into account …
+   unless the flags IMREAD_IGNORE_ORIENTATION"*），而参考路径 `PIL.Image.open` + `convert("RGB")` **从不**旋转。
+   于是任何 `Orientation != 1` 的 JPEG——**手机拍的照片绝大多数如此**——在 C++ 里被旋转 90/180/270 度，
+   得到一个与 Python/官方完全不同的 embedding，`grid_h`/`grid_w` 互换连视觉 token 数都不同，**且不报错**。
+   实测一张 Orientation=6 的 JPEG：C++ vs Python `cosine=0.917350`。现已改为
+   `IMREAD_COLOR | IMREAD_IGNORE_ORIENTATION`。原有图像回归全部用 PIL 生成的无 EXIF PNG，所以覆盖不到。
+4. **C++ 的取整不是 Python 的取整（影响 image 与 fused）**：`smart_resize` 里 Python 的 `round()` 是
+   **round-half-to-even**，而 C++ 用的 `std::lround` 是 round-half-away-from-zero。两者只在某一边正好落在
+   半个 factor 上时分叉，但这类尺寸并不罕见：`70 == 2.5x28` 官方取 `56`，C++ 取 `84`——中间 resize 尺寸不同，
+   最终 embedding 就不同（实测 `cosine=0.900773`）。现改用 `std::nearbyint`（默认 FE_TONEAREST 即 half-to-even）。
+5. **官方能编码的极端图片被两端拒绝**：官方 `smart_resize` 用 `max(factor, round_by_factor(...))` 把**短于一个
+   28px patch 的边放大**，并在长宽比 > 200:1 时 **warning + clamp** 而不是失败。本项目此前
+   Python 抛 `ValueError`、C++ 抛 `runtime_error`，于是 10x10 缩略图、1x2000 横幅这类**官方可以编码的输入被拒**。
+   现已两端逐语句对齐官方（含 clamp 只缩短长边、因此仍是 28 的倍数）。仅保留一处官方没有的显式报错：
+   某一边被 floor 成 0 时官方接着除以 `min(...)` 抛 `ZeroDivisionError`，这里给出可读信息——不拒绝任何官方能编码的输入。
+
+上述 3/4/5 的回归是 `experiments/check_image_edge_cases.py`：第一部分把 `_resize_for_gme` 对官方
+`smart_resize` 做 18 组尺寸扫描（纯算术，不加载模型），第二部分用真实编码器跑 EXIF / 半 factor / 超小 / 超宽
+四类图片的 C++ vs Python 对照。
 
 ### 2.0.3 图片从 $m\times n$ 像素到 1536 维 embedding 的完整过程
 
@@ -451,9 +473,11 @@ gme-Qwen2-VL-2B-Instruct-Running/
 ├─ 07_llamacpp_text_check.py    # GGUF/llama.cpp 文本向量对照（备选方案评估）
 ├─ 08_validate_batch.py         # batch 正确性回归：任意 N、两种 batch_mode、官方 API 对照、截断、同形状行（Python + C++）
 ├─ 09_benchmark_matrix.py       # 性能矩阵：指定 token 长度 / 常见图片尺寸 / batch 扩展性 -> benchmark_matrix.json
-├─ PERFORMANCE_REPORT.md        # 性能报告（工作负载定义与表格已定，数值待填）
+├─ 10_retest_gpu_1024.py        # GPU 1024-token 档位的复测（DVFS/warmup 影响的追查）
+├─ PERFORMANCE_REPORT.md        # 性能报告（09 的完整矩阵）
 ├─ experiments/
-│  └─ probe_visual_batch.py     #   "为什么 visual 逐图" 的实测证据（§2.0.2）
+│  ├─ probe_visual_batch.py     #   "为什么 visual 逐图" 的实测证据（§2.0.2）
+│  └─ check_image_edge_cases.py #   图像解码/smart_resize 边界：EXIF、半 factor 取整、超小、超宽（§2.0.2.2）
 ├─ cpp/                         # C++ 运行时（主实现）
 │  ├─ include/gme_qwen2vl.hpp   #   GmeQwen2VL 类
 │  ├─ src/gme_qwen2vl.cpp       #   tokenizer/visual/language IR 编排 + prompt 模板 + image_pad 展开
@@ -513,6 +537,30 @@ cpp/build/gme_embed --package $PKG --device GPU --precision int8 --mode fused --
 
 `--precision ∈ {fp32,int8,int4,int4_gs64,int4_visint8}`，`--device ∈ {CPU,GPU}`，`--out FILE` 导出二进制向量。
 
+`--cache-dir DIR` 启用 OpenVINO 编译缓存（`ov::cache_dir`）：同一 package/device/precision/streams 的下一次进程直接加载缓存
+blob，不再重新编译。GPU 上编译 INT8 language IR 从零开始要几十秒，而 `gme_embed` 是短生命周期 CLI（每次调用都重新编译），
+这是命中率最高的一个旋钮：
+
+```bash
+cpp/build/gme_embed --package $PKG --device GPU --precision int8 --cache-dir /var/cache/gme_ov --mode text "..."
+# 实测（CPU/int8）：首次编译 6.0s，命中缓存后 2.0s
+```
+
+`--min-image-tokens N` / `--max-image-tokens N` 覆盖 package 的 Qwen2-VL processor 图像 token 上下界（默认取
+package 自带值，即 256/1280）。这是 image/fused 时延最有效的旋钮——注意力开销随视觉 token 数增长（§6.4/§6.5）——
+且纯预处理层面的改动，**不需要重新导出**：visual/language 两个 IR 的序列维度都是动态的，任意 token 数都能跑。
+
+`--max-length N` 收缩 package 的 tokenizer 截断长度（默认取 package 自带值，如 1800）。**只能收缩，不能放大**：
+上限是导出时烘进 tokenizer IR 的（`03_finalize.py`），请求更大的值会明确报错，需要用更大的 `--max-length` 重新导出
+才能提高上限。收缩时的实现是对已分词好的、右填充的 batch 直接按列裁剪到 N——因为该 tokenizer 的 `truncation_side`
+是 `"right"`，这与直接用 `truncation=True, max_length=N` 重新分词逐 token 相同（已用 HF tokenizer 验证）。
+
+```bash
+cpp/build/gme_embed --package $PKG --device CPU --precision int8 \
+    --min-image-tokens 16 --max-image-tokens 64 --mode image --image $LOGO   # 更小的图，更快
+cpp/build/gme_embed --package $PKG --device CPU --precision int8 --max-length 256 --mode text "..."
+```
+
 ### 4.4 库 API（C++）
 
 ```cpp
@@ -530,6 +578,16 @@ C++ 的三个 encode 方法都接受可选 `batch_size`（默认 32，`0` 为不
 
 ```cpp
 auto e = model.encode_text(texts, /*instruction=*/"", /*is_query=*/false, /*batch_size=*/8);
+```
+
+构造函数另接受 `cache_dir`、`min_image_tokens`、`max_image_tokens`、`max_length`（均为可选，语义与 CLI 的同名 flag
+一致，见 §4.3）：
+
+```cpp
+gme::GmeQwen2VL model(
+    "ov_models/gme-qwen2-vl-2b-instruct-openvino", "GPU", "int8",
+    /*streams=*/1, /*batch_mode=*/"auto", /*cache_dir=*/"/var/cache/gme_ov",
+    /*min_image_tokens=*/16, /*max_image_tokens=*/64, /*max_length=*/256);
 ```
 
 ### 4.5 库 API（Python）
@@ -552,6 +610,17 @@ enc.encode(sentences), enc.encode_queries(qs), enc.encode_corpus(rows)   # ST/MT
 enc.get_fused_embeddings(texts, images, batch_size=8, show_progress_bar=False)
 GmeOpenVINO(pkg, device="CPU", precision="int8", streams="auto")   # CPU 吞吐
 GmeOpenVINO(pkg, device="GPU", precision="int8", batch_mode="padded")
+
+# 编译缓存：同一 device/precision/streams 的下一次构造直接加载缓存 blob
+GmeOpenVINO(pkg, device="GPU", precision="int8", cache_dir="/var/cache/gme_ov")
+
+# 覆盖图像 token 上下界（默认取 package 自带的 256/1280）；纯预处理改动，不需要重新导出，
+# 因为 visual/language 两个 IR 的序列维度都是动态的
+GmeOpenVINO(pkg, device="CPU", precision="int8", min_image_tokens=16, max_image_tokens=64)
+
+# 覆盖 tokenizer 截断长度（默认取 package 自带值，如 1800）；language IR 序列维度全动态，
+# 可任意放大或收缩，不像 C++ 端受 tokenizer IR 烘入的上限约束
+GmeOpenVINO(pkg, device="CPU", precision="int8", max_length=256)
 ```
 
 ---
@@ -582,6 +651,16 @@ GmeOpenVINO(pkg, device="GPU", precision="int8", batch_mode="padded")
   | I | **同形状但内容不同**的样本不得互相污染——非 ragged，专门覆盖 §2.0.2.2 的 pool 重复行问题 |
 
   A/B/E 用 ragged 输入暴露对 padding 与统一 grid 的隐含依赖；I 反过来用非 ragged 输入，两者互补。
+- **图像解码与 resize 边界**：`experiments/check_image_edge_cases.py`。上面 A–I 全部使用 PIL 生成的、常规尺寸的
+  无 EXIF RGB PNG，因此覆盖不到"图片本身长什么样"这一类分叉。该脚本补两部分：
+  第一部分把 `_resize_for_gme` 对官方 `smart_resize` 做 18 组尺寸扫描（纯算术、不加载模型，秒级）；
+  第二部分用真实编码器跑 EXIF Orientation=6 的 JPEG、正好落在半个 factor 上的 `70x70`、短于一个 patch 的 `10x10`、
+  超 200:1 的 `1x2000`，以及作为对照的 `448x448`，做 C++ vs Python 对照。这四类正是 §2.0.2.2 第 3/4/5 条的回归。
+
+  ```bash
+  ./env-ref/bin/python experiments/check_image_edge_cases.py --resize-only   # 秒级，纯算术
+  ./env-ref/bin/python experiments/check_image_edge_cases.py                 # 含 C++/Python 端到端
+  ```
 - **性能矩阵**：`09_benchmark_matrix.py`（→ `artifacts/benchmark_matrix.json`，报告见 `PERFORMANCE_REPORT.md`）。
   它补上 `06_benchmark.py` 无法回答的三件事：指定 token 长度（含 1024）的 text/query、**常见分辨率**的 image/fused
   （`06_benchmark.py` 只用 1260 视觉 token 的 `gme_logo.png`，属最坏情况）、以及 batch 扩展性
@@ -632,8 +711,22 @@ GmeOpenVINO(pkg, device="GPU", precision="int8", batch_mode="padded")
 | GPU | int4 | 0.886320 | 0.911044 | 0.930794 | 0.948113 |
 
 - 文本/query 与 Python 完全一致（tokenizer IR 逐 token 一致，语言 IR 相同）。
-- 图像/图文比 Python 低约 `0.02` / `0.012`。当前 C++ 预处理使用 OpenCV，参考实现使用 Pillow；C++ 已采用缩小时 `INTER_AREA`、放大时 `INTER_CUBIC` 来逼近 Pillow bicubic，但这不是逐像素等价实现。`gme_logo` 的锐利边缘和 1260 个合并视觉 token 使该用例对 resize 差异敏感。
+- 图像/图文比 Python 低约 `0.02` / `0.012`。**剩余差异只有一个来源：resize 重采样**——C++ 预处理使用 OpenCV，参考实现使用 Pillow；C++ 已采用缩小时 `INTER_AREA`、放大时 `INTER_CUBIC` 来逼近 Pillow bicubic，但这不是逐像素等价实现。`gme_logo` 的锐利边缘和 1260 个合并视觉 token 使该用例对 resize 差异敏感。
+  曾经与它混在一起的另外三项（EXIF 旋转、half-to-even 取整、极端尺寸被拒）已按 §2.0.2.2 修复，不再计入本项。
+- **该差异只在某一级 resize 真的重采样时出现。** 两级 `smart_resize` 都是 no-op 的图片（例如 `448x448`，本身就在
+  256 token 下界上）C++ vs Python 为 `cosine = 0.999976`；反之从 `10x10` 放大到 `448x448` 这种极端上采样为 `0.941`。
+  所以"C++ 图像差 0.02"不是一个常数，而是随重采样比例变化的量。
 - 因此，C++ 图像路径的验收含义是“可运行且差异被记录”，不是 FP32 参考级数值等价。对图像检索精度有严格要求时，应使用 Python runtime，或先以 Pillow 等价 resize 替换/验证 C++ 预处理，再提高 C++ image/fused 的验收阈值。
+
+  `experiments/check_image_edge_cases.py` 的实测（GPU/INT8，C++ vs Python），修复前后对照：
+
+  | 用例 | 修复前 | 修复后 | 残余差异来源 |
+  | --- | ---: | ---: | --- |
+  | `448x448`（两级 resize 均 no-op） | 0.999976 | 0.999976 | 无重采样 |
+  | `70x70`（半个 factor 取整） | **0.900773** | 0.967264 | resize 重采样 |
+  | `10x10`（短于一个 patch） | **C++ 拒绝** | 0.941486 | resize 重采样（44.8x 上采样） |
+  | `1x2000`（超 200:1） | **C++ 拒绝** | 0.984768 | resize 重采样 |
+  | `140x224` + EXIF Orientation=6 | **0.917350** | 0.959535 | resize 重采样 |
 
 ### 6.4 时延（`benchmark.json`，warm，ms/次，repeat=5）
 
@@ -801,9 +894,28 @@ GME-Qwen2-VL-2B-Instruct 是约 2.2B 参数、28 层 decoder 的检索模型。�
 
 * 默认使用 INT8；它在本机保持约 `0.99+` 的图像/图文余弦，并明显降低内存与 GPU 时间。
 * 通过 micro-batch 降低每个向量的成本，但**手段按设备不同**（见 6.6）：GPU 上靠 `batch_mode="padded"`（默认自动选中，约 2.4x），CPU 上靠 `streams="auto"` 多流并发（约 1.8x）——在 CPU 上单纯把样本合成一次 padded 调用是 1.00x，没有收益。
-* 限制 text/query 的最终 token 长度；decoder attention 随序列长度增长显著增加。
-* 对图片控制 `max_image_tokens`，并以实际检索指标验证质量；视觉 token 同时增加 visual 和 language 的工作量。
-* 对 GPU 使用模型缓存和复用同一个 `GmeOpenVINO`/`GmeQwen2VL` 实例；不要为每个请求重新加载或编译 IR。
+* 限制 text/query 的最终 token 长度；decoder attention 随序列长度增长显著增加。两端构造函数现在都能覆盖
+  `max_length`（Python 可放大或收缩，因为 language IR 序列维度全动态；C++ 只能收缩，上限是 tokenizer IR 导出时
+  烘入的值，见 §4.3/§4.4）。
+* 对图片控制 `max_image_tokens`，并以实际检索指标验证质量；视觉 token 同时增加 visual 和 language 的工作量。两端
+  构造函数现在都能覆盖 `min_image_tokens`/`max_image_tokens`，纯预处理层面、不需要重新导出（§4.3/§4.4/§4.5）。
+* 对 GPU 使用模型缓存并复用同一个 `GmeOpenVINO`/`GmeQwen2VL` 实例；不要为每个请求重新加载或编译 IR。两端构造函数
+  现在都能传 `cache_dir` 启用 `ov::cache_dir`：同一 package/device/precision/streams 的下一次编译直接读缓存 blob。
+  这对 `gme_embed` 这类短生命周期 CLI 收益最大——每次调用本来都要重新编译；实测 CPU/int8 首次编译 6.0s，命中缓存
+  后 2.0s。**"复用同一实例"说的是进程生命周期，不是并发**：两个类都不是线程安全的（`encode_*`/`get_*`
+  内部复用同一批 `ov::InferRequest`），多线程场景要么在同一实例上加锁串行调用，要么每个线程/进程各开一个实例
+  （可以共用同一个 `cache_dir`，只有第一个真正编译）。见 `gme_qwen2vl.hpp`/`gme_openvino.py` 类注释里的
+  "Not thread-safe" 说明。
+* **infer request 按需创建，不按 stream 数预建。** request 持有自己的激活（每 stream 约 +0.2 GB），而 pool 的容量
+  取自 `OPTIMAL_NUMBER_OF_INFER_REQUESTS`（实测：LATENCY=1，THROUGHPUT=4）。预先建满会让两类常见负载白付内存：
+  纯文本任务从不碰视觉塔，`padded` 模式（GPU 默认）也只发一个 language request。Python 的 `_RequestPool._slots`
+  一直是懒增长的；C++ 的 `GmeQwen2VL::Pool` 现在同样懒增长，因此 `--streams 0` 的纯文本任务不再预建 4 个视觉 request。
+  这不改变任何数值，只降低峰值内存。
+* **Python 图片加载现在并行**（`_load_images`，镜像官方 `DataLoader(num_workers=min(cpu_count//2, 8))`）：一批
+  图片交给线程池而不是逐张 `load_image()`。图片是本地路径时磁盘 I/O 通常不是瓶胫，但输入是 URL 列表时，逐张加载
+  等价于把每次 HTTP round-trip 串行相加；并行加载后单张图片的路径（`len(images)<=1`）直接跳过线程池，避免纯开销。
+  `ThreadPoolExecutor.map` 保证按输入顺序返回，因此不需要额外的排序/对齐逻辑；已用磁盘图片和内存中构造的图片
+  两种输入验证过顺序保留与逐张编码结果一致（bit-exact）。
 * 选定 micro-batch 与 `max_image_tokens` 之前，先在**目标分辨率与文本长度分布**上跑
   `09_benchmark_matrix.py` 并填写 `PERFORMANCE_REPORT.md`。§6.4/§6.5 的数值分别是 1260 视觉 token 的最坏情况图片
   与 ≤256 token 的短句，不能外推到常见图片和 512/1024 token 长文本（常见尺寸约快一个数量级）。
@@ -826,6 +938,13 @@ GME-Qwen2-VL-2B-Instruct 是约 2.2B 参数、28 层 decoder 的检索模型。�
 - **INT4**：显著影响**文本**（≈0.89–0.92），图像/图文反而略好（last-token 池化对逐 patch 噪声更鲁棒）。`int4_gs64` 把文本恢复到 ≈0.92–0.95。**INT4 = 可跑、最省体积，但检索质量需重新评测后再上线**。
 - **视觉塔量化的坑（已修复并内置于 `03_finalize.py`）**：朴素权重压缩会把 ViT 的 `rotary_pos_emb`（`aten::outer` MatMul）也量化，破坏旋转位置频率，使视觉输出崩坏（int8/int4 逐 patch cos 都只有 ~0.32）。用 `ignored_scope(patterns=[".*rotary.*"])` 排除后恢复（int8 图像≈0.99）。语言塔无此问题（其 rotary 用 cos/sin buffer，非可量化 MatMul）。
 - 嵌入检索对排序敏感：正式选型请在业务 query/corpus 上比 Recall@K / nDCG，而非只看逐向量 cosine。
+- **`compress()` 现在按配置内容判断是否需要重新压缩，不再只看文件是否存在**：`03_finalize.py` 会把每次
+  `nncf.compress_weights(...)` 调用的完整参数（含 `mode`/`group_size`/`ignored_scope`/`advanced_parameters`,
+  连 nncf 自己填的默认值也算在内）算一个哈希，写进 `nncf_fingerprints.json`。之前只检查目标 `.xml` 是否存在，
+  于是改了 `group_size` 却忘了删旧文件时，脚本会静默复用改之前的旧产物——量化配方的改动实际上从未生效，直到有人
+  发现 `.xml` 的 mtime 比编辑时间还早。首次在新代码下运行 `03_finalize.py` 因为还没有指纹文件，会把已有的
+  fp32/int8/int4/int4_gs64/int4_visint8 全部重新压缩一遍来建立基线——这是预期行为，不是回归：这里的
+  `compress_weights` 全部是 data-free 调用（`ratio=1.0`，未传 `dataset=`），重新压缩得到逐字节相同的产物。
 
 ---
 
@@ -861,6 +980,8 @@ cd cpp && bash build.sh && cd ..                    # 构建 C++
                                                      # 性能矩阵     -> benchmark_matrix.json（填 PERFORMANCE_REPORT.md）
 ./env-ref/bin/python experiments/probe_visual_batch.py
                                                      # §2.0.2 的 visual batch 实测证据（不写 artifact）
+./env-ref/bin/python experiments/check_image_edge_cases.py
+                                                     # §2.0.2.2 图像解码/resize 边界回归（不写 artifact）
 ```
 
 `08_validate_batch.py` 与 `09_benchmark_matrix.py` 建议限内存运行：

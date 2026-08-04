@@ -8,14 +8,18 @@ tokens, dynamic image resizing, and image-token expansion.
 from __future__ import annotations
 
 import base64
+import logging
 import math
+import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from pathlib import Path
 from typing import Sequence
 
 import numpy as np
 import openvino as ov
+import openvino.properties as props
 import requests
 from PIL import Image
 from transformers import AutoProcessor
@@ -29,6 +33,17 @@ MAX_RATIO = 200
 # Official GME's get_fused_embeddings() default. Chunking only bounds peak memory;
 # it never changes a row, because rows are computed independently either way.
 DEFAULT_BATCH_SIZE = 32
+# OpenVINO virtual devices that select/combine real ones at compile time; never
+# listed in Core.available_devices, but a valid `device=` value. See
+# GmeOpenVINO._device_recognized.
+_META_DEVICE_PREFIXES = ("AUTO", "MULTI", "HETERO", "BATCH")
+# Mirrors official GME's DataLoader(num_workers=min(cpu_count//2, 8)) for image
+# loading (gme_inference.py's get_fused_embeddings). load_image() is I/O-bound
+# (network fetch for a URL, disk read for a path) plus a PIL resize, so loading a
+# batch through a thread pool -- rather than one image at a time -- matters most
+# when images is a list of URLs: sequential loading serializes every fetch's
+# round-trip latency.
+_IMAGE_LOAD_WORKERS = max(1, min((os.cpu_count() or 1) // 2, 8))
 
 
 def _as_list(value: str | Path | Image.Image | Sequence[str | Path | Image.Image] | None) -> list | None:
@@ -106,8 +121,22 @@ def _resize_for_gme(image: Image.Image) -> Image.Image:
         scale = math.sqrt(MIN_PIXELS / (height * width))
         resized_height = math.ceil(height * scale / IMAGE_FACTOR) * IMAGE_FACTOR
         resized_width = math.ceil(width * scale / IMAGE_FACTOR) * IMAGE_FACTOR
+    if not resized_height or not resized_width:
+        # Official divides by min(...) next and dies with ZeroDivisionError; say what
+        # happened instead. Nothing upstream can encode is rejected here.
+        raise ValueError(f"image {width}x{height} is too extreme to resize: a side rounded to 0 pixels")
     if max(resized_height, resized_width) / min(resized_height, resized_width) > MAX_RATIO:
-        raise ValueError(f"image aspect ratio must not exceed {MAX_RATIO}:1")
+        # Official warns and clamps the long side rather than failing, so an extreme
+        # banner stays encodable; rejecting it here would drop an input GME accepts.
+        # Clamping only shrinks, so the result is still a multiple of IMAGE_FACTOR.
+        logging.warning(
+            "Absolute aspect ratio must be smaller than %s, got %s",
+            MAX_RATIO, max(resized_height, resized_width) / min(resized_height, resized_width),
+        )
+        if resized_height > resized_width:
+            resized_height = resized_width * MAX_RATIO
+        else:
+            resized_width = resized_height * MAX_RATIO
     return image.resize((resized_width, resized_height))
 
 
@@ -126,6 +155,20 @@ def load_image(value: str | Path | Image.Image) -> Image.Image:
         else:
             image = Image.open(value)
     return _resize_for_gme(image.convert("RGB"))
+
+
+def _load_images(values: list) -> list[Image.Image]:
+    """Load/resize a batch of images, preserving input order.
+
+    A single image skips the thread pool entirely -- there is nothing to overlap,
+    and creating one would be pure overhead. ThreadPoolExecutor.map already
+    returns results in submission order, so this needs no extra bookkeeping to
+    keep images aligned with their paired texts.
+    """
+    if len(values) <= 1:
+        return [load_image(value) for value in values]
+    with ThreadPoolExecutor(max_workers=min(_IMAGE_LOAD_WORKERS, len(values))) as pool:
+        return list(pool.map(load_image, values))
 
 
 class _RequestPool:
@@ -207,6 +250,17 @@ class GmeOpenVINO:
     an optional progress bar, and ``encode`` / ``encode_queries`` / ``encode_corpus``
     are the sentence-transformers-style aliases.
 
+    **Not thread-safe.** One instance holds one ``_RequestPool`` per IR, and a pool
+    lends out and reuses its ``ov.InferRequest`` objects across calls (see
+    ``_RequestPool``); calling any ``encode_*``/``get_*`` method on the *same*
+    instance from two threads at once races on that shared pool state. This
+    matters because the README's deployment notes also recommend reusing one
+    instance across requests to avoid recompiling the IRs -- that advice is about
+    process lifetime, not concurrency: reuse one instance sequentially, or across
+    threads only behind a lock, or give each worker thread/process its own
+    instance (they can still share a ``cache_dir`` so only the first one actually
+    compiles).
+
     Batching works for any number of samples with no per-batch-size export:
 
     * The visual IR is invoked once per image. Qwen2-VL's vision tower has no
@@ -244,6 +298,10 @@ class GmeOpenVINO:
         fp32_math: bool | None = None,
         streams: int | str = 1,
         batch_mode: str = "auto",
+        cache_dir: str | Path | None = None,
+        min_image_tokens: int | None = None,
+        max_image_tokens: int | None = None,
+        max_length: int | None = None,
     ) -> None:
         """precision: one of the keys in the package config's ``precisions`` map
         (e.g. ``fp32``/``int8``/``int4``); defaults to the package ``default_precision``.
@@ -258,7 +316,26 @@ class GmeOpenVINO:
         batch_mode: how the language IR consumes a batch -- ``"per_sample"`` (one
         request per sample, bit-identical to sequential), ``"padded"`` (one [B, S]
         request, like the official model), or ``"auto"`` (default: per_sample on
-        CPU, padded on GPU, matching where each is faster)."""
+        CPU, padded on GPU, matching where each is faster).
+        cache_dir: enables OpenVINO's compiled-model cache (``ov.properties.cache_dir``)
+        so a second process with the same package/device/precision/streams loads a
+        cached blob instead of recompiling. ``None`` (default) disables it, matching
+        prior behavior. Recommended for GPU, where compiling the INT8 language IR from
+        scratch is tens of seconds; every short-lived CLI/benchmark process in this
+        project pays that cost from cold, so pointing them at one shared directory is
+        the single easiest latency win for anything that starts a fresh process.
+        min_image_tokens, max_image_tokens: override the package's Qwen2-VL processor
+        image-token bounds (default: the package's own values from
+        ``gme_openvino_config.json``, matching official's ``GmeQwen2VL.__init__``
+        defaults of 256/1280). This is the single most effective image/fused latency
+        knob: attention cost grows with the visual token count (README S6.4-6.5), so
+        capping ``max_image_tokens`` trades resolution for latency. Unlike
+        ``max_length`` below, this needs no re-export -- both language and visual IRs
+        accept any sequence length.
+        max_length: override the package's tokenizer truncation length (default: the
+        package's own value, e.g. 1800). The language IR has a fully dynamic sequence
+        dimension, so this can be raised or lowered freely with no re-export --
+        unlike the C++ runtime, where it is baked into a tokenizer IR at export time."""
         self.model_dir = Path(model_dir)
         config_path = self.model_dir / "gme_openvino_config.json"
         if not config_path.exists():
@@ -280,22 +357,39 @@ class GmeOpenVINO:
         self.precision = precision
 
         processor_config = self.config["processor"]
+        if min_image_tokens is None:
+            min_image_tokens = processor_config["min_image_tokens"]
+        if max_image_tokens is None:
+            max_image_tokens = processor_config["max_image_tokens"]
+        if min_image_tokens < 1 or max_image_tokens < 1 or min_image_tokens > max_image_tokens:
+            raise ValueError(
+                f"min_image_tokens={min_image_tokens} and max_image_tokens={max_image_tokens} "
+                "must both be positive with min_image_tokens <= max_image_tokens"
+            )
+        self.max_length = processor_config["max_length"] if max_length is None else max_length
+        if self.max_length < 1:
+            raise ValueError(f"max_length must be positive, got {self.max_length}")
         self.processor = AutoProcessor.from_pretrained(
             str(self.model_dir),
-            min_pixels=processor_config["min_image_tokens"] * IMAGE_FACTOR * IMAGE_FACTOR,
-            max_pixels=processor_config["max_image_tokens"] * IMAGE_FACTOR * IMAGE_FACTOR,
+            min_pixels=min_image_tokens * IMAGE_FACTOR * IMAGE_FACTOR,
+            max_pixels=max_image_tokens * IMAGE_FACTOR * IMAGE_FACTOR,
             use_fast=False,
         )
-        padding_side = self.config["processor"]["padding_side"]
+        padding_side = processor_config["padding_side"]
         if padding_side != "right":
             # Per-sample slicing below assumes valid tokens come first.
             raise ValueError(f"package must be right-padded, got padding_side={padding_side!r}")
         self.processor.tokenizer.padding_side = padding_side
-        self.max_length = self.config["processor"]["max_length"]
         self.embedding_dim = int(self.config["embedding_dim"])
         self.core = ov.Core()
-        if device not in self.core.available_devices:
-            raise RuntimeError(f"OpenVINO device {device!r} unavailable; found {self.core.available_devices}")
+        if cache_dir is not None:
+            self.core.set_property({props.cache_dir(): str(cache_dir)})
+        if not self._device_recognized(device):
+            raise RuntimeError(
+                f"OpenVINO device {device!r} unavailable; found {self.core.available_devices} "
+                "(AUTO/MULTI/HETERO/BATCH meta-devices and a plain device with a '.N' suffix, "
+                "e.g. 'GPU.0', are also accepted)"
+            )
         if fp32_math is None:
             fp32_math = precision == "fp32"
         compile_config = {hint.inference_precision: ov.Type.f32} if fp32_math else {}
@@ -305,6 +399,11 @@ class GmeOpenVINO:
             raise ValueError(f"batch_mode must be auto/per_sample/padded, got {batch_mode!r}")
         # Per-sample drops padding work and overlaps across CPU streams; a padded
         # call amortizes the GPU's per-submission overhead. See the class docstring.
+        # This is a name-based heuristic, not a query of what AUTO/MULTI/HETERO
+        # actually resolve to: only a device string that is (or starts with) "CPU"
+        # picks per_sample; anything else, including meta-devices that might select
+        # CPU underneath, defaults to padded. Pass batch_mode explicitly for those
+        # if the CPU-side behavior matters to you.
         self.batch_mode = (
             ("per_sample" if device.upper().startswith("CPU") else "padded")
             if batch_mode == "auto"
@@ -315,6 +414,23 @@ class GmeOpenVINO:
         self.language_pool = _RequestPool(self.language)
         self.visual_pool = _RequestPool(self.visual)
         self._no_images = np.empty((0, self.embedding_dim), dtype=np.float32)
+
+    def _device_recognized(self, device: str) -> bool:
+        """True if `device` is a real device or a device OpenVINO otherwise accepts.
+
+        `core.available_devices` only lists concrete plugins with detected hardware
+        (e.g. ``["CPU", "GPU"]``), so a strict membership check rejects every legal
+        multi-device string: ``"AUTO"``, ``"AUTO:CPU"``, ``"MULTI:CPU,GPU"``,
+        ``"HETERO:GPU,CPU"``, ``"BATCH:GPU(4)"``, and a device index like
+        ``"GPU.0"``. All were verified here to `core.compile_model()` successfully
+        against this package's language IR. Rather than reimplement OpenVINO's
+        device-string grammar, this only recognizes the plain-device and
+        known-meta-device-prefix cases and otherwise defers to `compile_model`'s
+        own error -- good enough to catch the common typo (e.g. `"gpu"` lowercase)
+        without blocking a legitimate config this class has never been taught about.
+        """
+        base = device.split(":", 1)[0].split(".", 1)[0]
+        return base in self.core.available_devices or base in _META_DEVICE_PREFIXES
 
     @staticmethod
     def _stream_config(streams: int | str) -> dict:
@@ -393,16 +509,6 @@ class GmeOpenVINO:
         )
         return self._language_embedding(inputs)
 
-    @staticmethod
-    def _batches(values: list, batch_size: int | None):
-        if batch_size is None:
-            yield values
-            return
-        if batch_size < 1:
-            raise ValueError("batch_size must be positive")
-        for start in range(0, len(values), batch_size):
-            yield values[start : start + batch_size]
-
     def _encode_image_batch(
         self,
         texts: list[str | None],
@@ -413,7 +519,7 @@ class GmeOpenVINO:
             raise ValueError("image batch needs matching, non-empty texts and images")
         inputs = self.processor(
             text=[self._prompt(text, has_image=True, instruction=instruction) for text in texts],
-            images=[load_image(image) for image in images],
+            images=_load_images(images),
             padding=True,
             truncation=True,
             max_length=self.max_length,

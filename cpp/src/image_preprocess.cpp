@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 #include <stdexcept>
 
 #include <opencv2/imgcodecs.hpp>
@@ -13,16 +14,26 @@ namespace {
 
 // Qwen2-VL smart_resize: both dims divisible by `factor`, pixel count in
 // [min_px, max_px], aspect ratio preserved as closely as possible.
+//
+// This mirrors official GME's helper statement for statement, including the two
+// behaviours it is easy to "improve" into a divergence:
+//   * `max(factor, ...)` -- a side shorter than one patch is scaled up, not rejected.
+//   * the MAX_RATIO check warns and clamps the long side, so an extreme banner is
+//     still encodable, and it runs *after* the pixel-budget branches.
 std::pair<int, int> smart_resize(int height, int width, int factor, long min_px, long max_px) {
-    if (height < factor || width < factor) {
-        throw std::runtime_error("image side smaller than patch factor");
+    if (height <= 0 || width <= 0) {
+        throw std::runtime_error("image has a zero-sized dimension");
     }
-    if (std::max(height, width) / static_cast<double>(std::min(height, width)) > 200.0) {
-        throw std::runtime_error("aspect ratio must be < 200:1");
-    }
-    auto round_by = [factor](double v) { return static_cast<int>(std::lround(v / factor)) * factor; };
-    int h_bar = round_by(height);
-    int w_bar = round_by(width);
+    // Python's round() is half-to-even; std::lround is half-away-from-zero. They
+    // disagree whenever a side lands on an exact half factor, e.g. 70 == 2.5*28
+    // rounds to 56 upstream but to 84 with lround -- a different intermediate
+    // resize, and therefore a different embedding. std::nearbyint honours the
+    // default FE_TONEAREST rounding mode, which is half-to-even.
+    auto round_by = [factor](double v) {
+        return static_cast<int>(std::nearbyint(v / factor)) * factor;
+    };
+    int h_bar = std::max(factor, round_by(height));
+    int w_bar = std::max(factor, round_by(width));
     if (static_cast<long>(h_bar) * w_bar > max_px) {
         double beta = std::sqrt(static_cast<double>(height) * width / max_px);
         h_bar = static_cast<int>(std::floor(height / beta / factor)) * factor;
@@ -32,6 +43,23 @@ std::pair<int, int> smart_resize(int height, int width, int factor, long min_px,
         h_bar = static_cast<int>(std::ceil(height * beta / factor)) * factor;
         w_bar = static_cast<int>(std::ceil(width * beta / factor)) * factor;
     }
+    if (h_bar <= 0 || w_bar <= 0) {
+        // Official divides by min(h_bar, w_bar) next and dies with ZeroDivisionError;
+        // say what happened instead. Nothing upstream can encode is rejected here.
+        throw std::runtime_error("image is too extreme to resize: a side rounded to 0 pixels");
+    }
+    const int longest = std::max(h_bar, w_bar);
+    const int shortest = std::min(h_bar, w_bar);
+    if (longest > shortest * MAX_RATIO) {  // exactly longest/shortest > MAX_RATIO
+        std::cerr << "[gme] warning: absolute aspect ratio must be smaller than " << MAX_RATIO
+                  << ", got " << static_cast<double>(longest) / shortest << "\n";
+        // Clamping only shrinks the long side, so it stays a multiple of `factor`.
+        if (h_bar > w_bar) {
+            h_bar = w_bar * MAX_RATIO;
+        } else {
+            w_bar = h_bar * MAX_RATIO;
+        }
+    }
     return {h_bar, w_bar};
 }
 
@@ -39,6 +67,11 @@ std::pair<int, int> smart_resize(int height, int width, int factor, long min_px,
 // which antialiases on downscale; OpenCV INTER_CUBIC does not. Approximate PIL
 // more closely by using INTER_AREA when shrinking and INTER_CUBIC when enlarging.
 cv::Mat resize_rgb(const cv::Mat& rgb, int out_h, int out_w) {
+    // PIL's resize() short-circuits to a copy when the size is unchanged, so the
+    // reference does no resampling in that case either -- and GME's two-stage
+    // resize agrees on both stages for plenty of ordinary inputs (a 448x448 image
+    // is already at the 256-token floor).
+    if (out_h == rgb.rows && out_w == rgb.cols) return rgb.clone();
     cv::Mat out;
     const bool shrinking = static_cast<long>(out_h) * out_w < static_cast<long>(rgb.rows) * rgb.cols;
     const int interp = shrinking ? cv::INTER_AREA : cv::INTER_CUBIC;
@@ -48,8 +81,15 @@ cv::Mat resize_rgb(const cv::Mat& rgb, int out_h, int out_w) {
 
 }  // namespace
 
-ImageTensors preprocess_image(const std::string& path) {
-    cv::Mat bgr = cv::imread(path, cv::IMREAD_COLOR);  // drops alpha, 8-bit BGR
+ImageTensors preprocess_image(const std::string& path, long proc_min_pixels, long proc_max_pixels) {
+    // IMREAD_IGNORE_ORIENTATION is required for parity, not an optimization: plain
+    // IMREAD_COLOR rotates the image according to the JPEG EXIF orientation flag,
+    // while the reference path (PIL Image.open + convert("RGB")) never does. Without
+    // it, any photo tagged Orientation != 1 -- most phone photos -- came out rotated
+    // here, silently producing a different embedding *and* a different visual token
+    // count than Python/official. Measured on an Orientation=6 JPEG: C++ vs Python
+    // cosine 0.917 before, 0.960 after -- the residual being the resize delta above.
+    cv::Mat bgr = cv::imread(path, cv::IMREAD_COLOR | cv::IMREAD_IGNORE_ORIENTATION);
     if (bgr.empty()) {
         throw std::runtime_error("failed to read image: " + path);
     }
@@ -60,8 +100,8 @@ ImageTensors preprocess_image(const std::string& path) {
     auto [h1, w1] = smart_resize(rgb.rows, rgb.cols, IMAGE_FACTOR, FETCH_MIN_PIXELS, FETCH_MAX_PIXELS);
     rgb = resize_rgb(rgb, h1, w1);
 
-    // Step 2: Qwen2VLImageProcessor resize (256..1280 image-token bounds).
-    auto [h2, w2] = smart_resize(h1, w1, IMAGE_FACTOR, PROC_MIN_PIXELS, PROC_MAX_PIXELS);
+    // Step 2: Qwen2VLImageProcessor resize (caller-resolved image-token bounds).
+    auto [h2, w2] = smart_resize(h1, w1, IMAGE_FACTOR, proc_min_pixels, proc_max_pixels);
     rgb = resize_rgb(rgb, h2, w2);
 
     const int H = rgb.rows, W = rgb.cols;

@@ -1,7 +1,8 @@
 // GME-Qwen2-VL-2B-Instruct embedding runtime on OpenVINO (C++).
 //
 // The learned computation lives in three OpenVINO IRs produced by the Python
-// exporter (04/06):
+// exporter (02_export.py for the two neural IRs, 03_finalize.py for the tokenizer
+// IR and the quantized variants):
 //   openvino_tokenizer.xml  string  -> input_ids, attention_mask   (openvino-tokenizers)
 //   gme_visual_<prec>.xml    pixels -> image-token embeddings       (Qwen2-VL ViT)
 //   gme_language_<prec>.xml  ids+mask+image_embeds -> L2-normalized last-token embedding
@@ -37,6 +38,14 @@ struct Embedding {
 // "padded" it changes which samples pad together, exactly as it does upstream.
 inline constexpr std::size_t kDefaultBatchSize = 32;
 
+// Not thread-safe: encode_text/encode_image/encode_fused lend out and reuse
+// ov::InferRequest objects from language_pool_/visual_pool_/tokenizer_req_, so
+// calling any of them on the *same* instance from two threads at once races on
+// that shared state. The README's deployment notes also recommend reusing one
+// instance across requests to avoid recompiling the IRs -- that advice is about
+// process lifetime, not concurrency: reuse one instance sequentially, or across
+// threads only behind a mutex, or give each worker thread/process its own
+// instance (they can still share a cache_dir so only the first one compiles).
 class GmeQwen2VL {
 public:
     // package_dir: the exported gme-qwen2-vl-2b-instruct-openvino directory.
@@ -55,18 +64,51 @@ public:
     //              per_sample on CPU (a padded call is no faster there, 1.00x,
     //              and per_sample also drops the padding work), padded on GPU
     //              (per-submission overhead dominates: 2.4x faster per embedding).
+    // cache_dir:   enables OpenVINO's compiled-model cache (ov::cache_dir) so a
+    //              second process with the same package/device/precision/streams
+    //              loads a cached blob instead of recompiling. Empty (default)
+    //              disables it, matching prior behavior. Recommended for GPU,
+    //              where compiling the INT8 language IR from scratch is tens of
+    //              seconds and every short-lived gme_embed invocation pays that
+    //              cost from cold.
+    // min_image_tokens, max_image_tokens: override the package's Qwen2-VL processor
+    //              image-token bounds (0 keeps the package default, i.e. the same
+    //              256/1280 baked into gme_openvino_config.json). Pure preprocessing
+    //              -- no re-export needed, unlike max_length: both the visual and
+    //              language IRs accept any sequence length. This is the single most
+    //              effective image/fused latency knob, since attention cost grows
+    //              with the visual token count.
+    // max_length:  override the package's tokenizer truncation length (0 keeps the
+    //              package default, e.g. 1800). Unlike the Python runtime, this can
+    //              only shrink at runtime: the ceiling is baked into the tokenizer
+    //              IR at export time (03_finalize.py), so a request larger than that
+    //              throws -- re-export with a larger --max-length to raise it. A
+    //              smaller override truncates input_ids/attention_mask columns right
+    //              after tokenization, which reproduces `truncation=True,
+    //              max_length=N` exactly because this tokenizer's truncation_side is
+    //              "right": slicing the first N columns of an already right-padded,
+    //              already max_length-1800-truncated batch is column-for-column the
+    //              same as tokenizing directly with max_length=N (verified against
+    //              the HF tokenizer).
     GmeQwen2VL(const std::string& package_dir,
                const std::string& device = "CPU",
                const std::string& precision = "int8",
                int streams = 1,
-               const std::string& batch_mode = "auto");
+               const std::string& batch_mode = "auto",
+               const std::string& cache_dir = "",
+               int min_image_tokens = 0,
+               int max_image_tokens = 0,
+               std::size_t max_length = 0);
 
-    // Text-only, batched. instruction is used only when is_query is true and it is
-    // non-empty; otherwise the default GME instruction is applied. Inputs longer
-    // than the package's max_length (1800) are truncated inside the tokenizer IR,
-    // matching HF `truncation=True` and therefore the official model.
+    // Text-only, batched. instruction is used only when is_query is true and it
+    // holds a value; otherwise the default GME instruction is applied. Passing an
+    // explicit empty string (as opposed to nullopt) is a real, if unusual,
+    // instruction and is honored as one -- matching official/Python, which check
+    // `instruction is not None`, not truthiness. Inputs longer than the package's
+    // max_length (1800, unless overridden below) are truncated inside the
+    // tokenizer IR, matching HF `truncation=True` and therefore the official model.
     Embedding encode_text(const std::vector<std::string>& texts,
-                          const std::string& instruction = "",
+                          const std::optional<std::string>& instruction = std::nullopt,
                           bool is_query = true,
                           std::size_t batch_size = kDefaultBatchSize);
 
@@ -75,14 +117,14 @@ public:
     // per image and the language IR once per sample, both dispatched concurrently
     // over the request pool. See run_visual/run_language for why that is exact.
     Embedding encode_image(const std::vector<std::string>& image_paths,
-                           const std::string& instruction = "",
+                           const std::optional<std::string>& instruction = std::nullopt,
                            bool is_query = true,
                            std::size_t batch_size = kDefaultBatchSize);
 
     // Fused batch API: paired element-wise (texts.size() == image_paths.size()).
     Embedding encode_fused(const std::vector<std::string>& texts,
                            const std::vector<std::string>& image_paths,
-                           const std::string& instruction = "",
+                           const std::optional<std::string>& instruction = std::nullopt,
                            bool is_query = true,
                            std::size_t batch_size = kDefaultBatchSize);
 
@@ -95,7 +137,7 @@ private:
     // has_image expands the <|image_pad|> placeholder to n_image_pad copies
     // (== visual merged-token count), mirroring the HF processor.
     std::string build_prompt(const std::string* text, bool has_image,
-                             const std::string& instruction, bool is_query,
+                             const std::optional<std::string>& instruction, bool is_query,
                              std::int64_t n_image_pad = 0) const;
 
     // Tokenize prompts -> (input_ids, attention_mask) int64 tensors via the OV tokenizer.
@@ -124,30 +166,55 @@ private:
     // chunks of batch_size and concatenate, as official GME does.
     Embedding encode_chunk(const std::vector<std::string>* texts,
                            const std::vector<std::string>* image_paths,
-                           const std::string& instruction, bool is_query,
+                           const std::optional<std::string>& instruction, bool is_query,
                            std::size_t begin, std::size_t end);
 
     // Split [0, count) into batch_size chunks, encode each via encode_chunk, and
     // concatenate in input order. batch_size 0 means one chunk.
     Embedding encode_chunked(const std::vector<std::string>* texts,
                              const std::vector<std::string>* image_paths,
-                             const std::string& instruction, bool is_query,
+                             const std::optional<std::string>& instruction, bool is_query,
                              std::size_t count, std::size_t batch_size);
 
-    // Dispatch `jobs` independent inferences over the pool, `feed` filling a
-    // request's inputs and `sink` consuming its output, both by job index.
-    static void run_pool(std::vector<ov::InferRequest>& pool, std::size_t jobs,
-                         const std::function<void(std::size_t, ov::InferRequest&)>& feed,
-                         const std::function<void(std::size_t, ov::InferRequest&)>& sink);
+    // Independent inference requests over one compiled model, capped at the plugin's
+    // optimal count (1 under the LATENCY hint, 4 streams under THROUGHPUT) so a batch
+    // can actually overlap.
+    //
+    // Requests are created on demand rather than all at construction: a request owns
+    // its activations, so eagerly filling the pool made a text-only run pay for the
+    // visual tower's requests it never touches, and made "padded" batch mode -- which
+    // only ever issues one language request -- allocate the full stream count.
+    class Pool {
+    public:
+        Pool() = default;
+        explicit Pool(ov::CompiledModel model);
+        // Dispatch `jobs` independent inferences, `feed` filling a request's inputs
+        // and `sink` consuming its output, both by job index.
+        void run(std::size_t jobs,
+                 const std::function<void(std::size_t, ov::InferRequest&)>& feed,
+                 const std::function<void(std::size_t, ov::InferRequest&)>& sink);
+
+    private:
+        ov::CompiledModel model_;
+        std::size_t capacity_ = 1;
+        std::vector<ov::InferRequest> requests_;
+    };
 
     ov::Core core_;
     ov::InferRequest tokenizer_req_;
-    std::vector<ov::InferRequest> language_pool_;
-    std::vector<ov::InferRequest> visual_pool_;
+    Pool language_pool_;
+    Pool visual_pool_;
     std::string device_;
     std::string precision_;
     std::string batch_mode_;  // resolved: "per_sample" or "padded"
     std::size_t embedding_dim_ = 1536;
+    // Qwen2-VL processor's stage-2 resize bounds (pixels), resolved from
+    // min_image_tokens/max_image_tokens at construction. Passed to
+    // detail::preprocess_image on every call in run_visual.
+    long proc_min_pixels_;
+    long proc_max_pixels_;
+    // 0 means "no extra truncation beyond what the tokenizer IR already bakes in".
+    std::size_t max_length_ = 0;
 };
 
 }  // namespace gme

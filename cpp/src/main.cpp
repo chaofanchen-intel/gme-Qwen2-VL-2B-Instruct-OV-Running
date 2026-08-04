@@ -2,10 +2,23 @@
 //
 //   gme_embed --package DIR [--device CPU] [--precision int8] [--streams N]
 //             [--batch-mode auto|per_sample|padded] [--batch-size N]
+//             [--cache-dir DIR] [--min-image-tokens N] [--max-image-tokens N]
+//             [--max-length N]
 //             --mode text|image|fused [--instruction STR] [--is-query 0|1]
 //             [--image PATH ...] [--out FILE] [TEXT ...]
 //   gme_embed --package DIR --benchmark [--benchmark-modes text,query] [--batch N]
 //             [--warmup N]
+//
+// --cache-dir enables OpenVINO's compiled-model cache: a second process with the
+// same package/device/precision/streams loads a cached blob instead of
+// recompiling. Worth setting for any short-lived invocation on GPU, where
+// compiling the INT8 language IR from scratch is tens of seconds.
+// --min-image-tokens/--max-image-tokens override the package's Qwen2-VL processor
+// image-token bounds (package default otherwise); the single most effective
+// image/fused latency knob, since attention cost grows with the visual token
+// count. --max-length shrinks the package's tokenizer truncation length (package
+// default otherwise); it can only shrink, not grow, since the ceiling is baked
+// into the tokenizer IR at export time.
 //
 // --warmup N (default 1) runs the benchmarked call N times before starting the
 // timed loop, discarding those iterations. On GPU, a fresh process's first few
@@ -29,13 +42,14 @@
 // throughput; the reported avg_ms is per call, and ms/embedding is avg_ms / N.
 //
 // --out writes a binary blob {"GEMB", int32 rows, int32 dim, float32[rows*dim]}
-// consumed by 08_validate_cpp.py to check cosine against the golden embeddings.
+// consumed by 05_validate_cpp.py to check cosine against the golden embeddings.
 #include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -47,7 +61,9 @@ namespace {
     std::cerr << "usage: " << argv0
               << " --package DIR [--device CPU] [--precision int8]"
                  " --mode text|image|fused [--instruction STR] [--is-query 0|1]"
-                 " [--streams N] [--batch-mode auto|per_sample|padded] [--batch-size N]\n"
+                 " [--streams N] [--batch-mode auto|per_sample|padded] [--batch-size N]"
+                 " [--cache-dir DIR] [--min-image-tokens N] [--max-image-tokens N]"
+                 " [--max-length N]\n"
                  " [--image PATH ...] [--out FILE] [TEXT ...]\n"
                  "       "
               << argv0
@@ -84,11 +100,17 @@ void dump(const std::string& path, const gme::Embedding& e) {
 
 int main(int argc, char** argv) {
     std::string package, device = "CPU", precision = "int8", mode, instruction, out;
-    std::string batch_mode = "auto";
+    std::string batch_mode = "auto", cache_dir;
     std::string benchmark_modes = "text,query,image,fused";
+    // Tracks whether --instruction was actually given, so an omitted flag reaches
+    // the library as nullopt (fall back to the default GME instruction) rather
+    // than as an empty string (a real, if unusual, instruction) -- see the
+    // encode_text/encode_image/encode_fused doc comments in gme_qwen2vl.hpp.
+    bool instruction_given = false;
     bool is_query = true, benchmark = false;
     int repeat = 1, streams = 1, bench_batch = 1, warmup = 1;
-    std::size_t batch_size = gme::kDefaultBatchSize;
+    int min_image_tokens = 0, max_image_tokens = 0;
+    std::size_t batch_size = gme::kDefaultBatchSize, max_length = 0;
     std::vector<std::string> texts, images;
 
     for (int i = 1; i < argc; ++i) {
@@ -101,7 +123,7 @@ int main(int argc, char** argv) {
         else if (a == "--device") device = next("--device");
         else if (a == "--precision") precision = next("--precision");
         else if (a == "--mode") mode = next("--mode");
-        else if (a == "--instruction") instruction = next("--instruction");
+        else if (a == "--instruction") { instruction = next("--instruction"); instruction_given = true; }
         else if (a == "--is-query") is_query = next("--is-query") != "0";
         else if (a == "--image") images.push_back(next("--image"));
         else if (a == "--out") out = next("--out");
@@ -110,6 +132,10 @@ int main(int argc, char** argv) {
         else if (a == "--streams") streams = std::stoi(next("--streams"));
         else if (a == "--batch-mode") batch_mode = next("--batch-mode");
         else if (a == "--batch-size") batch_size = static_cast<std::size_t>(std::stoul(next("--batch-size")));
+        else if (a == "--cache-dir") cache_dir = next("--cache-dir");
+        else if (a == "--min-image-tokens") min_image_tokens = std::stoi(next("--min-image-tokens"));
+        else if (a == "--max-image-tokens") max_image_tokens = std::stoi(next("--max-image-tokens"));
+        else if (a == "--max-length") max_length = static_cast<std::size_t>(std::stoul(next("--max-length")));
         else if (a == "--batch") bench_batch = std::stoi(next("--batch"));
         else if (a == "--benchmark") benchmark = true;
         else if (a == "--benchmark-modes") benchmark_modes = next("--benchmark-modes");
@@ -118,8 +144,12 @@ int main(int argc, char** argv) {
     }
     if (package.empty() || (!benchmark && mode.empty())) usage(argv[0]);
 
+    const std::optional<std::string> instruction_opt =
+        instruction_given ? std::optional<std::string>(instruction) : std::nullopt;
+
     try {
-        gme::GmeQwen2VL model(package, device, precision, streams, batch_mode);
+        gme::GmeQwen2VL model(package, device, precision, streams, batch_mode, cache_dir,
+                              min_image_tokens, max_image_tokens, max_length);
         std::cerr << "[gme_embed] device=" << model.device() << " precision=" << model.precision()
                   << " dim=" << model.dim() << " streams=" << streams
                   << " batch_mode=" << model.batch_mode() << " batch_size=" << batch_size << "\n";
@@ -163,20 +193,20 @@ int main(int argc, char** argv) {
                           << " streams=" << streams << " batch_mode=" << model.batch_mode()
                           << " avg_ms=" << ms << " ms_per_embedding=" << ms / bench_batch << "\n";
             };
-            if (run_text) bench("text", [&] { model.encode_text(bench_texts, "", false, batch_size); });
-            if (run_query) bench("query", [&] { model.encode_text(bench_texts, instruction, true, batch_size); });
-            if (run_image) bench("image", [&] { model.encode_image(bench_images, "", true, batch_size); });
-            if (run_fused) bench("fused", [&] { model.encode_fused(bench_texts, bench_images, "", true, batch_size); });
+            if (run_text) bench("text", [&] { model.encode_text(bench_texts, std::nullopt, false, batch_size); });
+            if (run_query) bench("query", [&] { model.encode_text(bench_texts, instruction_opt, true, batch_size); });
+            if (run_image) bench("image", [&] { model.encode_image(bench_images, std::nullopt, true, batch_size); });
+            if (run_fused) bench("fused", [&] { model.encode_fused(bench_texts, bench_images, std::nullopt, true, batch_size); });
             return 0;
         }
 
         gme::Embedding emb;
         if (mode == "text") {
-            emb = model.encode_text(texts, instruction, is_query, batch_size);
+            emb = model.encode_text(texts, instruction_opt, is_query, batch_size);
         } else if (mode == "image") {
-            emb = model.encode_image(images, instruction, is_query, batch_size);
+            emb = model.encode_image(images, instruction_opt, is_query, batch_size);
         } else if (mode == "fused") {
-            emb = model.encode_fused(texts, images, instruction, is_query, batch_size);
+            emb = model.encode_fused(texts, images, instruction_opt, is_query, batch_size);
         } else {
             usage(argv[0]);
         }

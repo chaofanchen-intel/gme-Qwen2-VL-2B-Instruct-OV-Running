@@ -10,9 +10,23 @@ Adds, into the exported package directory:
   * an updated gme_openvino_config.json describing every precision.
 
 Run after 02_export.py has produced the FP32 IRs.
+
+compress() now fingerprints each call's actual config (nncf_fingerprints.json next
+to the package) and only skips an existing output when the fingerprint matches, so
+an edited group_size/mode/ignored_scope/dataset for the same output filename can no
+longer be silently ignored by the "file already exists" check. One consequence: the
+first run of this script after adding that check has no fingerprint file yet, so it
+recompresses every precision once to establish one. For the data-free calls (INT8,
+both towers; INT4 vision) that is expected and safe -- ratio=1.0 and no dataset=,
+so recompressing reproduces the same artifact bit-for-bit. The two INT4 *language*
+calls are now data-aware (dataset=, awq=True, scale_estimation=True, see
+_calibration_dataset), so their recompression is only bit-for-bit reproducible in
+the sense that AWQ/scale-estimation search is itself deterministic given the same
+inputs -- it is not a no-op skip.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -25,6 +39,8 @@ HERE = Path(__file__).resolve().parent
 SOURCE_MODEL = (HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct").resolve()
 PACKAGE = HERE / "ov_models" / "gme-qwen2-vl-2b-instruct-openvino"
 ART = HERE / "artifacts"
+# compress()'s staleness fingerprint per output file (see compress()).
+FINGERPRINTS_PATH = PACKAGE / "nncf_fingerprints.json"
 
 
 # ---------------------------------------------------------------- tokenizer
@@ -53,7 +69,6 @@ def convert_and_check_tokenizer(max_length: int) -> None:
     compiled = core.compile_model(ov_tok, "CPU")
     res = compiled(prompts)
     names = {n for out in compiled.outputs for n in out.get_names()}
-    key_ids = "input_ids" if "input_ids" in names else compiled.outputs[0].get_any_name()
     ids = None
     mask = None
     for o in compiled.outputs:
@@ -93,16 +108,60 @@ def convert_and_check_tokenizer(max_length: int) -> None:
 
 
 # ---------------------------------------------------------------- quantize
+def _fingerprint(src_xml: Path, kw: dict) -> str:
+    """Stable hash of one compress_weights() call, for staleness detection below.
+
+    repr() on nncf's dataclass-based kwargs (CompressWeightsMode, IgnoredScope,
+    AdvancedCompressionParameters, ...) expands every field, including ones nncf
+    itself defaults -- checked deterministic across separately-constructed but
+    equal objects. So this also catches an nncf upgrade that silently changes a
+    default we never touched, not only edits to the arguments listed in main().
+
+    A ``dataset=`` value is the one exception: nncf.Dataset has no value-based
+    __repr__ (two datasets built from identical calibration data repr as distinct
+    objects, by memory address), so it is fingerprinted via the stable marker
+    _calibration_dataset() attaches instead of the object itself -- otherwise every
+    data-aware call would look "changed" on every run and never skip.
+    """
+    kw = dict(kw)
+    dataset = kw.get("dataset")
+    if dataset is not None:
+        kw["dataset"] = getattr(dataset, "_gme_fingerprint", repr(dataset))
+    payload = repr((src_xml.name, sorted(kw.items())))
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _read_fingerprints() -> dict:
+    if FINGERPRINTS_PATH.exists():
+        return json.loads(FINGERPRINTS_PATH.read_text())
+    return {}
+
+
+def _write_fingerprint(name: str, fingerprint: str) -> None:
+    fingerprints = _read_fingerprints()
+    fingerprints[name] = fingerprint
+    FINGERPRINTS_PATH.write_text(json.dumps(fingerprints, indent=2) + "\n")
+
+
 def compress(src_xml: Path, dst_xml: Path, **kw) -> float:
+    fingerprint = _fingerprint(src_xml, kw)
     if dst_xml.exists():
-        size = (dst_xml.with_suffix(".bin")).stat().st_size / 1e6
-        print(f"[nncf] {dst_xml.name} exists ({size:.0f} MB), skip")
-        return size
+        size = dst_xml.with_suffix(".bin").stat().st_size / 1e6
+        if _read_fingerprints().get(dst_xml.name) == fingerprint:
+            print(f"[nncf] {dst_xml.name} exists ({size:.0f} MB), config unchanged, skip")
+            return size
+        # Existing file's compression config no longer matches this call -- e.g. a
+        # changed group_size/mode/ignored_scope, or an upgraded nncf with different
+        # defaults. Re-running is the safe choice: silently keeping the stale file
+        # here previously meant an edited quantization recipe never actually took
+        # effect until someone noticed the .xml's mtime predated the edit.
+        print(f"[nncf] {dst_xml.name} exists but its compression config changed -- recompressing")
     core = ov.Core()
     model = core.read_model(str(src_xml))
     comp = nncf.compress_weights(model, **kw)
     ov.save_model(comp, str(dst_xml))
     size = dst_xml.with_suffix(".bin").stat().st_size / 1e6
+    _write_fingerprint(dst_xml.name, fingerprint)
     print(f"[nncf] wrote {dst_xml.name} ({size:.0f} MB)  [{kw}]")
     return size
 
