@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import math
+import sys
 from io import BytesIO
 from pathlib import Path
 from typing import Sequence
@@ -25,6 +26,9 @@ IMAGE_FACTOR = 28
 MIN_PIXELS = 4 * 28 * 28
 MAX_PIXELS = 16384 * 28 * 28
 MAX_RATIO = 200
+# Official GME's get_fused_embeddings() default. Chunking only bounds peak memory;
+# it never changes a row, because rows are computed independently either way.
+DEFAULT_BATCH_SIZE = 32
 
 
 def _as_list(value: str | Path | Image.Image | Sequence[str | Path | Image.Image] | None) -> list | None:
@@ -39,6 +43,51 @@ def _as_list(value: str | Path | Image.Image | Sequence[str | Path | Image.Image
     if values and all(isinstance(item, (list, tuple)) for item in values):
         return [item for batch in values for item in batch]
     return values
+
+
+def _loader_batch_size(value: object) -> int | None:
+    """Official GME takes its batch size from a DataLoader when given one."""
+    size = getattr(value, "batch_size", None)
+    return size if isinstance(size, int) and size > 0 else None
+
+
+class _Progress:
+    """Official GME wraps its encode loop in tqdm; mirror that without requiring it.
+
+    One deliberate difference from upstream: a bar is only drawn when the work is
+    actually split into several chunks. A one-chunk bar carries no information and
+    upstream only prints it because its loop is unconditional.
+    """
+
+    def __init__(self, total: int, enabled: bool, description: str = "encode") -> None:
+        self.bar = None
+        self.total = total if (enabled and total > 1) else 0
+        self.done = 0
+        self.description = description
+        if not self.total:
+            return
+        try:
+            from tqdm.autonotebook import tqdm
+        except ImportError:
+            return  # plain stderr counter below
+        self.bar = tqdm(total=total, mininterval=1, miniters=10, desc=description)
+
+    def update(self) -> None:
+        if not self.total:
+            return
+        self.done += 1
+        if self.bar is not None:
+            self.bar.update(1)
+        else:
+            print(f"\r{self.description}: {self.done}/{self.total}", end="", file=sys.stderr, flush=True)
+
+    def close(self) -> None:
+        if not self.total:
+            return
+        if self.bar is not None:
+            self.bar.close()
+        else:
+            print("", file=sys.stderr, flush=True)
 
 
 def _round_by_factor(value: int, factor: int) -> int:
@@ -86,31 +135,61 @@ class _RequestPool:
     requests rather than one padded N-row tensor. That keeps every sample at its
     own true sequence length (no padding compute, no dependence on what else
     shares the batch) and lets the plugin overlap samples across streams.
+
+    Requests are created and driven explicitly rather than through
+    ``ov.AsyncInferQueue``. The queue was measured to return a *stale* output for a
+    later job -- a batch of two distinct images that happen to share a grid came
+    back with row 0's embedding duplicated into row 1, silently and only sometimes
+    (it depends on how the compiled model was used beforehand). Same-shaped feeds
+    are exactly the common case (two 448x448 images, two equal-length queries), so
+    this had to go. Explicit ``start_async`` + ``wait`` per slot is what the C++
+    runtime already does, and 08_validate_batch.py now pins both against distinct
+    same-shape samples.
     """
 
     def __init__(self, compiled: ov.CompiledModel) -> None:
         self.compiled = compiled
         self.size = max(1, int(compiled.get_property("OPTIMAL_NUMBER_OF_INFER_REQUESTS")))
-        self._queue: ov.AsyncInferQueue | None = None
+        self._requests: list[ov.InferRequest] = []
+
+    def _slots(self, count: int) -> list[ov.InferRequest]:
+        """Reuse requests across calls; a request holds activations, so grow lazily."""
+        while len(self._requests) < count:
+            self._requests.append(self.compiled.create_infer_request())
+        return self._requests[:count]
 
     def run(self, feeds: list[dict[str, np.ndarray]]) -> list[np.ndarray]:
         if not feeds:
             return []
-        if len(feeds) == 1:  # avoid queue overhead on the single-sample path
-            result = self.compiled(feeds[0])
-            return [np.asarray(result[self.compiled.output(0)], dtype=np.float32)]
-        if self._queue is None:  # only pay for the pool's activations once a batch needs it
-            self._queue = ov.AsyncInferQueue(self.compiled, self.size)
+        slots = self._slots(min(self.size, len(feeds)))
         results: list[np.ndarray | None] = [None] * len(feeds)
+        in_flight: dict[int, int] = {}  # slot -> job currently occupying it
 
-        def collect(request: ov.InferRequest, index: int) -> None:
+        def harvest(slot: int) -> None:
+            job = in_flight.pop(slot, None)
+            if job is None:
+                return
+            slots[slot].wait()
             # The request's output buffer is reused by the next job: copy now.
-            results[index] = request.get_output_tensor(0).data.astype(np.float32, copy=True)
+            results[job] = slots[slot].get_output_tensor(0).data.astype(np.float32, copy=True)
 
-        self._queue.set_callback(collect)
-        for index, feed in enumerate(feeds):
-            self._queue.start_async(feed, index)  # blocks while every request is busy
-        self._queue.wait_all()
+        try:
+            for job, feed in enumerate(feeds):
+                slot = job % len(slots)
+                harvest(slot)  # free the slot before overwriting its inputs
+                for name, value in feed.items():
+                    # Copy into an owned tensor: the request outlives this loop
+                    # iteration, and a shared view would alias the caller's array.
+                    slots[slot].set_tensor(name, ov.Tensor(np.ascontiguousarray(value)))
+                slots[slot].start_async()
+                in_flight[slot] = job
+            for slot in list(in_flight):
+                harvest(slot)
+        except BaseException:
+            # In-flight requests still reference tensors we are about to drop.
+            for slot in in_flight:
+                slots[slot].wait()
+            raise
         missing = [index for index, row in enumerate(results) if row is None]
         if missing:
             raise RuntimeError(f"inference produced no result for samples {missing}")
@@ -122,18 +201,24 @@ class GmeOpenVINO:
 
     One image per input is supported, matching the official model limitation.
 
-    Batching works for any number of samples with no per-batch-size export. Both
-    IRs are driven one sample at a time:
+    The public API mirrors official ``GmeQwen2VL``: ``embed`` is the single-batch
+    primitive, ``get_text_embeddings`` / ``get_image_embeddings`` /
+    ``get_fused_embeddings`` chunk by ``batch_size`` (default 32, as upstream) with
+    an optional progress bar, and ``encode`` / ``encode_queries`` / ``encode_corpus``
+    are the sentence-transformers-style aliases.
+
+    Batching works for any number of samples with no per-batch-size export:
 
     * The visual IR is invoked once per image. Qwen2-VL's vision tower has no
-      batch dimension at all -- images are concatenated into one patch sequence
-      whose attention is block-diagonal per image -- so per-image invocation is
-      *bit-identical* to feeding several ``image_grid_thw`` rows at once, and it
-      is cheaper: a shared sequence costs O((sum L)^2) attention instead of
-      O(sum L^2). Only the number of images can be batched in that IR anyway,
-      and tracing bakes it in (``rot_pos_emb`` loops over the grid rows in
-      Python), which is why a traced IR rejects a row count it was not traced
-      with.
+      batch dimension at all -- images become one concatenated patch sequence whose
+      attention is block-diagonal per image, and each image's rotary table lookup
+      depends only on its own grid -- so per-image invocation computes the same
+      function as feeding several ``image_grid_thw`` rows at once. Measured
+      bit-identical against a deliberately B=2-traced IR (max abs diff 0.0), and
+      cheaper: a shared sequence costs O((sum L)^2) masked attention instead of
+      O(sum L^2). Tracing also bakes the image count in (``rot_pos_emb`` loops over
+      the grid rows in Python), so a traced IR rejects a row count it was not
+      traced with -- per-image invocation is what makes any N work from one export.
     * The language IR is driven by ``batch_mode``. ``"per_sample"`` invokes it once
       per sample at that sample's true length, which makes a batch bit-identical to
       the same items encoded one by one; ``"padded"`` sends one [B, S] call the way
@@ -318,11 +403,6 @@ class GmeOpenVINO:
         for start in range(0, len(values), batch_size):
             yield values[start : start + batch_size]
 
-    def _encode_text(self, texts: list[str], instruction: str, batch_size: int | None) -> np.ndarray:
-        return np.concatenate(
-            [self._encode_text_batch(batch, instruction) for batch in self._batches(texts, batch_size)], axis=0
-        )
-
     def _encode_image_batch(
         self,
         texts: list[str | None],
@@ -353,36 +433,117 @@ class GmeOpenVINO:
         ]
         return self._language_embedding(inputs, self.visual_pool.run(visual_feeds))
 
+    def embed(
+        self,
+        texts: Sequence[str | None] | None = None,
+        images: Sequence[str | Path | Image.Image | None] | None = None,
+        is_query: bool = True,
+        instruction: str | None = None,
+    ) -> np.ndarray:
+        """Encode exactly one batch, the way official GME's ``embed()`` does.
+
+        This is the primitive the chunked entry points call: no ``batch_size``, no
+        progress bar, one processor invocation for the whole list. Either argument
+        may be omitted, and ``images`` may be a list of ``None`` (official uses that
+        to mean text-only), but an image list must be all-images or all-``None`` --
+        upstream documents the same constraint ("all examples in the same batch are
+        consistent") and simply crashes on a mixed list, so raising is strictly
+        better while supporting the identical input surface.
+        """
+        text_values = None if texts is None else list(texts)
+        image_values = None if images is None else list(images)
+        if image_values is not None and any(image is None for image in image_values):
+            if not all(image is None for image in image_values):
+                raise ValueError(
+                    "an image batch must be either all images or all None; official GME "
+                    "requires every example in a batch to be consistent"
+                )
+            image_values = None  # official: `input_images = None` for a text-only batch
+        prompt = self._instruction(instruction, is_query)
+
+        if image_values is None:
+            if text_values is None:
+                raise ValueError("provide texts, images, or both")
+            if not all(isinstance(text, str) for text in text_values):
+                raise ValueError("texts must be strings when no images are given")
+            return self._encode_text_batch(text_values, prompt)
+        if text_values is None:
+            text_values = [None] * len(image_values)
+        elif len(text_values) > len(image_values):
+            # Official zips texts with images, so the shorter list wins. It relies on
+            # that for its trailing partial batch (`none_batch` is a full batch_size
+            # of None); keep the same rule instead of rejecting it.
+            text_values = text_values[: len(image_values)]
+        elif len(text_values) < len(image_values):
+            raise ValueError(
+                f"got {len(text_values)} texts for {len(image_values)} images; "
+                "fused input must be paired element-wise"
+            )
+        return self._encode_image_batch(text_values, image_values, prompt)
+
+    def _encode(
+        self,
+        texts: list[str | None] | None,
+        images: list | None,
+        is_query: bool,
+        instruction: str | None,
+        batch_size: int | None,
+        show_progress_bar: bool,
+    ) -> np.ndarray:
+        """Chunk into ``batch_size`` groups and concatenate, like official GME.
+
+        Chunking is a memory knob only. Each row is computed from its own sample, so
+        the concatenation of the chunks is the same array the single-chunk call
+        returns -- 08_validate_batch.py asserts that bit-exactly.
+        """
+        count = len(images) if images is not None else len(texts or [])
+        if not count:
+            raise ValueError("nothing to encode: texts and images are both empty")
+        chunks = list(range(0, count, batch_size)) if batch_size else [0]
+        progress = _Progress(len(chunks), show_progress_bar)
+        try:
+            embeddings = []
+            for start in chunks:
+                stop = count if batch_size is None else start + batch_size
+                embeddings.append(
+                    self.embed(
+                        None if texts is None else texts[start:stop],
+                        None if images is None else images[start:stop],
+                        is_query=is_query,
+                        instruction=instruction,
+                    )
+                )
+                progress.update()
+        finally:
+            progress.close()
+        return np.concatenate(embeddings, axis=0) if len(embeddings) > 1 else embeddings[0]
+
     def get_text_embeddings(
         self,
         texts: str | Sequence[str],
         instruction: str | None = None,
         is_query: bool = True,
-        batch_size: int | None = None,
+        batch_size: int | None = DEFAULT_BATCH_SIZE,
+        show_progress_bar: bool = True,
     ) -> np.ndarray:
         values = _as_list(texts)
         if not values or not all(isinstance(text, str) for text in values):
             raise ValueError("texts must be a non-empty string or sequence of strings")
-        return self._encode_text(values, self._instruction(instruction, is_query), batch_size)
+        return self._encode(values, None, is_query, instruction, batch_size, show_progress_bar)
 
     def get_image_embeddings(
         self,
         images: str | Image.Image | Sequence[str | Image.Image],
         instruction: str | None = None,
         is_query: bool = True,
-        batch_size: int | None = None,
+        batch_size: int | None = DEFAULT_BATCH_SIZE,
+        show_progress_bar: bool = True,
     ) -> np.ndarray:
+        batch_size = _loader_batch_size(images) or batch_size
         values = _as_list(images)
         if not values:
             raise ValueError("images must be a non-empty image or image sequence")
-        prompt = self._instruction(instruction, is_query)
-        return np.concatenate(
-            [
-                self._encode_image_batch([None] * len(batch), batch, prompt)
-                for batch in self._batches(values, batch_size)
-            ],
-            axis=0,
-        )
+        return self._encode(None, values, is_query, instruction, batch_size, show_progress_bar)
 
     def get_fused_embeddings(
         self,
@@ -390,54 +551,64 @@ class GmeOpenVINO:
         images: str | Image.Image | Sequence[str | Image.Image] | None = None,
         instruction: str | None = None,
         is_query: bool = True,
-        batch_size: int | None = None,
+        batch_size: int | None = DEFAULT_BATCH_SIZE,
+        show_progress_bar: bool = True,
     ) -> np.ndarray:
+        batch_size = _loader_batch_size(images) or batch_size
         text_values = _as_list(texts)
         image_values = _as_list(images)
-        prompt = self._instruction(instruction, is_query)
-        if image_values is None:
-            if text_values is None:
-                raise ValueError("provide texts, images, or both")
-            return self._encode_text(text_values, prompt, batch_size)
-        if text_values is None:
-            return self.get_image_embeddings(image_values, instruction=instruction, is_query=is_query, batch_size=batch_size)
-        if len(text_values) != len(image_values):
+        if text_values is None and image_values is None:
+            raise ValueError("provide texts, images, or both")
+        if text_values is not None and image_values is not None and len(text_values) != len(image_values):
             raise ValueError("texts and images must have the same length")
-        return np.concatenate(
-            [
-                self._encode_image_batch(
-                    [text for text, _ in batch], [image for _, image in batch], prompt
-                )
-                for batch in self._batches(list(zip(text_values, image_values)), batch_size)
-            ],
-            axis=0,
-        )
+        return self._encode(text_values, image_values, is_query, instruction, batch_size, show_progress_bar)
 
     def encode(
         self,
         sentences: str | Sequence[str],
         *,
+        prompt_name: str | None = None,
         instruction: str | None = None,
         is_query: bool = True,
-        batch_size: int | None = None,
+        batch_size: int | None = DEFAULT_BATCH_SIZE,
+        show_progress_bar: bool = True,
     ) -> np.ndarray:
-        """Compatibility alias for text encoding used by embedding clients."""
-        return self.get_text_embeddings(sentences, instruction=instruction, is_query=is_query, batch_size=batch_size)
+        """Text encoding under the sentence-transformers/MTEB name.
+
+        ``prompt_name`` exists because MTEB passes it; official GME accepts and
+        ignores it too (GME selects its prompt with ``is_query``/``instruction``).
+        """
+        del prompt_name
+        return self.get_text_embeddings(
+            sentences,
+            instruction=instruction,
+            is_query=is_query,
+            batch_size=batch_size,
+            show_progress_bar=show_progress_bar,
+        )
 
     def encode_queries(
         self,
         queries: str | Sequence[str],
         *,
         instruction: str | None = None,
-        batch_size: int | None = None,
+        batch_size: int | None = DEFAULT_BATCH_SIZE,
+        show_progress_bar: bool = True,
     ) -> np.ndarray:
-        return self.get_text_embeddings(queries, instruction=instruction, is_query=True, batch_size=batch_size)
+        return self.get_text_embeddings(
+            queries,
+            instruction=instruction,
+            is_query=True,
+            batch_size=batch_size,
+            show_progress_bar=show_progress_bar,
+        )
 
     def encode_corpus(
         self,
         corpus: Sequence[dict[str, str]] | dict[str, Sequence[str]],
         *,
-        batch_size: int | None = None,
+        batch_size: int | None = DEFAULT_BATCH_SIZE,
+        show_progress_bar: bool = True,
     ) -> np.ndarray:
         """Encode sentence-transformers-style corpus rows with GME corpus prompts."""
         if isinstance(corpus, dict):
@@ -447,7 +618,12 @@ class GmeOpenVINO:
                 raise ValueError("corpus dictionary must contain 'text'")
             if titles is not None and len(titles) != len(texts):
                 raise ValueError("corpus 'title' and 'text' must have the same length")
-            rows = [f"{titles[index]} {text}".strip() if titles else text for index, text in enumerate(texts)]
+            rows = [
+                f"{titles[index]} {text}".strip() if titles is not None else text.strip()
+                for index, text in enumerate(texts)
+            ]
         else:
             rows = [f"{row.get('title', '')} {row['text']}".strip() for row in corpus]
-        return self.get_text_embeddings(rows, is_query=False, batch_size=batch_size)
+        return self.get_text_embeddings(
+            rows, is_query=False, batch_size=batch_size, show_progress_bar=show_progress_bar
+        )

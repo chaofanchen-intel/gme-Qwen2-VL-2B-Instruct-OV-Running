@@ -1,0 +1,1405 @@
+{
+  "device": "GPU",
+  "sequence_tokens": 1024,
+  "workload_source": "artifacts/benchmark_matrix_text_lengths_r20.json",
+  "note": "Both backends are warmed up past the boost->steady-state GPU clock transition (see module docstring) before timing starts, using STEADY_WARMUP calls per precision -- this is what makes the two backends comparable; a single warmup call (the previous methodology) left the measured regime up to chance. cpp sessions reuse the text-calibrated 1024-tok prompt for both text and query benches (main.cpp feeds one positional TEXT to every --benchmark-modes entry); python sessions use the separately-calibrated text/query prompts.",
+  "steady_warmup": {
+    "fp32": 3,
+    "int8": 12,
+    "int4": 14
+  },
+  "plan": [
+    {
+      "precision": "fp32",
+      "sessions": 8,
+      "repeat": 2,
+      "warmup": 3,
+      "batch_mode": "auto"
+    },
+    {
+      "precision": "int8",
+      "sessions": 15,
+      "repeat": 5,
+      "warmup": 12,
+      "batch_mode": "auto"
+    },
+    {
+      "precision": "int4",
+      "sessions": 15,
+      "repeat": 5,
+      "warmup": 14,
+      "batch_mode": "auto"
+    },
+    {
+      "precision": "int8",
+      "sessions": 6,
+      "repeat": 5,
+      "warmup": 12,
+      "batch_mode": "per_sample"
+    }
+  ],
+  "sessions": [
+    {
+      "session_id": 1,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 0,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1619.63,
+        "query": 1766.03
+      },
+      "session_wall_seconds": 33.03
+    },
+    {
+      "session_id": 2,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 0,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1614.2815835191868,
+        "query": 1616.800700488966
+      },
+      "session_wall_seconds": 22.63
+    },
+    {
+      "session_id": 3,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 1,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 2978.23,
+        "query": 1775.98
+      },
+      "session_wall_seconds": 28.97
+    },
+    {
+      "session_id": 4,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 1,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1616.3816715124995,
+        "query": 1624.6586890192702
+      },
+      "session_wall_seconds": 22.46
+    },
+    {
+      "session_id": 5,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 2,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1616.38,
+        "query": 1774.96
+      },
+      "session_wall_seconds": 23.71
+    },
+    {
+      "session_id": 6,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 2,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1615.0563859846443,
+        "query": 1626.2324459967203
+      },
+      "session_wall_seconds": 22.27
+    },
+    {
+      "session_id": 7,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 3,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1614.86,
+        "query": 1776.69
+      },
+      "session_wall_seconds": 23.86
+    },
+    {
+      "session_id": 8,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 3,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1622.9120134958066,
+        "query": 1627.3159595148172
+      },
+      "session_wall_seconds": 22.33
+    },
+    {
+      "session_id": 9,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 4,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1619.98,
+        "query": 1778.78
+      },
+      "session_wall_seconds": 23.65
+    },
+    {
+      "session_id": 10,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 4,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1629.4917819905095,
+        "query": 1627.7907415060326
+      },
+      "session_wall_seconds": 22.31
+    },
+    {
+      "session_id": 11,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 5,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1626.65,
+        "query": 1779.46
+      },
+      "session_wall_seconds": 23.54
+    },
+    {
+      "session_id": 12,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 5,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1630.8118460001424,
+        "query": 1625.1993099867832
+      },
+      "session_wall_seconds": 22.41
+    },
+    {
+      "session_id": 13,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 6,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1625.42,
+        "query": 1770.14
+      },
+      "session_wall_seconds": 23.77
+    },
+    {
+      "session_id": 14,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 6,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1630.423887516372,
+        "query": 1624.6044705039822
+      },
+      "session_wall_seconds": 22.33
+    },
+    {
+      "session_id": 15,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 7,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1626.34,
+        "query": 1775.54
+      },
+      "session_wall_seconds": 23.74
+    },
+    {
+      "session_id": 16,
+      "plan_label": "fp32",
+      "precision": "fp32",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 7,
+      "repeat": 2,
+      "ms_per_call": {
+        "text": 1629.792757506948,
+        "query": 1627.4766905116849
+      },
+      "session_wall_seconds": 22.35
+    },
+    {
+      "session_id": 17,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 0,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 290.413,
+        "query": 353.409
+      },
+      "session_wall_seconds": 18.59
+    },
+    {
+      "session_id": 18,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 0,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 294.78578359121457,
+        "query": 291.5888029965572
+      },
+      "session_wall_seconds": 14.24
+    },
+    {
+      "session_id": 19,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 1,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 520.514,
+        "query": 353.621
+      },
+      "session_wall_seconds": 19.46
+    },
+    {
+      "session_id": 20,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 1,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 292.8165749995969,
+        "query": 290.7347755972296
+      },
+      "session_wall_seconds": 14.2
+    },
+    {
+      "session_id": 21,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 2,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 473.345,
+        "query": 354.466
+      },
+      "session_wall_seconds": 17.13
+    },
+    {
+      "session_id": 22,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 2,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 291.3720678072423,
+        "query": 292.3808941966854
+      },
+      "session_wall_seconds": 14.1
+    },
+    {
+      "session_id": 23,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 3,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 467.517,
+        "query": 352.938
+      },
+      "session_wall_seconds": 17.18
+    },
+    {
+      "session_id": 24,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 3,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 292.71366141038015,
+        "query": 294.26426319405437
+      },
+      "session_wall_seconds": 14.21
+    },
+    {
+      "session_id": 25,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 4,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 370.501,
+        "query": 353.852
+      },
+      "session_wall_seconds": 18.64
+    },
+    {
+      "session_id": 26,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 4,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 293.8602254027501,
+        "query": 292.15064499294385
+      },
+      "session_wall_seconds": 14.2
+    },
+    {
+      "session_id": 27,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 5,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 428.146,
+        "query": 353.278
+      },
+      "session_wall_seconds": 17.38
+    },
+    {
+      "session_id": 28,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 5,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 292.09188040113077,
+        "query": 291.05275500332937
+      },
+      "session_wall_seconds": 14.26
+    },
+    {
+      "session_id": 29,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 6,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 369.765,
+        "query": 353.775
+      },
+      "session_wall_seconds": 18.83
+    },
+    {
+      "session_id": 30,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 6,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 292.91031799511984,
+        "query": 293.70157279772684
+      },
+      "session_wall_seconds": 14.17
+    },
+    {
+      "session_id": 31,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 7,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 292.061,
+        "query": 352.607
+      },
+      "session_wall_seconds": 17.98
+    },
+    {
+      "session_id": 32,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 7,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 291.93670820677653,
+        "query": 292.8463016054593
+      },
+      "session_wall_seconds": 14.22
+    },
+    {
+      "session_id": 33,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 8,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 297.561,
+        "query": 354.223
+      },
+      "session_wall_seconds": 18.31
+    },
+    {
+      "session_id": 34,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 8,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 291.8653729953803,
+        "query": 291.4773697964847
+      },
+      "session_wall_seconds": 14.23
+    },
+    {
+      "session_id": 35,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 9,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 487.253,
+        "query": 352.928
+      },
+      "session_wall_seconds": 16.63
+    },
+    {
+      "session_id": 36,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 9,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 291.1940437974408,
+        "query": 291.0413922043517
+      },
+      "session_wall_seconds": 14.24
+    },
+    {
+      "session_id": 37,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 10,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 528.482,
+        "query": 354.016
+      },
+      "session_wall_seconds": 16.56
+    },
+    {
+      "session_id": 38,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 10,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 289.89071620162576,
+        "query": 291.1612360039726
+      },
+      "session_wall_seconds": 14.1
+    },
+    {
+      "session_id": 39,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 11,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 520.425,
+        "query": 352.4
+      },
+      "session_wall_seconds": 19.59
+    },
+    {
+      "session_id": 40,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 11,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 291.76849559880793,
+        "query": 290.7940797973424
+      },
+      "session_wall_seconds": 14.15
+    },
+    {
+      "session_id": 41,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 12,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 448.607,
+        "query": 353.0
+      },
+      "session_wall_seconds": 18.93
+    },
+    {
+      "session_id": 42,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 12,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 291.72830019379035,
+        "query": 292.4522686051205
+      },
+      "session_wall_seconds": 14.22
+    },
+    {
+      "session_id": 43,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 13,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 433.015,
+        "query": 352.753
+      },
+      "session_wall_seconds": 17.17
+    },
+    {
+      "session_id": 44,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 13,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 291.70673079788685,
+        "query": 290.28948380146176
+      },
+      "session_wall_seconds": 14.13
+    },
+    {
+      "session_id": 45,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 14,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 452.327,
+        "query": 353.416
+      },
+      "session_wall_seconds": 18.86
+    },
+    {
+      "session_id": 46,
+      "plan_label": "int8",
+      "precision": "int8",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 14,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 290.58154720114544,
+        "query": 292.9485316039063
+      },
+      "session_wall_seconds": 14.12
+    },
+    {
+      "session_id": 47,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 0,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 370.615,
+        "query": 345.241
+      },
+      "session_wall_seconds": 19.05
+    },
+    {
+      "session_id": 48,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 0,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 279.062270198483,
+        "query": 280.43157680658624
+      },
+      "session_wall_seconds": 15.31
+    },
+    {
+      "session_id": 49,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 1,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 278.992,
+        "query": 345.535
+      },
+      "session_wall_seconds": 18.95
+    },
+    {
+      "session_id": 50,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 1,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 279.87455119146034,
+        "query": 278.65939940093085
+      },
+      "session_wall_seconds": 15.18
+    },
+    {
+      "session_id": 51,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 2,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 418.639,
+        "query": 345.449
+      },
+      "session_wall_seconds": 19.28
+    },
+    {
+      "session_id": 52,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 2,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 277.57107639918104,
+        "query": 279.5965468045324
+      },
+      "session_wall_seconds": 15.2
+    },
+    {
+      "session_id": 53,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 3,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 276.275,
+        "query": 345.431
+      },
+      "session_wall_seconds": 18.93
+    },
+    {
+      "session_id": 54,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 3,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 278.9262316073291,
+        "query": 278.64195539150387
+      },
+      "session_wall_seconds": 15.18
+    },
+    {
+      "session_id": 55,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 4,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 278.687,
+        "query": 345.493
+      },
+      "session_wall_seconds": 18.81
+    },
+    {
+      "session_id": 56,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 4,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 280.1013504038565,
+        "query": 280.22999400272965
+      },
+      "session_wall_seconds": 15.21
+    },
+    {
+      "session_id": 57,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 5,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 324.569,
+        "query": 345.631
+      },
+      "session_wall_seconds": 18.78
+    },
+    {
+      "session_id": 58,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 5,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 278.98377520032227,
+        "query": 279.06273019034415
+      },
+      "session_wall_seconds": 15.3
+    },
+    {
+      "session_id": 59,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 6,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 314.282,
+        "query": 344.983
+      },
+      "session_wall_seconds": 18.12
+    },
+    {
+      "session_id": 60,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 6,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 281.05779939796776,
+        "query": 279.51425940264016
+      },
+      "session_wall_seconds": 15.21
+    },
+    {
+      "session_id": 61,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 7,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 362.378,
+        "query": 348.505
+      },
+      "session_wall_seconds": 18.38
+    },
+    {
+      "session_id": 62,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 7,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 277.4281115969643,
+        "query": 278.560953005217
+      },
+      "session_wall_seconds": 15.23
+    },
+    {
+      "session_id": 63,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 8,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 277.108,
+        "query": 345.965
+      },
+      "session_wall_seconds": 18.96
+    },
+    {
+      "session_id": 64,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 8,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 279.4103170046583,
+        "query": 277.82285840949044
+      },
+      "session_wall_seconds": 15.11
+    },
+    {
+      "session_id": 65,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 9,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 369.845,
+        "query": 345.378
+      },
+      "session_wall_seconds": 19.42
+    },
+    {
+      "session_id": 66,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 9,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 277.46329799992964,
+        "query": 279.01327919680625
+      },
+      "session_wall_seconds": 15.09
+    },
+    {
+      "session_id": 67,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 10,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 278.893,
+        "query": 345.708
+      },
+      "session_wall_seconds": 18.81
+    },
+    {
+      "session_id": 68,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 10,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 280.90689439559355,
+        "query": 279.7236420097761
+      },
+      "session_wall_seconds": 15.25
+    },
+    {
+      "session_id": 69,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 11,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 418.06,
+        "query": 344.813
+      },
+      "session_wall_seconds": 19.39
+    },
+    {
+      "session_id": 70,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 11,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 278.9335257955827,
+        "query": 278.1451798044145
+      },
+      "session_wall_seconds": 15.23
+    },
+    {
+      "session_id": 71,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 12,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 460.093,
+        "query": 345.972
+      },
+      "session_wall_seconds": 19.87
+    },
+    {
+      "session_id": 72,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 12,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 278.751186595764,
+        "query": 278.31402260344476
+      },
+      "session_wall_seconds": 15.27
+    },
+    {
+      "session_id": 73,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 13,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 371.512,
+        "query": 345.412
+      },
+      "session_wall_seconds": 18.86
+    },
+    {
+      "session_id": 74,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 13,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 281.1864115996286,
+        "query": 281.56503620557487
+      },
+      "session_wall_seconds": 15.31
+    },
+    {
+      "session_id": 75,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "cpp",
+      "round": 14,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 373.345,
+        "query": 345.616
+      },
+      "session_wall_seconds": 19.06
+    },
+    {
+      "session_id": 76,
+      "plan_label": "int4",
+      "precision": "int4",
+      "batch_mode": "auto",
+      "backend": "python",
+      "round": 14,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 279.4951694086194,
+        "query": 279.60666939616203
+      },
+      "session_wall_seconds": 15.2
+    },
+    {
+      "session_id": 77,
+      "plan_label": "int8+per_sample",
+      "precision": "int8",
+      "batch_mode": "per_sample",
+      "backend": "cpp",
+      "round": 0,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 290.153,
+        "query": 352.195
+      },
+      "session_wall_seconds": 18.4
+    },
+    {
+      "session_id": 78,
+      "plan_label": "int8+per_sample",
+      "precision": "int8",
+      "batch_mode": "per_sample",
+      "backend": "python",
+      "round": 0,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 290.4752444010228,
+        "query": 290.9839359926991
+      },
+      "session_wall_seconds": 14.19
+    },
+    {
+      "session_id": 79,
+      "plan_label": "int8+per_sample",
+      "precision": "int8",
+      "batch_mode": "per_sample",
+      "backend": "cpp",
+      "round": 1,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 291.71,
+        "query": 354.184
+      },
+      "session_wall_seconds": 18.53
+    },
+    {
+      "session_id": 80,
+      "plan_label": "int8+per_sample",
+      "precision": "int8",
+      "batch_mode": "per_sample",
+      "backend": "python",
+      "round": 1,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 299.75191559642553,
+        "query": 299.3464980041608
+      },
+      "session_wall_seconds": 14.29
+    },
+    {
+      "session_id": 81,
+      "plan_label": "int8+per_sample",
+      "precision": "int8",
+      "batch_mode": "per_sample",
+      "backend": "cpp",
+      "round": 2,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 444.031,
+        "query": 353.793
+      },
+      "session_wall_seconds": 16.34
+    },
+    {
+      "session_id": 82,
+      "plan_label": "int8+per_sample",
+      "precision": "int8",
+      "batch_mode": "per_sample",
+      "backend": "python",
+      "round": 2,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 289.8457970004529,
+        "query": 290.3881166013889
+      },
+      "session_wall_seconds": 14.1
+    },
+    {
+      "session_id": 83,
+      "plan_label": "int8+per_sample",
+      "precision": "int8",
+      "batch_mode": "per_sample",
+      "backend": "cpp",
+      "round": 3,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 369.352,
+        "query": 353.481
+      },
+      "session_wall_seconds": 18.49
+    },
+    {
+      "session_id": 84,
+      "plan_label": "int8+per_sample",
+      "precision": "int8",
+      "batch_mode": "per_sample",
+      "backend": "python",
+      "round": 3,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 290.26037820149213,
+        "query": 290.78713100170717
+      },
+      "session_wall_seconds": 14.05
+    },
+    {
+      "session_id": 85,
+      "plan_label": "int8+per_sample",
+      "precision": "int8",
+      "batch_mode": "per_sample",
+      "backend": "cpp",
+      "round": 4,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 522.779,
+        "query": 353.99
+      },
+      "session_wall_seconds": 19.69
+    },
+    {
+      "session_id": 86,
+      "plan_label": "int8+per_sample",
+      "precision": "int8",
+      "batch_mode": "per_sample",
+      "backend": "python",
+      "round": 4,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 290.49498500535265,
+        "query": 289.99281220603734
+      },
+      "session_wall_seconds": 14.17
+    },
+    {
+      "session_id": 87,
+      "plan_label": "int8+per_sample",
+      "precision": "int8",
+      "batch_mode": "per_sample",
+      "backend": "cpp",
+      "round": 5,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 292.268,
+        "query": 354.538
+      },
+      "session_wall_seconds": 18.72
+    },
+    {
+      "session_id": 88,
+      "plan_label": "int8+per_sample",
+      "precision": "int8",
+      "batch_mode": "per_sample",
+      "backend": "python",
+      "round": 5,
+      "repeat": 5,
+      "ms_per_call": {
+        "text": 290.2213773922995,
+        "query": 289.77735999505967
+      },
+      "session_wall_seconds": 14.23
+    }
+  ],
+  "summary": {
+    "fp32/cpp/text": {
+      "n": 8,
+      "median": 1622.7,
+      "p10": 1616.38,
+      "p90": 1626.65,
+      "min": 1614.86,
+      "max": 2978.23
+    },
+    "fp32/cpp/query": {
+      "n": 8,
+      "median": 1775.76,
+      "p10": 1770.14,
+      "p90": 1778.78,
+      "min": 1766.03,
+      "max": 1779.46
+    },
+    "fp32/python/text": {
+      "n": 8,
+      "median": 1626.2,
+      "p10": 1615.06,
+      "p90": 1630.42,
+      "min": 1614.28,
+      "max": 1630.81
+    },
+    "fp32/python/query": {
+      "n": 8,
+      "median": 1625.72,
+      "p10": 1624.6,
+      "p90": 1627.48,
+      "min": 1616.8,
+      "max": 1627.79
+    },
+    "int8/cpp/text": {
+      "n": 15,
+      "median": 448.61,
+      "p10": 292.06,
+      "p90": 520.51,
+      "min": 290.41,
+      "max": 528.48
+    },
+    "int8/cpp/query": {
+      "n": 15,
+      "median": 353.41,
+      "p10": 352.61,
+      "p90": 354.22,
+      "min": 352.4,
+      "max": 354.47
+    },
+    "int8/python/text": {
+      "n": 15,
+      "median": 291.87,
+      "p10": 290.58,
+      "p90": 293.86,
+      "min": 289.89,
+      "max": 294.79
+    },
+    "int8/python/query": {
+      "n": 15,
+      "median": 291.59,
+      "p10": 290.73,
+      "p90": 293.7,
+      "min": 290.29,
+      "max": 294.26
+    },
+    "int4/cpp/text": {
+      "n": 15,
+      "median": 362.38,
+      "p10": 277.11,
+      "p90": 418.64,
+      "min": 276.27,
+      "max": 460.09
+    },
+    "int4/cpp/query": {
+      "n": 15,
+      "median": 345.49,
+      "p10": 344.98,
+      "p90": 345.97,
+      "min": 344.81,
+      "max": 348.5
+    },
+    "int4/python/text": {
+      "n": 15,
+      "median": 279.06,
+      "p10": 277.46,
+      "p90": 281.06,
+      "min": 277.43,
+      "max": 281.19
+    },
+    "int4/python/query": {
+      "n": 15,
+      "median": 279.06,
+      "p10": 278.15,
+      "p90": 280.43,
+      "min": 277.82,
+      "max": 281.57
+    },
+    "int8+per_sample/cpp/text": {
+      "n": 6,
+      "median": 330.81,
+      "p10": 290.15,
+      "p90": 444.03,
+      "min": 290.15,
+      "max": 522.78
+    },
+    "int8+per_sample/cpp/query": {
+      "n": 6,
+      "median": 353.89,
+      "p10": 352.19,
+      "p90": 354.18,
+      "min": 352.19,
+      "max": 354.54
+    },
+    "int8+per_sample/python/text": {
+      "n": 6,
+      "median": 290.37,
+      "p10": 289.85,
+      "p90": 290.49,
+      "min": 289.85,
+      "max": 299.75
+    },
+    "int8+per_sample/python/query": {
+      "n": 6,
+      "median": 290.59,
+      "p10": 289.78,
+      "p90": 290.98,
+      "min": 289.78,
+      "max": 299.35
+    }
+  }
+}

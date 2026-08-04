@@ -1,10 +1,21 @@
 // gme_embed: CLI for the GME-Qwen2-VL OpenVINO C++ runtime.
 //
 //   gme_embed --package DIR [--device CPU] [--precision int8] [--streams N]
-//             [--batch-mode auto|per_sample|padded]
+//             [--batch-mode auto|per_sample|padded] [--batch-size N]
 //             --mode text|image|fused [--instruction STR] [--is-query 0|1]
 //             [--image PATH ...] [--out FILE] [TEXT ...]
-//   gme_embed --package DIR --benchmark [--benchmark-modes text,query]
+//   gme_embed --package DIR --benchmark [--benchmark-modes text,query] [--batch N]
+//             [--warmup N]
+//
+// --warmup N (default 1) runs the benchmarked call N times before starting the
+// timed loop, discarding those iterations. On GPU, a fresh process's first few
+// inferences can land on whatever DVFS frequency the device happened to be idling
+// at; a single warmup call does not reliably force it to ramp to a steady clock
+// before quantized (fast) kernels finish, which showed up as a several-hundred-ms,
+// discretely-banded latency spread on 1024-token GPU int8/int4 benchmarks. A
+// longer warmup keeps the GPU busy long enough to reach a stable frequency before
+// the timed region starts; fp32 calls are long enough on their own that this
+// mattered far less there.
 //
 // Any batch size works with no per-batch-size export; see gme_qwen2vl.hpp.
 // --streams 1 (default) runs one request on every core: lowest single-sample
@@ -12,6 +23,10 @@
 // across streams (~1.8x on 16 cores); results are identical either way.
 // --batch-mode auto (default) decodes per sample on CPU and as one padded [B,S]
 // call on GPU, which is where each is faster.
+// --batch-size N chunks a large input into groups of N (default 32, as official
+// GME); 0 encodes everything as one chunk.
+// --benchmark --batch N repeats the given input N times so a run measures batch
+// throughput; the reported avg_ms is per call, and ms/embedding is avg_ms / N.
 //
 // --out writes a binary blob {"GEMB", int32 rows, int32 dim, float32[rows*dim]}
 // consumed by 08_validate_cpp.py to check cosine against the golden embeddings.
@@ -32,12 +47,12 @@ namespace {
     std::cerr << "usage: " << argv0
               << " --package DIR [--device CPU] [--precision int8]"
                  " --mode text|image|fused [--instruction STR] [--is-query 0|1]"
-                 " [--streams N] [--batch-mode auto|per_sample|padded]\n"
+                 " [--streams N] [--batch-mode auto|per_sample|padded] [--batch-size N]\n"
                  " [--image PATH ...] [--out FILE] [TEXT ...]\n"
                  "       "
               << argv0
               << " --package DIR --benchmark [--benchmark-modes text,query,image,fused]"
-                 " [--repeat N] [--instruction STR] [--image PATH] TEXT\n";
+                 " [--repeat N] [--warmup N] [--batch N] [--instruction STR] [--image PATH] TEXT\n";
     std::exit(2);
 }
 
@@ -72,7 +87,8 @@ int main(int argc, char** argv) {
     std::string batch_mode = "auto";
     std::string benchmark_modes = "text,query,image,fused";
     bool is_query = true, benchmark = false;
-    int repeat = 1, streams = 1;
+    int repeat = 1, streams = 1, bench_batch = 1, warmup = 1;
+    std::size_t batch_size = gme::kDefaultBatchSize;
     std::vector<std::string> texts, images;
 
     for (int i = 1; i < argc; ++i) {
@@ -90,8 +106,11 @@ int main(int argc, char** argv) {
         else if (a == "--image") images.push_back(next("--image"));
         else if (a == "--out") out = next("--out");
         else if (a == "--repeat") repeat = std::stoi(next("--repeat"));
+        else if (a == "--warmup") warmup = std::stoi(next("--warmup"));
         else if (a == "--streams") streams = std::stoi(next("--streams"));
         else if (a == "--batch-mode") batch_mode = next("--batch-mode");
+        else if (a == "--batch-size") batch_size = static_cast<std::size_t>(std::stoul(next("--batch-size")));
+        else if (a == "--batch") bench_batch = std::stoi(next("--batch"));
         else if (a == "--benchmark") benchmark = true;
         else if (a == "--benchmark-modes") benchmark_modes = next("--benchmark-modes");
         else if (a == "-h" || a == "--help") usage(argv[0]);
@@ -103,7 +122,7 @@ int main(int argc, char** argv) {
         gme::GmeQwen2VL model(package, device, precision, streams, batch_mode);
         std::cerr << "[gme_embed] device=" << model.device() << " precision=" << model.precision()
                   << " dim=" << model.dim() << " streams=" << streams
-                  << " batch_mode=" << model.batch_mode() << "\n";
+                  << " batch_mode=" << model.batch_mode() << " batch_size=" << batch_size << "\n";
 
         if (benchmark) {
             // One process, selected modes: amortizes model compile. Image is only
@@ -124,29 +143,40 @@ int main(int argc, char** argv) {
                 std::cerr << "selected image/fused benchmark modes need one --image\n";
                 return 2;
             }
+            if (bench_batch < 1) { std::cerr << "--batch must be >= 1\n"; return 2; }
+            // Repeat the given sample --batch times. Every row is then identical, which
+            // is exactly what a batch-scaling measurement wants: the only variable is
+            // how many samples share a call, not how ragged they are.
+            const std::vector<std::string> bench_texts(
+                static_cast<std::size_t>(bench_batch), texts.empty() ? std::string() : texts[0]);
+            const std::vector<std::string> bench_images(
+                static_cast<std::size_t>(bench_batch), images.empty() ? std::string() : images[0]);
+            if (warmup < 1) { std::cerr << "--warmup must be >= 1\n"; return 2; }
             auto bench = [&](const char* name, const std::function<void()>& fn) {
-                fn();  // warmup
+                for (int w = 0; w < warmup; ++w) fn();  // let the GPU clock ramp before timing
                 auto t0 = std::chrono::steady_clock::now();
                 for (int r = 0; r < repeat; ++r) fn();
                 auto t1 = std::chrono::steady_clock::now();
                 double ms = std::chrono::duration<double, std::milli>(t1 - t0).count() / repeat;
                 std::cout << "[bench] device=" << device << " precision=" << precision
-                          << " mode=" << name << " avg_ms=" << ms << "\n";
+                          << " mode=" << name << " batch=" << bench_batch
+                          << " streams=" << streams << " batch_mode=" << model.batch_mode()
+                          << " avg_ms=" << ms << " ms_per_embedding=" << ms / bench_batch << "\n";
             };
-            if (run_text) bench("text", [&] { model.encode_text({texts[0]}, "", false); });
-            if (run_query) bench("query", [&] { model.encode_text({texts[0]}, instruction, true); });
-            if (run_image) bench("image", [&] { model.encode_image({images[0]}); });
-            if (run_fused) bench("fused", [&] { model.encode_fused({texts[0]}, {images[0]}); });
+            if (run_text) bench("text", [&] { model.encode_text(bench_texts, "", false, batch_size); });
+            if (run_query) bench("query", [&] { model.encode_text(bench_texts, instruction, true, batch_size); });
+            if (run_image) bench("image", [&] { model.encode_image(bench_images, "", true, batch_size); });
+            if (run_fused) bench("fused", [&] { model.encode_fused(bench_texts, bench_images, "", true, batch_size); });
             return 0;
         }
 
         gme::Embedding emb;
         if (mode == "text") {
-            emb = model.encode_text(texts, instruction, is_query);
+            emb = model.encode_text(texts, instruction, is_query, batch_size);
         } else if (mode == "image") {
-            emb = model.encode_image(images, instruction, is_query);
+            emb = model.encode_image(images, instruction, is_query, batch_size);
         } else if (mode == "fused") {
-            emb = model.encode_fused(texts, images, instruction, is_query);
+            emb = model.encode_fused(texts, images, instruction, is_query, batch_size);
         } else {
             usage(argv[0]);
         }

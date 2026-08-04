@@ -300,40 +300,76 @@ Embedding GmeQwen2VL::run_language(const std::vector<std::string>& prompts,
     return emb;
 }
 
-Embedding GmeQwen2VL::encode_text(const std::vector<std::string>& texts,
-                                  const std::string& instruction, bool is_query) {
-    if (texts.empty()) throw std::runtime_error("encode_text: empty input");
+Embedding GmeQwen2VL::encode_chunk(const std::vector<std::string>* texts,
+                                   const std::vector<std::string>* image_paths,
+                                   const std::string& instruction, bool is_query,
+                                   std::size_t begin, std::size_t end) {
+    const std::size_t count = end - begin;
     std::vector<std::string> prompts;
-    prompts.reserve(texts.size());
-    for (const auto& t : texts) prompts.push_back(build_prompt(&t, false, instruction, is_query));
-    return run_language(prompts, nullptr);  // no image tokens
+    prompts.reserve(count);
+
+    if (image_paths == nullptr) {  // text-only: no visual pass, no image tokens
+        for (std::size_t i = begin; i < end; ++i) {
+            prompts.push_back(build_prompt(&(*texts)[i], false, instruction, is_query));
+        }
+        return run_language(prompts, nullptr);
+    }
+
+    VisualResult visual =
+        run_visual(std::vector<std::string>(image_paths->begin() + begin, image_paths->begin() + end));
+    for (std::size_t i = 0; i < count; ++i) {
+        // The image-pad count must equal this image's visual rows, so it comes from
+        // the visual output rather than being predicted from the file.
+        const std::string* text = texts ? &(*texts)[begin + i] : nullptr;
+        prompts.push_back(build_prompt(text, true, instruction, is_query, visual.merged_tokens[i]));
+    }
+    return run_language(prompts, &visual.embeds);
+}
+
+Embedding GmeQwen2VL::encode_chunked(const std::vector<std::string>* texts,
+                                     const std::vector<std::string>* image_paths,
+                                     const std::string& instruction, bool is_query,
+                                     std::size_t count, std::size_t batch_size) {
+    const std::size_t step = batch_size ? batch_size : count;
+    if (step == count) return encode_chunk(texts, image_paths, instruction, is_query, 0, count);
+
+    Embedding all;
+    all.dim = embedding_dim_;
+    all.rows = count;
+    all.data.reserve(count * embedding_dim_);
+    for (std::size_t begin = 0; begin < count; begin += step) {
+        Embedding chunk = encode_chunk(texts, image_paths, instruction, is_query, begin,
+                                       std::min(begin + step, count));
+        all.data.insert(all.data.end(), chunk.data.begin(), chunk.data.end());
+    }
+    if (all.data.size() != count * embedding_dim_) {
+        throw std::runtime_error("encode_chunked: chunk rows do not sum to the input size");
+    }
+    return all;
+}
+
+Embedding GmeQwen2VL::encode_text(const std::vector<std::string>& texts,
+                                  const std::string& instruction, bool is_query,
+                                  std::size_t batch_size) {
+    if (texts.empty()) throw std::runtime_error("encode_text: empty input");
+    return encode_chunked(&texts, nullptr, instruction, is_query, texts.size(), batch_size);
 }
 
 Embedding GmeQwen2VL::encode_image(const std::vector<std::string>& image_paths,
-                                   const std::string& instruction, bool is_query) {
+                                   const std::string& instruction, bool is_query,
+                                   std::size_t batch_size) {
     if (image_paths.empty()) throw std::runtime_error("encode_image: empty input");
-    VisualResult visual = run_visual(image_paths);
-    std::vector<std::string> prompts;
-    prompts.reserve(image_paths.size());
-    for (const auto token_count : visual.merged_tokens) {
-        prompts.push_back(build_prompt(nullptr, true, instruction, is_query, token_count));
-    }
-    return run_language(prompts, &visual.embeds);
+    return encode_chunked(nullptr, &image_paths, instruction, is_query, image_paths.size(), batch_size);
 }
 
 Embedding GmeQwen2VL::encode_fused(const std::vector<std::string>& texts,
                                    const std::vector<std::string>& image_paths,
-                                   const std::string& instruction, bool is_query) {
+                                   const std::string& instruction, bool is_query,
+                                   std::size_t batch_size) {
     if (texts.size() != image_paths.size() || texts.empty()) {
         throw std::runtime_error("encode_fused: texts and images must be non-empty and equal length");
     }
-    VisualResult visual = run_visual(image_paths);
-    std::vector<std::string> prompts;
-    prompts.reserve(texts.size());
-    for (std::size_t index = 0; index < texts.size(); ++index) {
-        prompts.push_back(build_prompt(&texts[index], true, instruction, is_query, visual.merged_tokens[index]));
-    }
-    return run_language(prompts, &visual.embeds);
+    return encode_chunked(&texts, &image_paths, instruction, is_query, texts.size(), batch_size);
 }
 
 }  // namespace gme

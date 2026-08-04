@@ -1,0 +1,1163 @@
+{
+  "unit": "ms, warm, end-to-end per call (tokenize/preprocess + inference), excludes load/compile",
+  "repeat": 20,
+  "config": {
+    "devices": [
+      "CPU",
+      "GPU"
+    ],
+    "precisions": [
+      "fp32",
+      "int8",
+      "int4"
+    ],
+    "backends": [
+      "python",
+      "cpp"
+    ],
+    "repeat": 20,
+    "text_lengths": [
+      32,
+      128,
+      512,
+      1024
+    ],
+    "image_sizes": [
+      "448x448",
+      "644x476",
+      "672x672",
+      "896x896",
+      "1288x728"
+    ],
+    "include_logo": false,
+    "batch_sizes": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32
+    ],
+    "image_batch_sizes": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "batch_modes": [
+      "per_sample",
+      "padded"
+    ],
+    "streams": [
+      1,
+      "auto"
+    ],
+    "batch_precision": "int8",
+    "batch_text_length": 128
+  },
+  "workloads": {
+    "texts": {
+      "32": {
+        "text": {
+          "raw_text": "a a a a a a a a a a a a",
+          "raw_text_chars": 23,
+          "sequence_tokens": 32
+        },
+        "query": {
+          "raw_text": "a a a a a a a a a",
+          "raw_text_chars": 17,
+          "instruction": "Find an image that matches the given text.",
+          "sequence_tokens": 32
+        }
+      },
+      "128": {
+        "text": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 215,
+          "sequence_tokens": 128
+        },
+        "query": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 209,
+          "instruction": "Find an image that matches the given text.",
+          "sequence_tokens": 128
+        }
+      },
+      "512": {
+        "text": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 983,
+          "sequence_tokens": 512
+        },
+        "query": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 977,
+          "instruction": "Find an image that matches the given text.",
+          "sequence_tokens": 512
+        }
+      },
+      "1024": {
+        "text": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 2007,
+          "sequence_tokens": 1024
+        },
+        "query": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 2001,
+          "instruction": "Find an image that matches the given text.",
+          "sequence_tokens": 1024
+        }
+      }
+    },
+    "images": {
+      "448x448": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/artifacts/bench_images/bench_448x448.png",
+        "image": {
+          "file": "bench_448x448.png",
+          "source_size_wh": [
+            448,
+            448
+          ],
+          "processor_size_wh": [
+            448,
+            448
+          ],
+          "image_grid_thw": [
+            1,
+            32,
+            32
+          ],
+          "raw_patch_rows": 1024,
+          "visual_tokens": 256,
+          "sequence_tokens": 278
+        },
+        "fused": {
+          "file": "bench_448x448.png",
+          "source_size_wh": [
+            448,
+            448
+          ],
+          "processor_size_wh": [
+            448,
+            448
+          ],
+          "image_grid_thw": [
+            1,
+            32,
+            32
+          ],
+          "raw_patch_rows": 1024,
+          "visual_tokens": 256,
+          "sequence_tokens": 290
+        }
+      },
+      "644x476": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/artifacts/bench_images/bench_644x476.png",
+        "image": {
+          "file": "bench_644x476.png",
+          "source_size_wh": [
+            644,
+            476
+          ],
+          "processor_size_wh": [
+            644,
+            476
+          ],
+          "image_grid_thw": [
+            1,
+            34,
+            46
+          ],
+          "raw_patch_rows": 1564,
+          "visual_tokens": 391,
+          "sequence_tokens": 413
+        },
+        "fused": {
+          "file": "bench_644x476.png",
+          "source_size_wh": [
+            644,
+            476
+          ],
+          "processor_size_wh": [
+            644,
+            476
+          ],
+          "image_grid_thw": [
+            1,
+            34,
+            46
+          ],
+          "raw_patch_rows": 1564,
+          "visual_tokens": 391,
+          "sequence_tokens": 425
+        }
+      },
+      "672x672": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/artifacts/bench_images/bench_672x672.png",
+        "image": {
+          "file": "bench_672x672.png",
+          "source_size_wh": [
+            672,
+            672
+          ],
+          "processor_size_wh": [
+            672,
+            672
+          ],
+          "image_grid_thw": [
+            1,
+            48,
+            48
+          ],
+          "raw_patch_rows": 2304,
+          "visual_tokens": 576,
+          "sequence_tokens": 598
+        },
+        "fused": {
+          "file": "bench_672x672.png",
+          "source_size_wh": [
+            672,
+            672
+          ],
+          "processor_size_wh": [
+            672,
+            672
+          ],
+          "image_grid_thw": [
+            1,
+            48,
+            48
+          ],
+          "raw_patch_rows": 2304,
+          "visual_tokens": 576,
+          "sequence_tokens": 610
+        }
+      },
+      "896x896": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/artifacts/bench_images/bench_896x896.png",
+        "image": {
+          "file": "bench_896x896.png",
+          "source_size_wh": [
+            896,
+            896
+          ],
+          "processor_size_wh": [
+            896,
+            896
+          ],
+          "image_grid_thw": [
+            1,
+            64,
+            64
+          ],
+          "raw_patch_rows": 4096,
+          "visual_tokens": 1024,
+          "sequence_tokens": 1046
+        },
+        "fused": {
+          "file": "bench_896x896.png",
+          "source_size_wh": [
+            896,
+            896
+          ],
+          "processor_size_wh": [
+            896,
+            896
+          ],
+          "image_grid_thw": [
+            1,
+            64,
+            64
+          ],
+          "raw_patch_rows": 4096,
+          "visual_tokens": 1024,
+          "sequence_tokens": 1058
+        }
+      },
+      "1288x728": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/artifacts/bench_images/bench_1288x728.png",
+        "image": {
+          "file": "bench_1288x728.png",
+          "source_size_wh": [
+            1288,
+            728
+          ],
+          "processor_size_wh": [
+            1288,
+            728
+          ],
+          "image_grid_thw": [
+            1,
+            52,
+            92
+          ],
+          "raw_patch_rows": 4784,
+          "visual_tokens": 1196,
+          "sequence_tokens": 1218
+        },
+        "fused": {
+          "file": "bench_1288x728.png",
+          "source_size_wh": [
+            1288,
+            728
+          ],
+          "processor_size_wh": [
+            1288,
+            728
+          ],
+          "image_grid_thw": [
+            1,
+            52,
+            92
+          ],
+          "raw_patch_rows": 4784,
+          "visual_tokens": 1196,
+          "sequence_tokens": 1230
+        }
+      }
+    },
+    "note": "sequence_tokens is the effective unpadded length after GME templating, including the expanded image-pad run; visual_tokens is grid_t*grid_h*grid_w/4"
+  },
+  "suites": {
+    "batch": {
+      "text_length": "128",
+      "image_size": "448x448",
+      "precision": "int8",
+      "cells": {
+        "python/CPU/per_sample/streams=1/N=1": {
+          "text": {
+            "ms_per_call": 326.34,
+            "ms_per_embedding": 326.34
+          },
+          "image": {
+            "ms_per_call": 2608.25,
+            "ms_per_embedding": 2608.25
+          }
+        },
+        "python/CPU/per_sample/streams=1/N=2": {
+          "text": {
+            "ms_per_call": 662.08,
+            "ms_per_embedding": 331.04
+          },
+          "image": {
+            "ms_per_call": 5290.56,
+            "ms_per_embedding": 2645.28
+          }
+        },
+        "python/CPU/per_sample/streams=1/N=4": {
+          "text": {
+            "ms_per_call": 1347.44,
+            "ms_per_embedding": 336.86
+          },
+          "image": {
+            "ms_per_call": 10612.79,
+            "ms_per_embedding": 2653.2
+          }
+        },
+        "python/CPU/per_sample/streams=1/N=8": {
+          "text": {
+            "ms_per_call": 2684.03,
+            "ms_per_embedding": 335.5
+          },
+          "image": {
+            "ms_per_call": 21227.83,
+            "ms_per_embedding": 2653.48
+          }
+        },
+        "python/CPU/per_sample/streams=1/N=16": {
+          "text": {
+            "ms_per_call": 5366.06,
+            "ms_per_embedding": 335.38
+          }
+        },
+        "python/CPU/per_sample/streams=1/N=32": {
+          "text": {
+            "ms_per_call": 10789.89,
+            "ms_per_embedding": 337.18
+          }
+        },
+        "cpp/CPU/per_sample/streams=1/N=1": {
+          "text": {
+            "ms_per_call": 332.08,
+            "ms_per_embedding": 332.08
+          },
+          "image": {
+            "ms_per_call": 2670.1,
+            "ms_per_embedding": 2670.1
+          }
+        },
+        "cpp/CPU/per_sample/streams=1/N=2": {
+          "text": {
+            "ms_per_call": 658.87,
+            "ms_per_embedding": 329.44
+          },
+          "image": {
+            "ms_per_call": 5321.04,
+            "ms_per_embedding": 2660.52
+          }
+        },
+        "cpp/CPU/per_sample/streams=1/N=4": {
+          "text": {
+            "ms_per_call": 1321.87,
+            "ms_per_embedding": 330.47
+          },
+          "image": {
+            "ms_per_call": 10629.5,
+            "ms_per_embedding": 2657.38
+          }
+        },
+        "cpp/CPU/per_sample/streams=1/N=8": {
+          "text": {
+            "ms_per_call": 2654.78,
+            "ms_per_embedding": 331.85
+          },
+          "image": {
+            "ms_per_call": 21298.3,
+            "ms_per_embedding": 2662.29
+          }
+        },
+        "cpp/CPU/per_sample/streams=1/N=16": {
+          "text": {
+            "ms_per_call": 5333.27,
+            "ms_per_embedding": 333.33
+          }
+        },
+        "cpp/CPU/per_sample/streams=1/N=32": {
+          "text": {
+            "ms_per_call": 10727.2,
+            "ms_per_embedding": 335.23
+          }
+        },
+        "python/CPU/per_sample/streams=auto/N=1": {
+          "text": {
+            "ms_per_call": 552.49,
+            "ms_per_embedding": 552.49
+          },
+          "image": {
+            "ms_per_call": 4303.41,
+            "ms_per_embedding": 4303.41
+          }
+        },
+        "python/CPU/per_sample/streams=auto/N=2": {
+          "text": {
+            "ms_per_call": 641.42,
+            "ms_per_embedding": 320.71
+          },
+          "image": {
+            "ms_per_call": 5162.11,
+            "ms_per_embedding": 2581.06
+          }
+        },
+        "python/CPU/per_sample/streams=auto/N=4": {
+          "text": {
+            "ms_per_call": 698.73,
+            "ms_per_embedding": 174.68
+          },
+          "image": {
+            "ms_per_call": 5918.21,
+            "ms_per_embedding": 1479.55
+          }
+        },
+        "python/CPU/per_sample/streams=auto/N=8": {
+          "text": {
+            "ms_per_call": 1466.59,
+            "ms_per_embedding": 183.32
+          },
+          "image": {
+            "ms_per_call": 11898.36,
+            "ms_per_embedding": 1487.3
+          }
+        },
+        "python/CPU/per_sample/streams=auto/N=16": {
+          "text": {
+            "ms_per_call": 2951.11,
+            "ms_per_embedding": 184.44
+          }
+        },
+        "python/CPU/per_sample/streams=auto/N=32": {
+          "text": {
+            "ms_per_call": 5547.57,
+            "ms_per_embedding": 173.36
+          }
+        },
+        "cpp/CPU/per_sample/streams=auto/N=1": {
+          "text": {
+            "ms_per_call": 558.94,
+            "ms_per_embedding": 558.94
+          },
+          "image": {
+            "ms_per_call": 4322.35,
+            "ms_per_embedding": 4322.35
+          }
+        },
+        "cpp/CPU/per_sample/streams=auto/N=2": {
+          "text": {
+            "ms_per_call": 640.66,
+            "ms_per_embedding": 320.33
+          },
+          "image": {
+            "ms_per_call": 5123.98,
+            "ms_per_embedding": 2561.99
+          }
+        },
+        "cpp/CPU/per_sample/streams=auto/N=4": {
+          "text": {
+            "ms_per_call": 697.44,
+            "ms_per_embedding": 174.36
+          },
+          "image": {
+            "ms_per_call": 5906.09,
+            "ms_per_embedding": 1476.52
+          }
+        },
+        "cpp/CPU/per_sample/streams=auto/N=8": {
+          "text": {
+            "ms_per_call": 1437.16,
+            "ms_per_embedding": 179.65
+          },
+          "image": {
+            "ms_per_call": 11886.2,
+            "ms_per_embedding": 1485.77
+          }
+        },
+        "cpp/CPU/per_sample/streams=auto/N=16": {
+          "text": {
+            "ms_per_call": 2869.55,
+            "ms_per_embedding": 179.35
+          }
+        },
+        "cpp/CPU/per_sample/streams=auto/N=32": {
+          "text": {
+            "ms_per_call": 5500.0,
+            "ms_per_embedding": 171.88
+          }
+        },
+        "python/CPU/padded/streams=1/N=1": {
+          "text": {
+            "ms_per_call": 368.73,
+            "ms_per_embedding": 368.73
+          },
+          "image": {
+            "ms_per_call": 2790.26,
+            "ms_per_embedding": 2790.26
+          }
+        },
+        "python/CPU/padded/streams=1/N=2": {
+          "text": {
+            "ms_per_call": 684.99,
+            "ms_per_embedding": 342.49
+          },
+          "image": {
+            "ms_per_call": 5283.26,
+            "ms_per_embedding": 2641.63
+          }
+        },
+        "python/CPU/padded/streams=1/N=4": {
+          "text": {
+            "ms_per_call": 1360.18,
+            "ms_per_embedding": 340.04
+          },
+          "image": {
+            "ms_per_call": 10466.48,
+            "ms_per_embedding": 2616.62
+          }
+        },
+        "python/CPU/padded/streams=1/N=8": {
+          "text": {
+            "ms_per_call": 2721.14,
+            "ms_per_embedding": 340.14
+          },
+          "image": {
+            "ms_per_call": 20973.94,
+            "ms_per_embedding": 2621.74
+          }
+        },
+        "python/CPU/padded/streams=1/N=16": {
+          "text": {
+            "ms_per_call": 5548.75,
+            "ms_per_embedding": 346.8
+          }
+        },
+        "python/CPU/padded/streams=1/N=32": {
+          "text": {
+            "ms_per_call": 11233.74,
+            "ms_per_embedding": 351.05
+          }
+        },
+        "cpp/CPU/padded/streams=1/N=1": {
+          "text": {
+            "ms_per_call": 340.52,
+            "ms_per_embedding": 340.52
+          },
+          "image": {
+            "ms_per_call": 2691.97,
+            "ms_per_embedding": 2691.97
+          }
+        },
+        "cpp/CPU/padded/streams=1/N=2": {
+          "text": {
+            "ms_per_call": 661.12,
+            "ms_per_embedding": 330.56
+          },
+          "image": {
+            "ms_per_call": 5213.56,
+            "ms_per_embedding": 2606.78
+          }
+        },
+        "cpp/CPU/padded/streams=1/N=4": {
+          "text": {
+            "ms_per_call": 1345.61,
+            "ms_per_embedding": 336.4
+          },
+          "image": {
+            "ms_per_call": 10443.8,
+            "ms_per_embedding": 2610.94
+          }
+        },
+        "cpp/CPU/padded/streams=1/N=8": {
+          "text": {
+            "ms_per_call": 2738.66,
+            "ms_per_embedding": 342.33
+          },
+          "image": {
+            "ms_per_call": 20853.6,
+            "ms_per_embedding": 2606.7
+          }
+        },
+        "cpp/CPU/padded/streams=1/N=16": {
+          "text": {
+            "ms_per_call": 5566.12,
+            "ms_per_embedding": 347.88
+          }
+        },
+        "cpp/CPU/padded/streams=1/N=32": {
+          "text": {
+            "ms_per_call": 11275.8,
+            "ms_per_embedding": 352.37
+          }
+        },
+        "python/CPU/padded/streams=auto/N=1": {
+          "text": {
+            "ms_per_call": 554.74,
+            "ms_per_embedding": 554.74
+          },
+          "image": {
+            "ms_per_call": 4320.09,
+            "ms_per_embedding": 4320.09
+          }
+        },
+        "python/CPU/padded/streams=auto/N=2": {
+          "text": {
+            "ms_per_call": 1098.96,
+            "ms_per_embedding": 549.48
+          },
+          "image": {
+            "ms_per_call": 6074.06,
+            "ms_per_embedding": 3037.03
+          }
+        },
+        "python/CPU/padded/streams=auto/N=4": {
+          "text": {
+            "ms_per_call": 2198.57,
+            "ms_per_embedding": 549.64
+          },
+          "image": {
+            "ms_per_call": 9008.18,
+            "ms_per_embedding": 2252.04
+          }
+        },
+        "python/CPU/padded/streams=auto/N=8": {
+          "text": {
+            "ms_per_call": 4395.08,
+            "ms_per_embedding": 549.38
+          },
+          "image": {
+            "ms_per_call": 17698.03,
+            "ms_per_embedding": 2212.25
+          }
+        },
+        "python/CPU/padded/streams=auto/N=16": {
+          "text": {
+            "ms_per_call": 8805.76,
+            "ms_per_embedding": 550.36
+          }
+        },
+        "python/CPU/padded/streams=auto/N=32": {
+          "text": {
+            "ms_per_call": 17557.13,
+            "ms_per_embedding": 548.66
+          }
+        },
+        "cpp/CPU/padded/streams=auto/N=1": {
+          "text": {
+            "ms_per_call": 671.31,
+            "ms_per_embedding": 671.31
+          },
+          "image": {
+            "ms_per_call": 4605.33,
+            "ms_per_embedding": 4605.33
+          }
+        },
+        "cpp/CPU/padded/streams=auto/N=2": {
+          "text": {
+            "ms_per_call": 1331.21,
+            "ms_per_embedding": 665.61
+          },
+          "image": {
+            "ms_per_call": 6547.92,
+            "ms_per_embedding": 3273.96
+          }
+        },
+        "cpp/CPU/padded/streams=auto/N=4": {
+          "text": {
+            "ms_per_call": 2698.86,
+            "ms_per_embedding": 674.72
+          },
+          "image": {
+            "ms_per_call": 10051.7,
+            "ms_per_embedding": 2512.92
+          }
+        },
+        "cpp/CPU/padded/streams=auto/N=8": {
+          "text": {
+            "ms_per_call": 5388.34,
+            "ms_per_embedding": 673.54
+          },
+          "image": {
+            "ms_per_call": 19708.7,
+            "ms_per_embedding": 2463.59
+          }
+        },
+        "cpp/CPU/padded/streams=auto/N=16": {
+          "text": {
+            "ms_per_call": 10759.9,
+            "ms_per_embedding": 672.49
+          }
+        },
+        "cpp/CPU/padded/streams=auto/N=32": {
+          "text": {
+            "ms_per_call": 21479.1,
+            "ms_per_embedding": 671.22
+          }
+        },
+        "python/GPU/per_sample/streams=1/N=1": {
+          "text": {
+            "ms_per_call": 54.47,
+            "ms_per_embedding": 54.47
+          },
+          "image": {
+            "ms_per_call": 516.81,
+            "ms_per_embedding": 516.81
+          }
+        },
+        "python/GPU/per_sample/streams=1/N=2": {
+          "text": {
+            "ms_per_call": 107.31,
+            "ms_per_embedding": 53.65
+          },
+          "image": {
+            "ms_per_call": 1024.65,
+            "ms_per_embedding": 512.32
+          }
+        },
+        "python/GPU/per_sample/streams=1/N=4": {
+          "text": {
+            "ms_per_call": 212.65,
+            "ms_per_embedding": 53.16
+          },
+          "image": {
+            "ms_per_call": 2027.39,
+            "ms_per_embedding": 506.85
+          }
+        },
+        "python/GPU/per_sample/streams=1/N=8": {
+          "text": {
+            "ms_per_call": 426.95,
+            "ms_per_embedding": 53.37
+          },
+          "image": {
+            "ms_per_call": 4053.48,
+            "ms_per_embedding": 506.69
+          }
+        },
+        "python/GPU/per_sample/streams=1/N=16": {
+          "text": {
+            "ms_per_call": 848.59,
+            "ms_per_embedding": 53.04
+          }
+        },
+        "python/GPU/per_sample/streams=1/N=32": {
+          "text": {
+            "ms_per_call": 1698.51,
+            "ms_per_embedding": 53.08
+          }
+        },
+        "cpp/GPU/per_sample/streams=1/N=1": {
+          "text": {
+            "ms_per_call": 52.94,
+            "ms_per_embedding": 52.94
+          },
+          "image": {
+            "ms_per_call": 508.26,
+            "ms_per_embedding": 508.26
+          }
+        },
+        "cpp/GPU/per_sample/streams=1/N=2": {
+          "text": {
+            "ms_per_call": 105.49,
+            "ms_per_embedding": 52.74
+          },
+          "image": {
+            "ms_per_call": 1014.45,
+            "ms_per_embedding": 507.23
+          }
+        },
+        "cpp/GPU/per_sample/streams=1/N=4": {
+          "text": {
+            "ms_per_call": 210.33,
+            "ms_per_embedding": 52.58
+          },
+          "image": {
+            "ms_per_call": 1988.6,
+            "ms_per_embedding": 497.15
+          }
+        },
+        "cpp/GPU/per_sample/streams=1/N=8": {
+          "text": {
+            "ms_per_call": 419.44,
+            "ms_per_embedding": 52.43
+          },
+          "image": {
+            "ms_per_call": 4000.52,
+            "ms_per_embedding": 500.06
+          }
+        },
+        "cpp/GPU/per_sample/streams=1/N=16": {
+          "text": {
+            "ms_per_call": 838.9,
+            "ms_per_embedding": 52.43
+          }
+        },
+        "cpp/GPU/per_sample/streams=1/N=32": {
+          "text": {
+            "ms_per_call": 1675.68,
+            "ms_per_embedding": 52.36
+          }
+        },
+        "python/GPU/per_sample/streams=auto/N=1": {
+          "text": {
+            "ms_per_call": 57.43,
+            "ms_per_embedding": 57.43
+          },
+          "image": {
+            "ms_per_call": 510.7,
+            "ms_per_embedding": 510.7
+          }
+        },
+        "python/GPU/per_sample/streams=auto/N=2": {
+          "text": {
+            "ms_per_call": 106.75,
+            "ms_per_embedding": 53.38
+          },
+          "image": {
+            "ms_per_call": 1107.2,
+            "ms_per_embedding": 553.6
+          }
+        },
+        "python/GPU/per_sample/streams=auto/N=4": {
+          "text": {
+            "ms_per_call": 209.72,
+            "ms_per_embedding": 52.43
+          },
+          "image": {
+            "ms_per_call": 2148.51,
+            "ms_per_embedding": 537.13
+          }
+        },
+        "python/GPU/per_sample/streams=auto/N=8": {
+          "text": {
+            "ms_per_call": 427.63,
+            "ms_per_embedding": 53.45
+          },
+          "image": {
+            "ms_per_call": 4514.76,
+            "ms_per_embedding": 564.34
+          }
+        },
+        "python/GPU/per_sample/streams=auto/N=16": {
+          "text": {
+            "ms_per_call": 969.45,
+            "ms_per_embedding": 60.59
+          }
+        },
+        "python/GPU/per_sample/streams=auto/N=32": {
+          "text": {
+            "ms_per_call": 1712.89,
+            "ms_per_embedding": 53.53
+          }
+        },
+        "cpp/GPU/per_sample/streams=auto/N=1": {
+          "text": {
+            "ms_per_call": 56.8,
+            "ms_per_embedding": 56.8
+          },
+          "image": {
+            "ms_per_call": 512.26,
+            "ms_per_embedding": 512.26
+          }
+        },
+        "cpp/GPU/per_sample/streams=auto/N=2": {
+          "text": {
+            "ms_per_call": 105.73,
+            "ms_per_embedding": 52.87
+          },
+          "image": {
+            "ms_per_call": 1024.79,
+            "ms_per_embedding": 512.39
+          }
+        },
+        "cpp/GPU/per_sample/streams=auto/N=4": {
+          "text": {
+            "ms_per_call": 214.73,
+            "ms_per_embedding": 53.68
+          },
+          "image": {
+            "ms_per_call": 2040.82,
+            "ms_per_embedding": 510.2
+          }
+        },
+        "cpp/GPU/per_sample/streams=auto/N=8": {
+          "text": {
+            "ms_per_call": 417.61,
+            "ms_per_embedding": 52.2
+          },
+          "image": {
+            "ms_per_call": 4083.14,
+            "ms_per_embedding": 510.39
+          }
+        },
+        "cpp/GPU/per_sample/streams=auto/N=16": {
+          "text": {
+            "ms_per_call": 837.11,
+            "ms_per_embedding": 52.32
+          }
+        },
+        "cpp/GPU/per_sample/streams=auto/N=32": {
+          "text": {
+            "ms_per_call": 1674.3,
+            "ms_per_embedding": 52.32
+          }
+        },
+        "python/GPU/padded/streams=1/N=1": {
+          "text": {
+            "ms_per_call": 53.67,
+            "ms_per_embedding": 53.67
+          },
+          "image": {
+            "ms_per_call": 524.13,
+            "ms_per_embedding": 524.13
+          }
+        },
+        "python/GPU/padded/streams=1/N=2": {
+          "text": {
+            "ms_per_call": 75.46,
+            "ms_per_embedding": 37.73
+          },
+          "image": {
+            "ms_per_call": 974.56,
+            "ms_per_embedding": 487.28
+          }
+        },
+        "python/GPU/padded/streams=1/N=4": {
+          "text": {
+            "ms_per_call": 134.79,
+            "ms_per_embedding": 33.7
+          },
+          "image": {
+            "ms_per_call": 1957.13,
+            "ms_per_embedding": 489.28
+          }
+        },
+        "python/GPU/padded/streams=1/N=8": {
+          "text": {
+            "ms_per_call": 272.21,
+            "ms_per_embedding": 34.03
+          },
+          "image": {
+            "ms_per_call": 3872.3,
+            "ms_per_embedding": 484.04
+          }
+        },
+        "python/GPU/padded/streams=1/N=16": {
+          "text": {
+            "ms_per_call": 522.45,
+            "ms_per_embedding": 32.65
+          }
+        },
+        "python/GPU/padded/streams=1/N=32": {
+          "text": {
+            "ms_per_call": 1088.13,
+            "ms_per_embedding": 34.0
+          }
+        },
+        "cpp/GPU/padded/streams=1/N=1": {
+          "text": {
+            "ms_per_call": 52.77,
+            "ms_per_embedding": 52.77
+          },
+          "image": {
+            "ms_per_call": 498.89,
+            "ms_per_embedding": 498.89
+          }
+        },
+        "cpp/GPU/padded/streams=1/N=2": {
+          "text": {
+            "ms_per_call": 73.18,
+            "ms_per_embedding": 36.59
+          },
+          "image": {
+            "ms_per_call": 975.67,
+            "ms_per_embedding": 487.84
+          }
+        },
+        "cpp/GPU/padded/streams=1/N=4": {
+          "text": {
+            "ms_per_call": 132.17,
+            "ms_per_embedding": 33.04
+          },
+          "image": {
+            "ms_per_call": 1918.58,
+            "ms_per_embedding": 479.64
+          }
+        },
+        "cpp/GPU/padded/streams=1/N=8": {
+          "text": {
+            "ms_per_call": 275.23,
+            "ms_per_embedding": 34.4
+          },
+          "image": {
+            "ms_per_call": 5732.21,
+            "ms_per_embedding": 716.53
+          }
+        },
+        "cpp/GPU/padded/streams=1/N=16": {
+          "text": {
+            "ms_per_call": 548.05,
+            "ms_per_embedding": 34.25
+          }
+        },
+        "cpp/GPU/padded/streams=1/N=32": {
+          "text": {
+            "ms_per_call": 1078.12,
+            "ms_per_embedding": 33.69
+          }
+        },
+        "python/GPU/padded/streams=auto/N=1": {
+          "text": {
+            "ms_per_call": 59.74,
+            "ms_per_embedding": 59.74
+          },
+          "image": {
+            "ms_per_call": 589.84,
+            "ms_per_embedding": 589.84
+          }
+        },
+        "python/GPU/padded/streams=auto/N=2": {
+          "text": {
+            "ms_per_call": 186.96,
+            "ms_per_embedding": 93.48
+          },
+          "image": {
+            "ms_per_call": 1145.31,
+            "ms_per_embedding": 572.65
+          }
+        },
+        "python/GPU/padded/streams=auto/N=4": {
+          "text": {
+            "ms_per_call": 134.95,
+            "ms_per_embedding": 33.74
+          },
+          "image": {
+            "ms_per_call": 1958.54,
+            "ms_per_embedding": 489.64
+          }
+        },
+        "python/GPU/padded/streams=auto/N=8": {
+          "text": {
+            "ms_per_call": 282.87,
+            "ms_per_embedding": 35.36
+          },
+          "image": {
+            "ms_per_call": 4326.68,
+            "ms_per_embedding": 540.83
+          }
+        },
+        "python/GPU/padded/streams=auto/N=16": {
+          "text": {
+            "ms_per_call": 601.11,
+            "ms_per_embedding": 37.57
+          }
+        },
+        "python/GPU/padded/streams=auto/N=32": {
+          "text": {
+            "ms_per_call": 2643.89,
+            "ms_per_embedding": 82.62
+          }
+        },
+        "cpp/GPU/padded/streams=auto/N=1": {
+          "text": {
+            "ms_per_call": 56.73,
+            "ms_per_embedding": 56.73
+          },
+          "image": {
+            "ms_per_call": 510.1,
+            "ms_per_embedding": 510.1
+          }
+        },
+        "cpp/GPU/padded/streams=auto/N=2": {
+          "text": {
+            "ms_per_call": 75.3,
+            "ms_per_embedding": 37.65
+          },
+          "image": {
+            "ms_per_call": 998.62,
+            "ms_per_embedding": 499.31
+          }
+        },
+        "cpp/GPU/padded/streams=auto/N=4": {
+          "text": {
+            "ms_per_call": 229.42,
+            "ms_per_embedding": 57.36
+          },
+          "image": {
+            "ms_per_call": 2898.13,
+            "ms_per_embedding": 724.53
+          }
+        },
+        "cpp/GPU/padded/streams=auto/N=8": {
+          "text": {
+            "ms_per_call": 320.61,
+            "ms_per_embedding": 40.08
+          },
+          "image": {
+            "ms_per_call": 5175.83,
+            "ms_per_embedding": 646.98
+          }
+        },
+        "cpp/GPU/padded/streams=auto/N=16": {
+          "text": {
+            "ms_per_call": 748.84,
+            "ms_per_embedding": 46.8
+          }
+        },
+        "cpp/GPU/padded/streams=auto/N=32": {
+          "text": {
+            "ms_per_call": 1883.88,
+            "ms_per_embedding": 58.87
+          }
+        }
+      }
+    }
+  }
+}

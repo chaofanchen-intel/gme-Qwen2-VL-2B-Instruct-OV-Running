@@ -8,28 +8,28 @@
       "fused_norm": 1.0
     },
     "int8": {
-      "text_cos_min": 0.998315,
+      "text_cos_min": 0.998476,
       "query_cos": 0.998361,
       "image_cos": 0.992512,
       "fused_cos": 0.99798,
       "fused_norm": 1.0
     },
     "int4": {
-      "text_cos_min": 0.907792,
+      "text_cos_min": 0.908822,
       "query_cos": 0.912175,
       "image_cos": 0.945496,
       "fused_cos": 0.962353,
       "fused_norm": 1.0
     },
     "int4_gs64": {
-      "text_cos_min": 0.923465,
+      "text_cos_min": 0.92159,
       "query_cos": 0.949724,
       "image_cos": 0.955428,
       "fused_cos": 0.967409,
       "fused_norm": 1.0
     },
     "int4_visint8": {
-      "text_cos_min": 0.907792,
+      "text_cos_min": 0.908822,
       "query_cos": 0.912175,
       "image_cos": 0.961537,
       "fused_cos": 0.957409,

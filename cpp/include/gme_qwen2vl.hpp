@@ -31,6 +31,12 @@ struct Embedding {
     const float* row(std::size_t i) const { return data.data() + i * dim; }
 };
 
+// Official GME's get_fused_embeddings() default, mirrored by gme_openvino.py.
+// Chunking bounds peak memory; pass 0 to encode the whole input as one chunk.
+// Under batch_mode "per_sample" the chunk size cannot change a row at all; under
+// "padded" it changes which samples pad together, exactly as it does upstream.
+inline constexpr std::size_t kDefaultBatchSize = 32;
+
 class GmeQwen2VL {
 public:
     // package_dir: the exported gme-qwen2-vl-2b-instruct-openvino directory.
@@ -56,10 +62,13 @@ public:
                const std::string& batch_mode = "auto");
 
     // Text-only, batched. instruction is used only when is_query is true and it is
-    // non-empty; otherwise the default GME instruction is applied.
+    // non-empty; otherwise the default GME instruction is applied. Inputs longer
+    // than the package's max_length (1800) are truncated inside the tokenizer IR,
+    // matching HF `truncation=True` and therefore the official model.
     Embedding encode_text(const std::vector<std::string>& texts,
                           const std::string& instruction = "",
-                          bool is_query = true);
+                          bool is_query = true,
+                          std::size_t batch_size = kDefaultBatchSize);
 
     // Image-only batch API: returns one embedding per image, in input order.
     // Any batch size works with no per-batch-size export: the visual IR runs once
@@ -67,13 +76,15 @@ public:
     // over the request pool. See run_visual/run_language for why that is exact.
     Embedding encode_image(const std::vector<std::string>& image_paths,
                            const std::string& instruction = "",
-                           bool is_query = true);
+                           bool is_query = true,
+                           std::size_t batch_size = kDefaultBatchSize);
 
     // Fused batch API: paired element-wise (texts.size() == image_paths.size()).
     Embedding encode_fused(const std::vector<std::string>& texts,
                            const std::vector<std::string>& image_paths,
                            const std::string& instruction = "",
-                           bool is_query = true);
+                           bool is_query = true,
+                           std::size_t batch_size = kDefaultBatchSize);
 
     std::size_t dim() const { return embedding_dim_; }
     const std::string& device() const { return device_; }
@@ -108,6 +119,20 @@ private:
     // for text-only, else one [K_i, dim] tensor per prompt.
     Embedding run_language(const std::vector<std::string>& prompts,
                            const std::vector<ov::Tensor>* image_embeds);
+
+    // Encode [begin, end) of a batch as one chunk; the entry points loop over
+    // chunks of batch_size and concatenate, as official GME does.
+    Embedding encode_chunk(const std::vector<std::string>* texts,
+                           const std::vector<std::string>* image_paths,
+                           const std::string& instruction, bool is_query,
+                           std::size_t begin, std::size_t end);
+
+    // Split [0, count) into batch_size chunks, encode each via encode_chunk, and
+    // concatenate in input order. batch_size 0 means one chunk.
+    Embedding encode_chunked(const std::vector<std::string>* texts,
+                             const std::vector<std::string>* image_paths,
+                             const std::string& instruction, bool is_query,
+                             std::size_t count, std::size_t batch_size);
 
     // Dispatch `jobs` independent inferences over the pool, `feed` filling a
     // request's inputs and `sink` consuming its output, both by job index.

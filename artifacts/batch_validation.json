@@ -169,6 +169,21 @@
     "bit_exact": true,
     "rows": 3
   },
+  "cpp fused --batch-size 0": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 3
+  },
+  "cpp fused --batch-size 1": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 3
+  },
+  "cpp fused --batch-size 2": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 3
+  },
   "cpp text vs python (per_sample)": {
     "min_cos": 1.0,
     "bit_exact": true,
@@ -188,5 +203,94 @@
     "min_cos": 0.9988935744,
     "bit_exact": false,
     "rows": 3
+  },
+  "embed() == get_text_embeddings": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "batch_size=1 chunking": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "batch_size=2 chunking": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "batch_size=5 chunking": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "batch_size=32 chunking": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "batch_size=None (one chunk)": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "encode() alias": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "encode_queries() alias": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "encode_corpus() == is_query=False": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "images=[None]*N -> text path": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 5
+  },
+  "fused, texts longer than images": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 2
+  },
+  "rejects mixed None images": true,
+  "rejects fewer texts than images": true,
+  "rejects empty input": true,
+  "truncated_tokens": 1800,
+  "cpp vs python, >max_length text": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 1
+  },
+  "b1_ir_rejects_two_rows": true,
+  "b2_ir_available": true,
+  "b2_ir_bit_identical_to_per_image": true,
+  "same_shape_token_length": 22,
+  "same-length text batch": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 4
+  },
+  "same-length text, batch first": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 4
+  },
+  "same_shape_row_collisions": 0,
+  "same_shape_image_grid": [
+    1,
+    32,
+    32
+  ],
+  "same-grid image batch": {
+    "min_cos": 1.0,
+    "bit_exact": true,
+    "rows": 2
   }
 }

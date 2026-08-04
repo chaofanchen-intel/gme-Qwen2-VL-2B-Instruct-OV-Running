@@ -2,8 +2,7 @@
 """Validate that batching is exact and unbounded, in Python and in C++.
 
 A GME batch is N independent samples, so both runtimes dispatch N single-sample
-requests rather than one padded N-row tensor. That has three consequences this
-script checks:
+requests rather than one padded N-row tensor. Checks:
 
 A. Any N works with no per-batch-size export. The visual IR is traced with one
    ``image_grid_thw`` row and can only ever accept one, so it is called per image;
@@ -11,9 +10,23 @@ A. Any N works with no per-batch-size export. The visual IR is traced with one
 B. A batch is *bit-identical* to the same items encoded one at a time -- no row
    shifts with batch composition, which padded batching cannot promise.
 C. ``streams`` only buys throughput: results must not move.
-
-Finally the batch is compared against the official PyTorch model so "exact"
-means exact with respect to upstream, not merely self-consistent.
+D. The batch matches the official PyTorch model, so "exact" means exact with
+   respect to upstream and not merely self-consistent.
+E. The C++ runtime batches the same way and agrees with Python.
+F. The official API surface behaves as upstream does: ``embed`` is the
+   single-batch primitive, ``batch_size`` chunking is invisible in the result,
+   an all-``None`` image list means text-only, and the aliases agree.
+G. Inputs past ``max_length`` truncate identically in both runtimes. That is not
+   free: the tokenizer IR only truncates because 03_finalize.py converts it with
+   ``max_length``, and without that C++ silently kept 3021 tokens where Python
+   and the official model keep 1800.
+H. The claim behind A, measured rather than asserted: the B=1-traced visual IR
+   rejects a second ``image_grid_thw`` row, and a deliberately B=2-traced IR is
+   compared against two per-image calls. Skipped unless the b2 diagnostic IR is
+   present (see experiments/probe_visual_batch.py for the full sweep).
+I. Distinct samples that share a tensor shape stay distinct. This is the
+   regression for the AsyncInferQueue bug described in ``_RequestPool``; every
+   other check here uses ragged input, which cannot expose it.
 """
 from __future__ import annotations
 
@@ -65,9 +78,9 @@ def read_dump(path: Path) -> np.ndarray:
         return np.frombuffer(source.read(), dtype=np.float32).reshape(rows, dimension)
 
 
-def run_cpp(arguments: list[str], output: Path, streams: int = 1) -> np.ndarray:
+def run_cpp(arguments: list[str], output: Path, streams: int = 1, precision: str = "fp32") -> np.ndarray:
     command = [
-        str(CPP), "--package", str(PACKAGE), "--device", "CPU", "--precision", "fp32",
+        str(CPP), "--package", str(PACKAGE), "--device", "CPU", "--precision", precision,
         "--streams", str(streams), *arguments, "--out", str(output),
     ]
     shell = f'set +u; source "{SETUP}" >/dev/null 2>&1; ' + " ".join(f'"{item}"' for item in command)
@@ -128,7 +141,8 @@ def batch_vs_sequential(report: dict, images: list[Path]) -> None:
         for label, (batch, sequential) in cases.items():
             check(label, batch, sequential, 1.0 - 1e-9, report)
         # batch_size only chunks the work; it must not change the answer.
-        check(f"N={size} text batch_size=2", encoder.get_text_embeddings(texts, batch_size=2),
+        check(f"N={size} text batch_size=2",
+              encoder.get_text_embeddings(texts, batch_size=2, show_progress_bar=False),
               text_batch, 1.0 - 1e-9, report)
 
     # The padded path (the GPU default, and what the official model does) cannot be
@@ -227,6 +241,14 @@ def cpp_parity(report: dict, images: list[Path], dump_dir: Path) -> None:
                          dump_dir / "batch_fused_streams.bin", streams=0)
     check("cpp fused streams=0 vs 1", concurrent, batch, 1.0 - 1e-9, report)
 
+    # --batch-size chunks the C++ batch the way official GME's batch_size does; under
+    # per_sample it must be invisible, including when it does not divide the input.
+    for size in ("0", "1", "2"):
+        check(f"cpp fused --batch-size {size}",
+              run_cpp(["--mode", "fused", "--batch-mode", "per_sample", "--batch-size", size,
+                       *image_args, *texts], dump_dir / f"batch_fused_bs{size}.bin"),
+              batch, 1.0 - 1e-9, report)
+
     # Text shares no preprocessing with OpenCV, so C++ and Python must agree
     # tightly there -- that is what pins the two batch implementations together.
     for mode in ("per_sample", "padded"):
@@ -241,6 +263,191 @@ def cpp_parity(report: dict, images: list[Path], dump_dir: Path) -> None:
               encoder.get_fused_embeddings(texts, paths), CPP_IMAGE_FLOOR, report)
 
 
+def api_parity(report: dict, images: list[Path]) -> None:
+    """F: the official API surface, including the parts only upstream's loop shows."""
+    print("\n[F] official API surface (int8, per_sample)")
+    encoder = GmeOpenVINO(PACKAGE, device="CPU", precision="int8", batch_mode="per_sample")
+    reference = encoder.get_text_embeddings(TEXTS, show_progress_bar=False)
+
+    # embed() is the single-batch primitive the chunked entry points call, so the
+    # default (32 > 5 texts, i.e. one chunk) must be exactly embed().
+    check("embed() == get_text_embeddings", encoder.embed(texts=TEXTS), reference, 1.0 - 1e-9, report)
+    # Upstream's default is batch_size=32; sweep across and past it.
+    for size in (1, 2, 5, 32):
+        check(f"batch_size={size} chunking",
+              encoder.get_text_embeddings(TEXTS, batch_size=size, show_progress_bar=False),
+              reference, 1.0 - 1e-9, report)
+    check("batch_size=None (one chunk)",
+          encoder.get_text_embeddings(TEXTS, batch_size=None, show_progress_bar=False),
+          reference, 1.0 - 1e-9, report)
+    # Aliases must not quietly change the prompt. encode/encode_queries are queries
+    # with no instruction, which resolves to the default instruction -- same as text.
+    check("encode() alias", encoder.encode(TEXTS, prompt_name="ignored", show_progress_bar=False),
+          reference, 1.0 - 1e-9, report)
+    check("encode_queries() alias", encoder.encode_queries(TEXTS, show_progress_bar=False),
+          reference, 1.0 - 1e-9, report)
+    check("encode_corpus() == is_query=False",
+          encoder.encode_corpus([{"text": text} for text in TEXTS], show_progress_bar=False),
+          encoder.get_text_embeddings(TEXTS, is_query=False, show_progress_bar=False),
+          1.0 - 1e-9, report)
+    # Official signals "text-only" with a list of None, and its fused path zips
+    # texts against images so a longer text list is truncated, not rejected.
+    check("images=[None]*N -> text path", encoder.embed(texts=TEXTS, images=[None] * len(TEXTS)),
+          reference, 1.0 - 1e-9, report)
+    check("fused, texts longer than images",
+          encoder.embed(texts=TEXTS, images=images[:2]),
+          encoder.get_fused_embeddings(TEXTS[:2], images[:2], show_progress_bar=False),
+          1.0 - 1e-9, report)
+    for label, call in (
+        ("mixed None images", lambda: encoder.embed(texts=TEXTS, images=[None, images[0], None, None, None])),
+        ("fewer texts than images", lambda: encoder.embed(texts=TEXTS[:1], images=images[:2])),
+        ("empty input", lambda: encoder.get_text_embeddings([])),
+    ):
+        try:
+            call()
+        except ValueError as error:
+            print(f"  {label:38s} rejected: {str(error).splitlines()[0][:60]}")
+            report[f"rejects {label}"] = True
+        else:
+            raise RuntimeError(f"{label} should have raised ValueError")
+
+
+def truncation_parity(report: dict, images: list[Path], dump_dir: Path) -> None:
+    """G: past max_length, both runtimes must cut at the same token."""
+    print("\n[G] max_length truncation parity (fp32)")
+    encoder = GmeOpenVINO(PACKAGE, device="CPU", precision="fp32")
+    long_text = "word " * 3000
+    tokens = encoder.processor.tokenizer(
+        [encoder._prompt(long_text, has_image=False, instruction="You are a helpful assistant.")],
+        padding=True, truncation=True, max_length=encoder.max_length, return_tensors="np",
+    )["input_ids"].shape[1]
+    report["truncated_tokens"] = int(tokens)
+    print(f"  a {len(long_text.split())}-word input tokenizes to {tokens} tokens (max_length={encoder.max_length})")
+    if tokens != encoder.max_length:
+        raise RuntimeError(f"expected truncation to {encoder.max_length}, got {tokens}")
+    python = encoder.get_text_embeddings([long_text], is_query=False, show_progress_bar=False)
+    cpp = run_cpp(["--mode", "text", "--is-query", "0", long_text], dump_dir / "batch_text_truncated.bin")
+    # Text shares no image preprocessing, so this is the language path's own floor.
+    check("cpp vs python, >max_length text", cpp, python, 0.9999, report)
+
+
+def same_shape_rows(report: dict) -> None:
+    """I: distinct samples that share a tensor shape must not collapse onto each other.
+
+    Regression for a real bug: the request pool used ``ov.AsyncInferQueue``, which
+    returned a stale output for a later job, duplicating row 0 into row 1. It only
+    showed when two feeds had the *same* shape -- two 448x448 images, two texts of
+    equal token length -- which is the common case, and it was intermittent. The
+    earlier ragged-input checks could not catch it, because ragged feeds differ in
+    shape. This one is deliberately non-ragged.
+    """
+    print("\n[I] distinct samples sharing a tensor shape (int8, per_sample)")
+    encoder = GmeOpenVINO(PACKAGE, device="CPU", precision="int8", batch_mode="per_sample")
+
+    # Equal token length, different content -> identical feed shapes.
+    same_length = ["red car", "big dog", "hot sun", "old man"]
+    lengths = {
+        int(encoder.processor.tokenizer(
+            encoder._prompt(text, has_image=False, instruction="You are a helpful assistant."),
+            return_tensors="np")["input_ids"].shape[1])
+        for text in same_length
+    }
+    if len(lengths) != 1:
+        raise RuntimeError(f"the same-shape texts must tokenize to one length, got {lengths}")
+    report["same_shape_token_length"] = lengths.pop()
+
+    # Sequential first, then batched, then batched again: the bug depended on how the
+    # compiled model had been used before, so check both orders.
+    sequential = np.concatenate([
+        encoder.get_text_embeddings([text], show_progress_bar=False) for text in same_length
+    ])
+    check("same-length text batch", encoder.get_text_embeddings(same_length, show_progress_bar=False),
+          sequential, 1.0 - 1e-9, report)
+    fresh = GmeOpenVINO(PACKAGE, device="CPU", precision="int8", batch_mode="per_sample")
+    check("same-length text, batch first", fresh.get_text_embeddings(same_length, show_progress_bar=False),
+          sequential, 1.0 - 1e-9, report)
+
+    # Rows must also be distinct from each other -- a pool that returns row 0 for
+    # every job would still be "bit-exact" against a sequential run of one sample.
+    batch = encoder.get_text_embeddings(same_length, show_progress_bar=False)
+    collisions = [(i, j) for i in range(len(batch)) for j in range(i + 1, len(batch))
+                  if np.array_equal(batch[i], batch[j])]
+    report["same_shape_row_collisions"] = len(collisions)
+    print(f"  {'distinct rows':38s} rows={len(batch)}  collisions={len(collisions)}")
+    if collisions:
+        raise RuntimeError(f"batch rows collapsed onto each other: {collisions}")
+
+    # Same test on the visual path: two different images that land on one grid.
+    source = Image.open(IMAGE).convert("RGB")
+    pair = [source.resize((448, 448)), source.crop((0, 0, 2000, 600)).resize((336, 336))]
+    grids = encoder.processor(
+        text=["<|vision_start|><|image_pad|><|vision_end|>"] * 2,
+        images=[load_image(image) for image in pair], padding=True, return_tensors="np",
+    )["image_grid_thw"]
+    if len({tuple(row) for row in grids.tolist()}) != 1:
+        raise RuntimeError(f"the same-shape images must share a grid, got {grids.tolist()}")
+    report["same_shape_image_grid"] = grids[0].tolist()
+    image_sequential = np.concatenate([
+        encoder.get_image_embeddings([image], show_progress_bar=False) for image in pair
+    ])
+    check("same-grid image batch", encoder.get_image_embeddings(pair, show_progress_bar=False),
+          image_sequential, 1.0 - 1e-9, report)
+    if np.array_equal(image_sequential[0], image_sequential[1]):
+        raise RuntimeError("the two probe images produce identical embeddings; the check is vacuous")
+
+
+def visual_any_n(report: dict, images: list[Path]) -> None:
+    """H: why the visual IR is driven per image, measured on the IRs themselves."""
+    print("\n[H] visual IR: dynamic image count")
+    import openvino as ov
+
+    encoder = GmeOpenVINO(PACKAGE, device="CPU", precision="int8")
+    inputs = encoder.processor(
+        text=["<|vision_start|><|image_pad|><|vision_end|>"] * 2,
+        images=[load_image(path) for path in images[:2]],
+        padding=True, return_tensors="np",
+    )
+    grid = inputs["image_grid_thw"]
+    bounds = np.concatenate([[0], np.cumsum(np.prod(grid, axis=1, dtype=np.int64))])
+    feeds = [
+        {"pixel_values": inputs["pixel_values"][bounds[i]:bounds[i + 1]], "image_grid_thw": grid[i:i + 1]}
+        for i in range(grid.shape[0])
+    ]
+    per_image = np.concatenate(encoder.visual_pool.run(feeds), axis=0)
+
+    # A separate compiled model for the negative test: a throwing inference is not
+    # something the rest of this function should have to reason about.
+    probe = ov.Core().compile_model(str(PACKAGE / "gme_visual_int8.xml"), "CPU")
+    try:  # the traced B=1 graph must refuse 2 rows; that is the whole reason for per-image
+        probe({"pixel_values": inputs["pixel_values"], "image_grid_thw": grid})
+    except Exception as error:  # noqa: BLE001 - the rejection is the result
+        report["b1_ir_rejects_two_rows"] = True
+        print(f"  B=1 IR with 2 grid rows      rejected ({str(error).strip().splitlines()[-1][:60]})")
+    else:
+        report["b1_ir_rejects_two_rows"] = False
+        print("  B=1 IR with 2 grid rows      ACCEPTED (visual IR is natively dynamic here)")
+
+    b2_path = PACKAGE / "gme_visual_b2_int8.xml"
+    if not b2_path.exists():
+        report["b2_ir_available"] = False
+        print(f"  {b2_path.name} absent; skipping the batched-IR comparison")
+        return
+    report["b2_ir_available"] = True
+    batched = ov.Core().compile_model(str(b2_path), "CPU")
+    rows = np.array(batched({"pixel_values": inputs["pixel_values"], "image_grid_thw": grid})[batched.output(0)],
+                    copy=True)
+    identical = bool(np.array_equal(rows, per_image.astype(rows.dtype)))
+    report["b2_ir_bit_identical_to_per_image"] = identical
+    print(f"  B=2-traced IR vs per-image   {'bit-exact' if identical else 'DIFFERS'} "
+          f"(max abs diff {np.abs(rows - per_image).max():.3e}, rows={rows.shape[0]})")
+    # Not a hard failure either way: the batched IR is a diagnostic artifact, and its
+    # agreement is resolution-dependent (experiments/probe_visual_batch.py --only q2
+    # sweeps that). The shipped path is the per-image one, which section D pins to
+    # official PyTorch.
+    if not identical:
+        print("     ^ expected for resolutions it was not traced on; see probe_visual_batch.py")
+
+
 def main() -> None:
     ART.mkdir(exist_ok=True)
     dump_dir = ART / "cpp_dumps"
@@ -252,6 +459,10 @@ def main() -> None:
     streams_invariance(report, images)
     official_parity(report, images)
     cpp_parity(report, images, dump_dir)
+    api_parity(report, images)
+    truncation_parity(report, images, dump_dir)
+    visual_any_n(report, images)
+    same_shape_rows(report)
 
     (ART / "batch_validation.json").write_text(json.dumps(report, indent=2) + "\n")
     for path in images:

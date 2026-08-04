@@ -7,13 +7,13 @@
       "fused_cos": 0.988341
     },
     "int8": {
-      "text_cos_min": 0.998315,
+      "text_cos_min": 0.998476,
       "query_cos": 0.998361,
       "image_cos": 0.971103,
       "fused_cos": 0.98538
     },
     "int4": {
-      "text_cos_min": 0.907792,
+      "text_cos_min": 0.908822,
       "query_cos": 0.912175,
       "image_cos": 0.943903,
       "fused_cos": 0.957391

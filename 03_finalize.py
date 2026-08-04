@@ -28,15 +28,20 @@ ART = HERE / "artifacts"
 
 
 # ---------------------------------------------------------------- tokenizer
-def convert_and_check_tokenizer() -> None:
+def convert_and_check_tokenizer(max_length: int) -> None:
     from openvino_tokenizers import convert_tokenizer
 
     out = PACKAGE / "openvino_tokenizer.xml"
     tok = AutoTokenizer.from_pretrained(str(SOURCE_MODEL))
     tok.padding_side = "right"  # GME pools the last valid token -> must right-pad
-    ov_tok = convert_tokenizer(tok, with_detokenizer=False)
+    # max_length bakes GME's truncation into the IR. Without it the C++ runtime would
+    # happily tokenize past 1800 tokens while Python (HF `truncation=True`) and the
+    # official model cut there, so the two runtimes would disagree on long inputs and
+    # C++ would spend unbounded decode time on them. It truncates only: short prompts
+    # keep their true length, padding still goes to the batch maximum.
+    ov_tok = convert_tokenizer(tok, with_detokenizer=False, max_length=max_length)
     ov.save_model(ov_tok, str(out))
-    print(f"[tok] saved {out.name}")
+    print(f"[tok] saved {out.name} (truncating at max_length={max_length})")
 
     # bit-exact check against the golden HF tokenization
     meta = json.loads((ART / "golden_meta.json").read_text())
@@ -70,6 +75,22 @@ def convert_and_check_tokenizer() -> None:
         raise RuntimeError("OpenVINO tokenizer does not match HF tokenizer bit-exactly")
     print("[tok] OK: OpenVINO tokenizer is bit-exact with the HF tokenizer")
 
+    # The golden prompts are short, so they cannot exercise truncation. Check it
+    # separately, batched with a short prompt so padding and truncation interact.
+    long_prompt = prompts[0].replace("<|im_end|>\n<|im_start|>assistant", "word " * 3000 + "<|im_end|>\n<|im_start|>assistant", 1)
+    batch = [prompts[0], long_prompt]
+    result = compiled(batch)
+    reference = tok(batch, padding=True, truncation=True, max_length=max_length, return_tensors="np")
+    for out_port in compiled.outputs:
+        name = out_port.get_any_name()
+        key = "input_ids" if "input_ids" in name else "attention_mask" if "attention_mask" in name else None
+        if key is None:
+            continue
+        actual = np.asarray(result[out_port])
+        if not np.array_equal(actual, reference[key].astype(actual.dtype)):
+            raise RuntimeError(f"tokenizer truncation differs from HF on {key}: {actual.shape} vs {reference[key].shape}")
+    print(f"[tok] OK: truncation at max_length={max_length} matches HF (long input -> {np.asarray(result[compiled.outputs[0]]).shape})")
+
 
 # ---------------------------------------------------------------- quantize
 def compress(src_xml: Path, dst_xml: Path, **kw) -> float:
@@ -90,7 +111,9 @@ def main() -> None:
     if not (PACKAGE / "gme_language_fp32.xml").exists():
         raise SystemExit("run 02_export.py first (FP32 IRs missing)")
 
-    convert_and_check_tokenizer()
+    cfg_path = PACKAGE / "gme_openvino_config.json"
+    max_length = json.loads(cfg_path.read_text())["processor"]["max_length"]
+    convert_and_check_tokenizer(max_length)
 
     from nncf.quantization.advanced_parameters import (
         AdvancedCompressionParameters,
@@ -126,7 +149,6 @@ def main() -> None:
              mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=128, ratio=1.0,
              ignored_scope=vis_ignore, advanced_parameters=vis_int4_adv)
 
-    cfg_path = PACKAGE / "gme_openvino_config.json"
     cfg = json.loads(cfg_path.read_text())
     cfg["tokenizer_model"] = "openvino_tokenizer.xml"
     cfg["precisions"] = {
