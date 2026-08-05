@@ -34,10 +34,8 @@ from transformers import AutoConfig, AutoModelForVision2Seq, AutoProcessor
 from transformers.models.qwen2_vl.modeling_qwen2_vl import Qwen2VisionTransformerPretrainedModel
 from safetensors import safe_open
 from openvino.properties import hint
+from gme_paths import GME_ROOT as HERE, PACKAGE as DEFAULT_OUTPUT, SOURCE_MODEL
 
-HERE = Path(__file__).resolve().parent
-SOURCE_MODEL = (HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct").resolve()
-DEFAULT_OUTPUT = HERE / "ov_models" / "gme-qwen2-vl-2b-instruct-openvino"
 DEFAULT_INSTRUCTION = "You are a helpful assistant."
 MIN_IMAGE_TOKENS = 256
 MAX_IMAGE_TOKENS = 1280

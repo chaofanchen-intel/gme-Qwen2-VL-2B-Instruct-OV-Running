@@ -12,13 +12,10 @@ import subprocess
 from pathlib import Path
 
 import numpy as np
+from gme_paths import ARTIFACTS as ART, CPP_BINARY as BIN, LOGO_IMAGE, OPENVINO_SETUP as SETUP, PACKAGE as PKG
 
 HERE = Path(__file__).resolve().parent
-PKG = HERE / "ov_models" / "gme-qwen2-vl-2b-instruct-openvino"
-ART = HERE / "artifacts"
-BIN = HERE / "cpp" / "build" / "gme_embed"
-SETUP = HERE.parent / "benchmark" / "openvino" / "install" / "setupvars.sh"
-IMAGE = str(HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct" / "images" / "gme_logo.png")
+IMAGE = str(LOGO_IMAGE)
 
 
 def run(args, out_path):

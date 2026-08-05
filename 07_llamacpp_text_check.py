@@ -17,11 +17,9 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+from gme_paths import ARTIFACTS as ART, GGUF_MODEL as GGUF, LLAMA_EMBEDDING as LLAMA
 
 HERE = Path(__file__).resolve().parent
-ART = HERE / "artifacts"
-LLAMA = HERE.parent / "llama.cpp" / "build-openvino" / "bin" / "llama-embedding"
-GGUF = HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct-GGUF" / "gme-Qwen2-VL-2B-Instruct-Q4_K_M.gguf"
 SEP = "###NO_SPLIT_SEPARATOR###"
 
 

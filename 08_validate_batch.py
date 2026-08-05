@@ -42,14 +42,11 @@ import torch
 from PIL import Image
 
 from gme_openvino import GmeOpenVINO, load_image
+from gme_paths import ARTIFACTS as ART, LOGO_IMAGE, OPENVINO_SETUP as SETUP, PACKAGE, SOURCE_MODEL as MODEL_DIR
 
 HERE = Path(__file__).resolve().parent
-PACKAGE = HERE / "ov_models" / "gme-qwen2-vl-2b-instruct-openvino"
-MODEL_DIR = HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct"
-IMAGE = MODEL_DIR / "images" / "gme_logo.png"
-SETUP = HERE.parent / "benchmark" / "openvino" / "install" / "setupvars.sh"
+IMAGE = LOGO_IMAGE
 CPP = HERE / "cpp" / "build" / "gme_embed"
-ART = HERE / "artifacts"
 
 # Deliberately ragged: different text lengths and different image sizes, so any
 # hidden dependence on padding or on a uniform grid shows up as a mismatch.

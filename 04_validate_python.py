@@ -17,11 +17,9 @@ import numpy as np
 import torch
 
 from gme_openvino import GmeOpenVINO
+from gme_paths import ARTIFACTS as ART, PACKAGE, SOURCE_MODEL as MODEL_DIR
 
 HERE = Path(__file__).resolve().parent
-MODEL_DIR = HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct"
-PACKAGE = HERE / "ov_models" / "gme-qwen2-vl-2b-instruct-openvino"
-ART = HERE / "artifacts"
 
 
 def cos_rows(a: np.ndarray, b: np.ndarray) -> np.ndarray:

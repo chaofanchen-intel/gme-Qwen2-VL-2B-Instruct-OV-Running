@@ -27,7 +27,7 @@ work exclusively inside it, the reproducible fixed point to benchmark is the
 steady-state regime -- so WARMUP below is deliberately large enough (per
 precision) to run past the transition before timing starts, for both backends.
 
-    source ../benchmark/openvino/install/setupvars.sh
+    source "${GME_OPENVINO_INSTALL:-../benchmark/openvino/install}/setupvars.sh"
     ./env-ref/bin/python 10_retest_gpu_1024.py
 """
 from __future__ import annotations
@@ -40,12 +40,9 @@ import time
 from pathlib import Path
 
 from gme_openvino import GmeOpenVINO
+from gme_paths import ARTIFACTS as ART, CPP_BINARY as BIN, OPENVINO_SETUP as SETUP, PACKAGE as PKG
 
 HERE = Path(__file__).resolve().parent
-PKG = HERE / "ov_models" / "gme-qwen2-vl-2b-instruct-openvino"
-ART = HERE / "artifacts"
-BIN = HERE / "cpp" / "build" / "gme_embed"
-SETUP = HERE.parent / "benchmark" / "openvino" / "install" / "setupvars.sh"
 WORKLOAD_SOURCE = ART / "benchmark_matrix_text_lengths_r20.json"
 OUT_PATH = ART / "benchmark_gpu_1024_interleaved_retest.json"
 

@@ -34,11 +34,9 @@ import numpy as np
 import openvino as ov
 import nncf
 from transformers import AutoTokenizer
+from gme_paths import ARTIFACTS as ART, PACKAGE, SOURCE_MODEL
 
 HERE = Path(__file__).resolve().parent
-SOURCE_MODEL = (HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct").resolve()
-PACKAGE = HERE / "ov_models" / "gme-qwen2-vl-2b-instruct-openvino"
-ART = HERE / "artifacts"
 # compress()'s staleness fingerprint per output file (see compress()).
 FINGERPRINTS_PATH = PACKAGE / "nncf_fingerprints.json"
 

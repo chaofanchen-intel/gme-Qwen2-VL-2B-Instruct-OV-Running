@@ -17,10 +17,9 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from gme_paths import ARTIFACTS as ART, LOGO_IMAGE, SOURCE_MODEL as MODEL_DIR
 
 HERE = Path(__file__).resolve().parent
-MODEL_DIR = (HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct").resolve()
-ART = HERE / "artifacts"
 ART.mkdir(exist_ok=True)
 
 # Import the official standalone inference class (no remote-code needed:
@@ -38,7 +37,7 @@ TEXTS = [
     "如何在 Intel 的 GPU 上高效运行大语言模型？",
     "Neural network quantization reduces model size with minimal accuracy loss.",
 ]
-IMAGE = str(MODEL_DIR / "images" / "gme_logo.png")
+IMAGE = str(LOGO_IMAGE)
 INSTRUCTION = "Find an image that matches the given text."
 
 

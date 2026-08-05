@@ -507,6 +507,35 @@ gme-Qwen2-VL-2B-Instruct-Running/
 
 ## 4. 操作步骤
 
+### 4.0 路径配置与 handoff
+
+所有 Python 脚本都从脚本所在目录定位仓库内的 `ov_models/`、`artifacts/` 和 `cpp/build/`，不依赖启动时的当前目录。
+外部依赖通过 `gme_paths.py` 统一管理；默认兼容本仓库原有布局，也可用环境变量覆盖，适合移交到其他项目：
+
+| 环境变量 | 用途 | 默认值 |
+| --- | --- | --- |
+| `GME_BENCHMARK_ROOT` | benchmark 工作区根目录 | `GME_ROOT/../benchmark` |
+| `GME_SOURCE_MODEL` | 原始 GME Hugging Face checkpoint | `$GME_BENCHMARK_ROOT/models/gme-Qwen2-VL-2B-Instruct` |
+| `GME_OPENVINO_INSTALL` | OpenVINO 安装目录 | `$GME_BENCHMARK_ROOT/openvino/install` |
+| `GME_PACKAGE` | OpenVINO GME 模型包 | `GME_ROOT/ov_models/gme-qwen2-vl-2b-instruct-openvino` |
+| `GME_ARTIFACTS` | 黄金向量、日志和 benchmark 产物目录 | `GME_ROOT/artifacts` |
+| `GME_CPP_BINARY` | C++ `gme_embed` 可执行文件 | `GME_ROOT/cpp/build/gme_embed` |
+| `GME_LLAMA_CPP_ROOT` | llama.cpp 根目录 | `GME_ROOT/../llama.cpp` |
+| `GME_LLAMA_EMBEDDING` | llama.cpp embedding 可执行文件 | `$GME_LLAMA_CPP_ROOT/build-openvino/bin/llama-embedding` |
+| `GME_GGUF_MODEL` | GGUF 对照模型路径 | `$GME_BENCHMARK_ROOT/models/gme-Qwen2-VL-2B-Instruct-GGUF/...gguf` |
+
+示例：
+
+```bash
+cd /path/to/gme-Qwen2-VL-2B-Instruct-Running
+export GME_BENCHMARK_ROOT=/path/to/shared/benchmark
+export GME_OPENVINO_INSTALL=/path/to/openvino/install
+export GME_SOURCE_MODEL=/path/to/gme-Qwen2-VL-2B-Instruct
+./env-ref/bin/python 04_validate_python.py
+```
+
+如果 GME 已被集成到其他项目，不需要修改脚本源码；只需设置上述外部路径变量，并确保 Python 环境已安装对应依赖。
+
 ### 4.1 一次性：导出模型包（Python，`env-ref`）
 
 ```bash

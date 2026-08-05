@@ -4,7 +4,8 @@
 set -eo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OV_INSTALL="${OV_INSTALL:-$HERE/../../benchmark/openvino/install}"
+DEFAULT_BENCHMARK_ROOT="${GME_BENCHMARK_ROOT:-$HERE/../../benchmark}"
+OV_INSTALL="${OV_INSTALL:-${GME_OPENVINO_INSTALL:-$DEFAULT_BENCHMARK_ROOT/openvino/install}}"
 
 if [[ ! -f "$OV_INSTALL/setupvars.sh" ]]; then
   echo "OpenVINO install not found at $OV_INSTALL (set OV_INSTALL)"; exit 1

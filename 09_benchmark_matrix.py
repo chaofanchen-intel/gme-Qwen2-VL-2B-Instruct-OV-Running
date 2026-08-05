@@ -27,7 +27,7 @@ Written for report generation, so the matrix is wide: check the printed estimate
 before running the full thing, and cut it down with the flags. Nothing here is
 required for correctness -- 08_validate_batch.py owns that.
 
-    source ../benchmark/openvino/install/setupvars.sh
+    source "${GME_OPENVINO_INSTALL:-../benchmark/openvino/install}/setupvars.sh"
     ./env-ref/bin/python 09_benchmark_matrix.py --suite latency --devices GPU
 """
 from __future__ import annotations
@@ -43,14 +43,10 @@ import numpy as np
 from PIL import Image
 
 from gme_openvino import GmeOpenVINO, load_image
+from gme_paths import ARTIFACTS as ART, CPP_BINARY as BIN, LOGO_IMAGE as LOGO, OPENVINO_SETUP as SETUP, PACKAGE as PKG
 
 HERE = Path(__file__).resolve().parent
-PKG = HERE / "ov_models" / "gme-qwen2-vl-2b-instruct-openvino"
-ART = HERE / "artifacts"
 BENCH_IMAGES = ART / "bench_images"
-BIN = HERE / "cpp" / "build" / "gme_embed"
-SETUP = HERE.parent / "benchmark" / "openvino" / "install" / "setupvars.sh"
-LOGO = HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct" / "images" / "gme_logo.png"
 
 INSTRUCTION = "Find an image that matches the given text."
 # Effective token counts after GME prompt templating, not raw text length. The
