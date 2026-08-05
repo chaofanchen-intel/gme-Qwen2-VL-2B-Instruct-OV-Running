@@ -13,10 +13,10 @@
       "fused_cos": 0.98538
     },
     "int4": {
-      "text_cos_min": 0.908822,
-      "query_cos": 0.912175,
-      "image_cos": 0.943903,
-      "fused_cos": 0.957391
+      "text_cos_min": 0.953891,
+      "query_cos": 0.956376,
+      "image_cos": 0.948159,
+      "fused_cos": 0.955531
     }
   },
   "GPU": {
@@ -33,10 +33,10 @@
       "fused_cos": 0.981741
     },
     "int4": {
-      "text_cos_min": 0.88632,
-      "query_cos": 0.911044,
-      "image_cos": 0.930794,
-      "fused_cos": 0.948113
+      "text_cos_min": 0.944538,
+      "query_cos": 0.955146,
+      "image_cos": 0.945831,
+      "fused_cos": 0.950658
     }
   }
 }

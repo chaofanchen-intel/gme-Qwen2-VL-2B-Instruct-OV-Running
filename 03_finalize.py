@@ -108,6 +108,117 @@ def convert_and_check_tokenizer(max_length: int) -> None:
 
 
 # ---------------------------------------------------------------- quantize
+
+# INT4 weight-only compression is data-free (ratio=1.0, no dataset) for every tower
+# except this one: measured accuracy (04_validate_python.py, artifacts/
+# openvino_full_validation.json) shows plain INT4 hurts *text* embeddings much more
+# than image/fused (cosine ~0.89-0.92 vs official FP32, against ~0.94-0.96 for
+# image/fused) -- last-token pooling over a decoder is more sensitive to per-channel
+# weight error than the vision tower's patch-averaged output. AWQ + scale estimation
+# search per-channel scales that minimize *this model's* actual activation error, so
+# they need representative activations to search over, unlike plain data-free RTN.
+#
+# The calibration set is deliberately not the golden evaluation texts
+# (01_reference.py): calibration should not be scored on its own test data, even
+# though weight-only PTQ calibration (collecting activation-magnitude statistics,
+# not gradient updates) is a much weaker form of "seeing the test set" than
+# fine-tuning would be. Diversity of length/language/register matters far more here
+# than domain realism -- this mirrors how NNCF's own LLM examples calibrate from a
+# handful of representative prompts, not a full corpus. Only the language IR is
+# calibrated: the vision tower does not show this problem, so it stays data-free.
+_CALIBRATION_TEXTS: list[tuple[str, str | None]] = [
+    # (text, instruction) -- instruction=None means the corpus-style default GME
+    # instruction ("You are a helpful assistant."), matching is_query=False.
+    ("How do I reset my password on this website?", None),
+    ("What time does the museum open on Sundays?", None),
+    ("The quarterly earnings report showed a 12% increase in revenue year over year.", None),
+    ("Mix 2 cups of flour with a teaspoon of baking soda, then fold in the melted butter.", None),
+    ("def fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)", None),
+    ("SELECT customer_id, SUM(total) FROM orders GROUP BY customer_id ORDER BY 2 DESC LIMIT 10;", None),
+    ("A large orange cat sleeping on a windowsill in the afternoon sun.", None),
+    ("The Amazon rainforest produces roughly 20% of the world's oxygen supply.", None),
+    ("请解释一下什么是卷积神经网络，以及它在图像识别中的应用。", None),
+    ("北京的秋天天气凉爽，是登长城的最佳季节之一。", None),
+    ("Photosynthesis converts carbon dioxide and water into glucose and oxygen using light energy.", None),
+    ("On 2024-03-14 at 09:30 UTC, flight AC142 departed gate B17 for a 6h45m transatlantic crossing.", None),
+    (
+        "Neural network quantization reduces model size and inference latency by representing "
+        "weights and activations with fewer bits, typically 8-bit integers instead of 32-bit "
+        "floating point, at the cost of some accuracy that can often be recovered with "
+        "calibration-aware or quantization-aware training techniques.",
+        None,
+    ),
+    (
+        "The French Revolution, beginning in 1789, fundamentally transformed French society by "
+        "abolishing the monarchy and feudal privileges, establishing in their place a series of "
+        "republics and empires whose legal and political innovations reverberated across Europe "
+        "for the following century.",
+        None,
+    ),
+    ("Battery electric vehicles convert over 77% of electrical energy from the grid to power at the wheels.", None),
+    ("The train to Boston leaves platform 4 at quarter past six every weekday morning.", None),
+    ("import numpy as np\narr = np.zeros((3, 3), dtype=np.float32)\narr[1, 1] = 1.0", None),
+    ("A weathered wooden pier extending into a calm lake at sunrise, mist rising off the water.", None),
+    ("Interest rates rose by 25 basis points, the third consecutive increase this fiscal year.", None),
+    ("为什么天空是蓝色的？这与太阳光在大气层中的瑞利散射有关。", None),
+    ("Please summarize the key differences between TCP and UDP for a networking course.", None),
+    ("A red mountain bike leaning against a brick wall in an alleyway.", None),
+    ("The recipe calls for simmering the sauce on low heat for at least forty-five minutes.", None),
+    ("Global smartphone shipments declined 3.2% in the first quarter compared to the prior year.", None),
+    ("192.168.1.1 is a commonly used private IPv4 address for home network routers.", None),
+    ("Can you recommend a good beginner book on machine learning?", None),
+    (
+        "In distributed systems, the CAP theorem states that a system can provide at most two of "
+        "the following three guarantees simultaneously: consistency, availability, and partition "
+        "tolerance, which forces architects to make explicit tradeoffs depending on workload.",
+        None,
+    ),
+    ("A stack of pancakes topped with maple syrup and a pat of melting butter.", None),
+    ("水的沸点在标准大气压下是攝氏一百度。", None),
+    # A few query-style prompts (is_query=True), covering the other GME instruction:
+    ("What kind of car is this?", "Find an image that matches the given text."),
+    ("best hiking trails near Denver with waterfalls", "Represent this sentence for searching relevant passages."),
+    ("How does gradient descent converge for a convex loss function?", "Find a passage that answers this question."),
+]
+
+
+def _prompt(text: str, instruction: str | None) -> str:
+    """The same GME chat template used at inference (02_export.py/gme_openvino.py)."""
+    inst = instruction if instruction is not None else "You are a helpful assistant."
+    return (
+        f"<|im_start|>system\n{inst}<|im_end|>\n"
+        f"<|im_start|>user\n{text}<|im_end|>\n"
+        f"<|im_start|>assistant\n<|endoftext|>"
+    )
+
+
+def _calibration_dataset(max_length: int, embedding_dim: int) -> "nncf.Dataset":
+    """Build the nncf.Dataset used to calibrate the language IR's INT4 variants.
+
+    Each item is tokenized independently (its own [1, S] shape), matching how the
+    language IR is actually invoked in per_sample batch_mode and exercising a range
+    of real sequence lengths rather than one padded shape. image_embeds is the same
+    empty [0, dim] tensor text-only inference uses -- see _language_embedding.
+    """
+    tok = AutoTokenizer.from_pretrained(str(SOURCE_MODEL))
+    tok.padding_side = "right"
+    prompts = [_prompt(text, instruction) for text, instruction in _CALIBRATION_TEXTS]
+
+    def transform(prompt: str) -> dict[str, np.ndarray]:
+        encoded = tok([prompt], truncation=True, max_length=max_length, return_tensors="np")
+        return {
+            "input_ids": encoded["input_ids"],
+            "attention_mask": encoded["attention_mask"],
+            "image_embeds": np.empty((0, embedding_dim), dtype=np.float32),
+        }
+
+    dataset = nncf.Dataset(prompts, transform)
+    # See _fingerprint(): nncf.Dataset has no value-based repr, so compress()'s
+    # staleness check would otherwise treat every data-aware call as "changed".
+    dataset._gme_fingerprint = repr(prompts)
+    return dataset
+
+
 def _fingerprint(src_xml: Path, kw: dict) -> str:
     """Stable hash of one compress_weights() call, for staleness detection below.
 
@@ -162,7 +273,12 @@ def compress(src_xml: Path, dst_xml: Path, **kw) -> float:
     ov.save_model(comp, str(dst_xml))
     size = dst_xml.with_suffix(".bin").stat().st_size / 1e6
     _write_fingerprint(dst_xml.name, fingerprint)
-    print(f"[nncf] wrote {dst_xml.name} ({size:.0f} MB)  [{kw}]")
+    # nncf.Dataset's default repr is a bare memory address; swap in something
+    # readable for the log line (the fingerprint above already covers correctness).
+    logged_kw = dict(kw)
+    if logged_kw.get("dataset") is not None:
+        logged_kw["dataset"] = "<calibration dataset>"
+    print(f"[nncf] wrote {dst_xml.name} ({size:.0f} MB)  [{logged_kw}]")
     return size
 
 
@@ -171,7 +287,9 @@ def main() -> None:
         raise SystemExit("run 02_export.py first (FP32 IRs missing)")
 
     cfg_path = PACKAGE / "gme_openvino_config.json"
-    max_length = json.loads(cfg_path.read_text())["processor"]["max_length"]
+    package_config = json.loads(cfg_path.read_text())
+    max_length = package_config["processor"]["max_length"]
+    embedding_dim = int(package_config["embedding_dim"])
     convert_and_check_tokenizer(max_length)
 
     from nncf.quantization.advanced_parameters import (
@@ -198,12 +316,21 @@ def main() -> None:
     compress(vis_fp32, PACKAGE / "gme_visual_int8.xml",
              mode=nncf.CompressWeightsMode.INT8_ASYM, ignored_scope=vis_ignore)
 
-    # INT4 language (default gs128) and accuracy-recovered (gs64).
+    # INT4 language (default gs128) and accuracy-recovered (gs64): data-aware, see
+    # _calibration_dataset for why -- plain (data-free) INT4 hurts text embeddings
+    # noticeably more than image/fused.
+    lang_calibration = _calibration_dataset(max_length, embedding_dim)
     compress(lang_fp32, PACKAGE / "gme_language_int4.xml",
-             mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=128, ratio=1.0)
+             mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=128, ratio=1.0,
+             dataset=lang_calibration, awq=True, scale_estimation=True,
+             subset_size=len(_CALIBRATION_TEXTS))
     compress(lang_fp32, PACKAGE / "gme_language_int4_gs64.xml",
-             mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=64, ratio=1.0)
-    # INT4 vision (rotary excluded), so a fully-INT4 package exists.
+             mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=64, ratio=1.0,
+             dataset=lang_calibration, awq=True, scale_estimation=True,
+             subset_size=len(_CALIBRATION_TEXTS))
+    # INT4 vision (rotary excluded), so a fully-INT4 package exists. Left data-free:
+    # measured accuracy shows the vision tower does not have the text tower's INT4
+    # degradation (see _calibration_dataset), so there is nothing here to recover.
     compress(vis_fp32, PACKAGE / "gme_visual_int4.xml",
              mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=128, ratio=1.0,
              ignored_scope=vis_ignore, advanced_parameters=vis_int4_adv)

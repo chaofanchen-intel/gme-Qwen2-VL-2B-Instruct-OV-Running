@@ -485,7 +485,7 @@ gme-Qwen2-VL-2B-Instruct-Running/
 │  ├─ src/main.cpp              #   gme_embed CLI（--mode / --benchmark / --out）
 │  ├─ CMakeLists.txt, build.sh  #   对接 benchmark/openvino/install
 │  └─ build/gme_embed           #   构建产物
-├─ ov_models/gme-qwen2-vl-2b-instruct-openvino/   # 模型包（3类IR × 各精度 + tokenizer IR + 配置）
+├─ ov_models/gme-qwen2-vl-2b-instruct-openvino/   # 模型包（3类IR × 各精度 + tokenizer IR + 配置 + nncf_fingerprints.json）
 └─ artifacts/                   # 黄金向量 + 各项验证/基准 JSON
 ```
 
@@ -493,11 +493,15 @@ gme-Qwen2-VL-2B-Instruct-Running/
 
 | 精度键 | language IR | visual IR | 语言/视觉 .bin 体积 |
 | --- | --- | --- | --- |
-| `fp32` | fp32 | fp32 | 5.8G / 2.5G |
-| `int8` | INT8 | INT8(排除rotary) | 1.5G / 638M |
-| `int4` | INT4 gs128 | INT4 gs128(排除rotary) | 880M / 336M |
-| `int4_gs64` | INT4 gs64 | INT4 | 904M / 336M |
-| `int4_visint8` | INT4 | INT8 | 880M / 638M |
+| `fp32` | fp32 | fp32 | 6.2G / 2.7G |
+| `int8` | INT8 | INT8(排除rotary) | 1.5G / 668M |
+| `int4` | INT4 gs128, data-aware(AWQ+scale estimation) | INT4 gs128(排除rotary), data-free | 922M / 352M |
+| `int4_gs64` | INT4 gs64, data-aware(AWQ+scale estimation) | INT4 | 947M / 352M |
+| `int4_visint8` | INT4, data-aware(AWQ+scale estimation) | INT8 | 922M / 668M |
+
+体积为实测值（重新压缩后的当前包）。语言塔的两个 INT4 变体现在是 data-aware（见 §7），体积相比纯 data-free
+版本略增（AWQ/scale estimation 会让少数层退回 INT8 以保持精度，见下方压缩日志里 `16% (2 / 197)` 的 INT8 占比），
+换来文本 cosine 从 ≈0.89–0.92 提升到 ≈0.95–0.97（§7）。
 
 ---
 
@@ -935,7 +939,26 @@ GME-Qwen2-VL-2B-Instruct 是约 2.2B 参数、28 层 decoder 的检索模型。�
 ## 7. 量化与精度建议
 
 - **默认候选 INT8**：Python 路径的文本约 `0.998`、图像约 `0.989–0.993`、图文约 `0.996–0.998`；语言 IR 由 5.8G 降到 1.5G，iGPU 更快。是否可接受仍应由业务 Recall@K/nDCG 决定。
-- **INT4**：显著影响**文本**（≈0.89–0.92），图像/图文反而略好（last-token 池化对逐 patch 噪声更鲁棒）。`int4_gs64` 把文本恢复到 ≈0.92–0.95。**INT4 = 可跑、最省体积，但检索质量需重新评测后再上线**。
+- **INT4 语言塔现在是 data-aware（AWQ + Scale Estimation），不再是纯 data-free 权重压缩**：以前显著影响**文本**（≈0.89–0.92）。
+  `03_finalize.py` 的 `_calibration_dataset()` 用 32 条自建的、刻意跨长度/语言/领域的校准文本（不是黄金评测集，避免"在测试集上校准"）过一遍
+  GME 官方 prompt 模板，喂给 `nncf.compress_weights(..., dataset=..., awq=True, scale_estimation=True)`。视觉塔的 INT4 已经不差（数据显示图像/图文
+  反而略好于文本，last-token 池化对逐 patch 噪声更鲁棒），所以只对语言塔做了 data-aware 校准，视觉塔仍保持 data-free（含 rotary 排除）。
+
+  实测（`04_validate_python.py`，cosine vs 官方 FP32 黄金）：
+
+  | 设备 | 精度 | text（旧→新） | query（旧→新） | image（旧→新） | fused（旧→新） |
+  | --- | --- | --- | --- | --- | --- |
+  | CPU | int8（未变，data-free） | 0.998476 | 0.998361 | 0.992512 | 0.997980 |
+  | CPU | int4 | 0.908822 → **0.953891** | 0.912175 → **0.956376** | 0.945496 → **0.952892** | 0.962353 → **0.968193** |
+  | CPU | int4_gs64 | 0.921590 → **0.967406** | 0.949724 → 0.956181 | 0.955428 → 0.957057 | 0.967409 → 0.973058 |
+  | GPU | int8（未变，data-free） | 0.997518 | 0.998764 | 0.989255 | 0.995806 |
+  | GPU | int4 | 0.886320 → **0.944538** | 0.911044 → **0.955146** | 0.936908 → 0.941821 | 0.955260 → 0.954111 |
+  | GPU | int4_gs64 | 0.918643 → **0.949893** | 0.950327 → 0.957442 | 0.944975 → 0.943357 | 0.963901 → 0.959970 |
+
+  text/query 的提升最明显（+0.03～+0.06），这正是问题所在的地方；image/fused 也有小幅提升——即使视觉塔权重完全没变，
+  因为 image/fused 的最终 embedding 仍要经过（已改进的）语言塔 decode + pooling。INT8 数值逐位不变，符合预期：`compress()`
+  对 INT8 仍是 data-free 调用，重新压缩应产出逐字节相同的产物（已用本次实测确认）。**`int4_gs64` 现在把文本 cosine 带到 ≈0.95–0.97**，
+  第一次让 INT4 看起来是可以认真考虑的部署选项，而不只是"能跑、最省体积"；业务上线前仍应在真实 query/corpus 上比 Recall@K/nDCG。
 - **视觉塔量化的坑（已修复并内置于 `03_finalize.py`）**：朴素权重压缩会把 ViT 的 `rotary_pos_emb`（`aten::outer` MatMul）也量化，破坏旋转位置频率，使视觉输出崩坏（int8/int4 逐 patch cos 都只有 ~0.32）。用 `ignored_scope(patterns=[".*rotary.*"])` 排除后恢复（int8 图像≈0.99）。语言塔无此问题（其 rotary 用 cos/sin buffer，非可量化 MatMul）。
 - 嵌入检索对排序敏感：正式选型请在业务 query/corpus 上比 Recall@K / nDCG，而非只看逐向量 cosine。
 - **`compress()` 现在按配置内容判断是否需要重新压缩，不再只看文件是否存在**：`03_finalize.py` 会把每次
