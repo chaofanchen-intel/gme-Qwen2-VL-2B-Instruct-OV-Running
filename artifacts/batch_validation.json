@@ -269,8 +269,7 @@
     "rows": 1
   },
   "b1_ir_rejects_two_rows": true,
-  "b2_ir_available": true,
-  "b2_ir_bit_identical_to_per_image": true,
+  "b2_ir_available": false,
   "same_shape_token_length": 22,
   "same-length text batch": {
     "min_cos": 1.0,

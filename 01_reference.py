@@ -2,30 +2,25 @@
 """
 Golden reference generator for gme-Qwen2-VL-2B-Instruct.
 
-Runs the OFFICIAL model code (benchmark/models/.../gme_inference.py) in fp32 on
-CPU and saves embeddings for a fixed set of inputs. Every other backend
-(OpenVINO, llama.cpp, ...) is validated by cosine-similarity against these
-vectors. Also records the exact templated strings + input_ids so other backends
-tokenize identically.
+Runs the OFFICIAL model code in fp32 and saves embeddings for a fixed set of
+inputs. OpenVINO is validated by cosine-similarity against these vectors. The
+script also records the exact templated strings and input_ids so the runtime
+can tokenize identically.
 
 Env: gme-Qwen2-VL-2B-Instruct-Running/env-ref  (torch cpu, transformers==4.51.3)
 """
+import argparse
+import importlib
 import json
-import os
 import sys
 from pathlib import Path
 
 import numpy as np
 import torch
-from gme_paths import ARTIFACTS as ART, LOGO_IMAGE, SOURCE_MODEL as MODEL_DIR
 
 HERE = Path(__file__).resolve().parent
-ART.mkdir(exist_ok=True)
-
-# Import the official standalone inference class (no remote-code needed:
-# AutoModelForVision2Seq maps qwen2_vl -> Qwen2VLForConditionalGeneration).
-sys.path.insert(0, str(MODEL_DIR))
-import gme_inference  # noqa: E402
+DEFAULT_SOURCE_MODEL = HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct"
+DEFAULT_ARTIFACTS = HERE / "artifacts"
 
 torch.manual_seed(0)
 
@@ -37,7 +32,6 @@ TEXTS = [
     "如何在 Intel 的 GPU 上高效运行大语言模型？",
     "Neural network quantization reduces model size with minimal accuracy loss.",
 ]
-IMAGE = str(LOGO_IMAGE)
 INSTRUCTION = "Find an image that matches the given text."
 
 
@@ -60,11 +54,50 @@ def build_templated(texts, instruction=None, has_image=False):
     return out
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--source-model",
+        type=Path,
+        default=DEFAULT_SOURCE_MODEL,
+        help="directory containing the GME checkpoint and gme_inference.py",
+    )
+    parser.add_argument(
+        "--artifacts",
+        type=Path,
+        default=DEFAULT_ARTIFACTS,
+        help="directory for golden vectors and metadata",
+    )
+    parser.add_argument(
+        "--image",
+        type=Path,
+        help="image used for the golden image/fused vectors (default: <source-model>/images/gme_logo.png)",
+    )
+    parser.add_argument("--device", default="cpu", help="PyTorch device (default: cpu)")
+    parser.add_argument("--max-length", type=int, default=1800, help="tokenization limit (default: 1800)")
+    return parser.parse_args()
+
+
 def main():
-    print(f"[ref] model dir: {MODEL_DIR}")
+    args = parse_args()
+    model_dir = args.source_model.expanduser().resolve()
+    artifacts = args.artifacts.expanduser().resolve()
+    image = (args.image or model_dir / "images" / "gme_logo.png").expanduser().resolve()
+    if not model_dir.is_dir():
+        raise SystemExit(f"source model directory not found: {model_dir}")
+    if not image.is_file():
+        raise SystemExit(f"reference image not found: {image}")
+    if args.max_length < 1:
+        raise SystemExit("--max-length must be positive")
+    artifacts.mkdir(parents=True, exist_ok=True)
+
+    print(f"[ref] model dir: {model_dir}")
     print(f"[ref] torch {torch.__version__}  threads={torch.get_num_threads()}")
 
-    gme = gme_inference.GmeQwen2VL(model_path=str(MODEL_DIR), device="cpu")
+    sys.path.insert(0, str(model_dir))
+    gme_inference = importlib.import_module("gme_inference")
+
+    gme = gme_inference.GmeQwen2VL(model_path=str(model_dir), device=args.device)
     gme.base = gme.base.float()  # fp32 canonical golden (weights are fp32 on disk)
     gme.base.eval()
 
@@ -73,7 +106,7 @@ def main():
     # --- text-as-query embeddings (with instruction) ---
     e_query = gme.get_text_embeddings(texts=TEXTS, instruction=INSTRUCTION).float().cpu().numpy()
     # --- image embedding ---
-    e_image = gme.get_image_embeddings(images=[IMAGE]).float().cpu().numpy()
+    e_image = gme.get_image_embeddings(images=[str(image)]).float().cpu().numpy()
 
     print(f"[ref] e_text shape {e_text.shape}  norm[0]={np.linalg.norm(e_text[0]):.5f}")
     print(f"[ref] e_image shape {e_image.shape}")
@@ -90,25 +123,26 @@ def main():
 
     # record templated strings + input_ids for text path
     templated = build_templated(TEXTS, instruction=None, has_image=False)
-    tok = gme.processor.tokenizer(templated, padding=True, truncation=True, max_length=1800)
+    tok = gme.processor.tokenizer(templated, padding=True, truncation=True, max_length=args.max_length)
     rec = {
         "texts": TEXTS,
         "instruction": INSTRUCTION,
-        "image": IMAGE,
+        "image": str(image),
         "templated_text_default": templated,
         "templated_text_query": build_templated(TEXTS, instruction=INSTRUCTION, has_image=False),
         "input_ids": tok["input_ids"],
         "attention_mask": tok["attention_mask"],
         "eos_token_id": gme.processor.tokenizer.eos_token_id,
+        "max_length": args.max_length,
         "embedding_dim": int(e_text.shape[1]),
         "dtype": "float32",
         "pooling": "last-token (index attention_mask.sum(-1)-1); L2 normalized",
     }
-    np.save(ART / "golden_text.npy", e_text)
-    np.save(ART / "golden_query.npy", e_query)
-    np.save(ART / "golden_image.npy", e_image)
-    (ART / "golden_meta.json").write_text(json.dumps(rec, ensure_ascii=False, indent=2))
-    print(f"[ref] saved golden_text/query/image.npy + golden_meta.json -> {ART}")
+    np.save(artifacts / "golden_text.npy", e_text)
+    np.save(artifacts / "golden_query.npy", e_query)
+    np.save(artifacts / "golden_image.npy", e_image)
+    (artifacts / "golden_meta.json").write_text(json.dumps(rec, ensure_ascii=False, indent=2))
+    print(f"[ref] saved golden_text/query/image.npy + golden_meta.json -> {artifacts}")
 
 
 if __name__ == "__main__":

@@ -30,11 +30,14 @@ I. Distinct samples that share a tensor shape stay distinct. This is the
 """
 from __future__ import annotations
 
+import argparse
 import importlib
 import json
+import shlex
 import struct
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -42,11 +45,23 @@ import torch
 from PIL import Image
 
 from gme_openvino import GmeOpenVINO, load_image
-from gme_paths import ARTIFACTS as ART, LOGO_IMAGE, OPENVINO_SETUP as SETUP, PACKAGE, SOURCE_MODEL as MODEL_DIR
 
 HERE = Path(__file__).resolve().parent
-IMAGE = LOGO_IMAGE
-CPP = HERE / "cpp" / "build" / "gme_embed"
+DEFAULT_SOURCE_MODEL = HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct"
+DEFAULT_PACKAGE = HERE / "ov_models" / "gme-qwen2-vl-2b-instruct-openvino"
+DEFAULT_ARTIFACTS = HERE / "artifacts"
+DEFAULT_CPP_BINARY = HERE / "cpp" / "build" / "gme_embed"
+DEFAULT_OPENVINO_INSTALL = HERE.parent / "benchmark" / "openvino" / "install"
+
+
+@dataclass(frozen=True)
+class BatchPaths:
+    package: Path
+    artifacts: Path
+    source_model: Path
+    cpp_binary: Path
+    openvino_setup: Path
+    image: Path
 
 # Deliberately ragged: different text lengths and different image sizes, so any
 # hidden dependence on padding or on a uniform grid shows up as a mismatch.
@@ -75,20 +90,29 @@ def read_dump(path: Path) -> np.ndarray:
         return np.frombuffer(source.read(), dtype=np.float32).reshape(rows, dimension)
 
 
-def run_cpp(arguments: list[str], output: Path, streams: int = 1, precision: str = "fp32") -> np.ndarray:
+def run_cpp(
+    arguments: list[str],
+    output: Path,
+    paths: BatchPaths,
+    streams: int = 1,
+    precision: str = "fp32",
+) -> np.ndarray:
     command = [
-        str(CPP), "--package", str(PACKAGE), "--device", "CPU", "--precision", precision,
+        str(paths.cpp_binary), "--package", str(paths.package), "--device", "CPU", "--precision", precision,
         "--streams", str(streams), *arguments, "--out", str(output),
     ]
-    shell = f'set +u; source "{SETUP}" >/dev/null 2>&1; ' + " ".join(f'"{item}"' for item in command)
+    shell = (
+        f"set +u; source {shlex.quote(str(paths.openvino_setup))} >/dev/null 2>&1; "
+        f"exec {shlex.join(command)}"
+    )
     completed = subprocess.run(["bash", "-c", shell], capture_output=True, text=True, timeout=1800)
     if completed.returncode:
         raise RuntimeError(completed.stderr[-1200:])
     return read_dump(output)
 
 
-def make_images(directory: Path) -> list[Path]:
-    source = Image.open(IMAGE).convert("RGB")
+def make_images(directory: Path, source_image: Path) -> list[Path]:
+    source = Image.open(source_image).convert("RGB")
     paths = []
     for width, height in IMAGE_SIZES:
         path = directory / f"batch_{width}x{height}.png"
@@ -112,12 +136,12 @@ def check(label: str, batch: np.ndarray, reference: np.ndarray, floor: float, re
         raise RuntimeError(f"{label}: min cosine {values.min():.10f} < {floor}")
 
 
-def batch_vs_sequential(report: dict, images: list[Path]) -> None:
+def batch_vs_sequential(report: dict, images: list[Path], paths: BatchPaths) -> None:
     """A: any N works. B: the batch equals the same items encoded one by one."""
     print("[A/B] Python batch vs sequential (int8, streams=1, per_sample) -- expect bit-exact")
-    encoder = GmeOpenVINO(PACKAGE, device="CPU", precision="int8", batch_mode="per_sample")
+    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8", batch_mode="per_sample")
     for size in SIZES:
-        texts, paths = TEXTS[:size], images[:size]
+        texts, image_paths = TEXTS[:size], images[:size]
         text_batch = encoder.get_text_embeddings(texts)
         cases = {
             f"N={size} text": (
@@ -125,13 +149,13 @@ def batch_vs_sequential(report: dict, images: list[Path]) -> None:
                 np.concatenate([encoder.get_text_embeddings([t]) for t in texts]),
             ),
             f"N={size} image": (
-                encoder.get_image_embeddings(paths),
-                np.concatenate([encoder.get_image_embeddings([p]) for p in paths]),
+                encoder.get_image_embeddings(image_paths),
+                np.concatenate([encoder.get_image_embeddings([p]) for p in image_paths]),
             ),
             f"N={size} fused": (
-                encoder.get_fused_embeddings(texts, paths),
+                encoder.get_fused_embeddings(texts, image_paths),
                 np.concatenate(
-                    [encoder.get_fused_embeddings([t], [p]) for t, p in zip(texts, paths)]
+                    [encoder.get_fused_embeddings([t], [p]) for t, p in zip(texts, image_paths)]
                 ),
             ),
         }
@@ -146,7 +170,7 @@ def batch_vs_sequential(report: dict, images: list[Path]) -> None:
     # bit-exact: a row's decode sees padding whose amount depends on the longest
     # sample beside it. Record how far that drifts on deliberately ragged input.
     print("\n[B2] Python padded batch vs sequential (int8) -- drift is expected, not a bug")
-    padded = GmeOpenVINO(PACKAGE, device="CPU", precision="int8", batch_mode="padded")
+    padded = GmeOpenVINO(paths.package, device="CPU", precision="int8", batch_mode="padded")
     check("padded text vs sequential", padded.get_text_embeddings(TEXTS),
           np.concatenate([padded.get_text_embeddings([t]) for t in TEXTS]), 0.999, report)
     check("padded fused vs sequential", padded.get_fused_embeddings(TEXTS[:3], images[:3]),
@@ -154,11 +178,11 @@ def batch_vs_sequential(report: dict, images: list[Path]) -> None:
                           for t, p in zip(TEXTS[:3], images[:3])]), 0.999, report)
 
 
-def streams_invariance(report: dict, images: list[Path]) -> None:
+def streams_invariance(report: dict, images: list[Path], paths: BatchPaths) -> None:
     """C: concurrency is a throughput knob, not a numerical one."""
     print("\n[C] Python streams=1 vs streams='auto' (int8) -- expect bit-exact")
-    single = GmeOpenVINO(PACKAGE, device="CPU", precision="int8", streams=1)
-    concurrent = GmeOpenVINO(PACKAGE, device="CPU", precision="int8", streams="auto")
+    single = GmeOpenVINO(paths.package, device="CPU", precision="int8", streams=1)
+    concurrent = GmeOpenVINO(paths.package, device="CPU", precision="int8", streams="auto")
     print(f"  pool sizes: streams=1 -> {single.language_pool.size}, "
           f"streams='auto' -> {concurrent.language_pool.size}")
     report["pool_size_auto"] = concurrent.language_pool.size
@@ -168,22 +192,22 @@ def streams_invariance(report: dict, images: list[Path]) -> None:
           single.get_fused_embeddings(TEXTS[:3], images[:3]), 1.0 - 1e-9, report)
 
 
-def official_golden(images: list[Path]) -> dict[str, np.ndarray]:
+def official_golden(images: list[Path], paths: BatchPaths) -> dict[str, np.ndarray]:
     """Torch fp32 embeddings for the N=3 ragged batch, cached (the load is slow)."""
-    cache = ART / "golden_batch_n3.npz"
+    cache = paths.artifacts / "golden_batch_n3.npz"
     # Tie the cache to the inputs it was produced from, so editing TEXTS or
     # IMAGE_SIZES regenerates it instead of silently validating against stale rows.
     signature = np.frombuffer(
-        repr((TEXTS[:3], IMAGE_SIZES[:3])).encode(), dtype=np.uint8
+        repr((TEXTS[:3], IMAGE_SIZES[:3], str(paths.image))).encode(), dtype=np.uint8
     )
     if cache.exists():
         cached = dict(np.load(cache))
         if np.array_equal(cached.pop("signature", None), signature):
             return cached
         print("  golden cache is stale for the current inputs; regenerating")
-    sys.path.insert(0, str(MODEL_DIR))
+    sys.path.insert(0, str(paths.source_model))
     official = importlib.import_module("gme_inference").GmeQwen2VL(
-        model_path=str(MODEL_DIR), device="cpu"
+        model_path=str(paths.source_model), device="cpu"
     )
     official.base = official.base.float().eval()
     texts = TEXTS[:3]
@@ -198,19 +222,19 @@ def official_golden(images: list[Path]) -> dict[str, np.ndarray]:
     return golden
 
 
-def official_parity(report: dict, images: list[Path]) -> None:
+def official_parity(report: dict, images: list[Path], paths: BatchPaths) -> None:
     """The batch must match upstream PyTorch, not just itself."""
     print("\n[D] FP32 batch vs official PyTorch (N=3, ragged) -- expect >= 0.9999")
-    golden = official_golden(images)
-    texts, paths = TEXTS[:3], images[:3]
+    golden = official_golden(images, paths)
+    texts, image_paths = TEXTS[:3], images[:3]
     # Both decode paths must land on upstream; neither is allowed to be the odd one.
     for mode in ("per_sample", "padded"):
-        encoder = GmeOpenVINO(PACKAGE, device="CPU", precision="fp32", batch_mode=mode)
+        encoder = GmeOpenVINO(paths.package, device="CPU", precision="fp32", batch_mode=mode)
         check(f"official text ({mode})", encoder.get_text_embeddings(texts),
               golden["text"], 0.9999, report)
-        check(f"official image ({mode})", encoder.get_image_embeddings(paths),
+        check(f"official image ({mode})", encoder.get_image_embeddings(image_paths),
               golden["image"], 0.9999, report)
-        check(f"official fused ({mode})", encoder.get_fused_embeddings(texts, paths),
+        check(f"official fused ({mode})", encoder.get_fused_embeddings(texts, image_paths),
               golden["fused"], 0.9999, report)
 
 
@@ -221,21 +245,21 @@ def official_parity(report: dict, images: list[Path]) -> None:
 CPP_IMAGE_FLOOR = 0.98
 
 
-def cpp_parity(report: dict, images: list[Path], dump_dir: Path) -> None:
+def cpp_parity(report: dict, images: list[Path], dump_dir: Path, paths: BatchPaths) -> None:
     """The C++ runtime batches the same way and must agree with Python."""
     print("\n[E] C++ batch vs C++ sequential vs Python (fp32, N=3)")
-    texts, paths = TEXTS[:3], images[:3]
-    image_args = [arg for path in paths for arg in ("--image", str(path))]
-    batch = run_cpp(["--mode", "fused", *image_args, *texts], dump_dir / "batch_fused_fp32.bin")
+    texts, image_paths = TEXTS[:3], images[:3]
+    image_args = [arg for path in image_paths for arg in ("--image", str(path))]
+    batch = run_cpp(["--mode", "fused", *image_args, *texts], dump_dir / "batch_fused_fp32.bin", paths)
     sequential = np.concatenate([
         run_cpp(["--mode", "fused", "--image", str(path), text],
-                dump_dir / f"batch_single_{index}.bin")
-        for index, (text, path) in enumerate(zip(texts, paths))
+            dump_dir / f"batch_single_{index}.bin", paths)
+        for index, (text, path) in enumerate(zip(texts, image_paths))
     ])
     check("cpp fused batch vs sequential", batch, sequential, 1.0 - 1e-9, report)
 
     concurrent = run_cpp(["--mode", "fused", *image_args, *texts],
-                         dump_dir / "batch_fused_streams.bin", streams=0)
+                         dump_dir / "batch_fused_streams.bin", paths, streams=0)
     check("cpp fused streams=0 vs 1", concurrent, batch, 1.0 - 1e-9, report)
 
     # --batch-size chunks the C++ batch the way official GME's batch_size does; under
@@ -243,27 +267,27 @@ def cpp_parity(report: dict, images: list[Path], dump_dir: Path) -> None:
     for size in ("0", "1", "2"):
         check(f"cpp fused --batch-size {size}",
               run_cpp(["--mode", "fused", "--batch-mode", "per_sample", "--batch-size", size,
-                       *image_args, *texts], dump_dir / f"batch_fused_bs{size}.bin"),
+                       *image_args, *texts], dump_dir / f"batch_fused_bs{size}.bin", paths),
               batch, 1.0 - 1e-9, report)
 
     # Text shares no preprocessing with OpenCV, so C++ and Python must agree
     # tightly there -- that is what pins the two batch implementations together.
     for mode in ("per_sample", "padded"):
-        encoder = GmeOpenVINO(PACKAGE, device="CPU", precision="fp32", batch_mode=mode)
+        encoder = GmeOpenVINO(paths.package, device="CPU", precision="fp32", batch_mode=mode)
         cpp_text = run_cpp(["--mode", "text", "--is-query", "0", "--batch-mode", mode, *texts],
-                           dump_dir / f"batch_text_{mode}.bin")
+                   dump_dir / f"batch_text_{mode}.bin", paths)
         check(f"cpp text vs python ({mode})", cpp_text,
               encoder.get_text_embeddings(texts, is_query=False), 0.9999, report)
         cpp_fused = run_cpp(["--mode", "fused", "--batch-mode", mode, *image_args, *texts],
-                            dump_dir / f"batch_fused_{mode}.bin")
+                    dump_dir / f"batch_fused_{mode}.bin", paths)
         check(f"cpp fused vs python ({mode})", cpp_fused,
-              encoder.get_fused_embeddings(texts, paths), CPP_IMAGE_FLOOR, report)
+              encoder.get_fused_embeddings(texts, image_paths), CPP_IMAGE_FLOOR, report)
 
 
-def api_parity(report: dict, images: list[Path]) -> None:
+def api_parity(report: dict, images: list[Path], paths: BatchPaths) -> None:
     """F: the official API surface, including the parts only upstream's loop shows."""
     print("\n[F] official API surface (int8, per_sample)")
-    encoder = GmeOpenVINO(PACKAGE, device="CPU", precision="int8", batch_mode="per_sample")
+    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8", batch_mode="per_sample")
     reference = encoder.get_text_embeddings(TEXTS, show_progress_bar=False)
 
     # embed() is the single-batch primitive the chunked entry points call, so the
@@ -309,10 +333,10 @@ def api_parity(report: dict, images: list[Path]) -> None:
             raise RuntimeError(f"{label} should have raised ValueError")
 
 
-def truncation_parity(report: dict, images: list[Path], dump_dir: Path) -> None:
+def truncation_parity(report: dict, images: list[Path], dump_dir: Path, paths: BatchPaths) -> None:
     """G: past max_length, both runtimes must cut at the same token."""
     print("\n[G] max_length truncation parity (fp32)")
-    encoder = GmeOpenVINO(PACKAGE, device="CPU", precision="fp32")
+    encoder = GmeOpenVINO(paths.package, device="CPU", precision="fp32")
     long_text = "word " * 3000
     tokens = encoder.processor.tokenizer(
         [encoder._prompt(long_text, has_image=False, instruction="You are a helpful assistant.")],
@@ -323,12 +347,12 @@ def truncation_parity(report: dict, images: list[Path], dump_dir: Path) -> None:
     if tokens != encoder.max_length:
         raise RuntimeError(f"expected truncation to {encoder.max_length}, got {tokens}")
     python = encoder.get_text_embeddings([long_text], is_query=False, show_progress_bar=False)
-    cpp = run_cpp(["--mode", "text", "--is-query", "0", long_text], dump_dir / "batch_text_truncated.bin")
+    cpp = run_cpp(["--mode", "text", "--is-query", "0", long_text], dump_dir / "batch_text_truncated.bin", paths)
     # Text shares no image preprocessing, so this is the language path's own floor.
     check("cpp vs python, >max_length text", cpp, python, 0.9999, report)
 
 
-def same_shape_rows(report: dict) -> None:
+def same_shape_rows(report: dict, paths: BatchPaths) -> None:
     """I: distinct samples that share a tensor shape must not collapse onto each other.
 
     Regression for a real bug: the request pool used ``ov.AsyncInferQueue``, which
@@ -339,7 +363,7 @@ def same_shape_rows(report: dict) -> None:
     shape. This one is deliberately non-ragged.
     """
     print("\n[I] distinct samples sharing a tensor shape (int8, per_sample)")
-    encoder = GmeOpenVINO(PACKAGE, device="CPU", precision="int8", batch_mode="per_sample")
+    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8", batch_mode="per_sample")
 
     # Equal token length, different content -> identical feed shapes.
     same_length = ["red car", "big dog", "hot sun", "old man"]
@@ -360,7 +384,7 @@ def same_shape_rows(report: dict) -> None:
     ])
     check("same-length text batch", encoder.get_text_embeddings(same_length, show_progress_bar=False),
           sequential, 1.0 - 1e-9, report)
-    fresh = GmeOpenVINO(PACKAGE, device="CPU", precision="int8", batch_mode="per_sample")
+    fresh = GmeOpenVINO(paths.package, device="CPU", precision="int8", batch_mode="per_sample")
     check("same-length text, batch first", fresh.get_text_embeddings(same_length, show_progress_bar=False),
           sequential, 1.0 - 1e-9, report)
 
@@ -375,7 +399,7 @@ def same_shape_rows(report: dict) -> None:
         raise RuntimeError(f"batch rows collapsed onto each other: {collisions}")
 
     # Same test on the visual path: two different images that land on one grid.
-    source = Image.open(IMAGE).convert("RGB")
+    source = Image.open(paths.image).convert("RGB")
     pair = [source.resize((448, 448)), source.crop((0, 0, 2000, 600)).resize((336, 336))]
     grids = encoder.processor(
         text=["<|vision_start|><|image_pad|><|vision_end|>"] * 2,
@@ -393,12 +417,12 @@ def same_shape_rows(report: dict) -> None:
         raise RuntimeError("the two probe images produce identical embeddings; the check is vacuous")
 
 
-def visual_any_n(report: dict, images: list[Path]) -> None:
+def visual_any_n(report: dict, images: list[Path], paths: BatchPaths) -> None:
     """H: why the visual IR is driven per image, measured on the IRs themselves."""
     print("\n[H] visual IR: dynamic image count")
     import openvino as ov
 
-    encoder = GmeOpenVINO(PACKAGE, device="CPU", precision="int8")
+    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8")
     inputs = encoder.processor(
         text=["<|vision_start|><|image_pad|><|vision_end|>"] * 2,
         images=[load_image(path) for path in images[:2]],
@@ -414,7 +438,7 @@ def visual_any_n(report: dict, images: list[Path]) -> None:
 
     # A separate compiled model for the negative test: a throwing inference is not
     # something the rest of this function should have to reason about.
-    probe = ov.Core().compile_model(str(PACKAGE / "gme_visual_int8.xml"), "CPU")
+    probe = ov.Core().compile_model(str(paths.package / "gme_visual_int8.xml"), "CPU")
     try:  # the traced B=1 graph must refuse 2 rows; that is the whole reason for per-image
         probe({"pixel_values": inputs["pixel_values"], "image_grid_thw": grid})
     except Exception as error:  # noqa: BLE001 - the rejection is the result
@@ -424,7 +448,7 @@ def visual_any_n(report: dict, images: list[Path]) -> None:
         report["b1_ir_rejects_two_rows"] = False
         print("  B=1 IR with 2 grid rows      ACCEPTED (visual IR is natively dynamic here)")
 
-    b2_path = PACKAGE / "gme_visual_b2_int8.xml"
+    b2_path = paths.package / "gme_visual_b2_int8.xml"
     if not b2_path.exists():
         report["b2_ir_available"] = False
         print(f"  {b2_path.name} absent; skipping the batched-IR comparison")
@@ -446,25 +470,62 @@ def visual_any_n(report: dict, images: list[Path]) -> None:
 
 
 def main() -> None:
-    ART.mkdir(exist_ok=True)
-    dump_dir = ART / "cpp_dumps"
-    dump_dir.mkdir(exist_ok=True)
-    images = make_images(ART)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--package", type=Path, default=DEFAULT_PACKAGE,
+                        help="exported OpenVINO package directory")
+    parser.add_argument("--artifacts", type=Path, default=DEFAULT_ARTIFACTS,
+                        help="directory for generated batch images, dumps, cache, and report")
+    parser.add_argument("--source-model", type=Path, default=DEFAULT_SOURCE_MODEL,
+                        help="GME checkpoint used when regenerating the official cache")
+    parser.add_argument("--image", type=Path,
+                        help="source image for generated probes (default: <source-model>/images/gme_logo.png)")
+    parser.add_argument("--cpp-binary", type=Path, default=DEFAULT_CPP_BINARY,
+                        help="gme_embed executable")
+    parser.add_argument("--openvino-install", type=Path, default=DEFAULT_OPENVINO_INSTALL,
+                        help="OpenVINO installation containing setupvars.sh")
+    parser.add_argument("--output", type=Path,
+                        help="report path (default: <artifacts>/batch_validation.json)")
+    args = parser.parse_args()
+
+    package = args.package.expanduser().resolve()
+    artifacts = args.artifacts.expanduser().resolve()
+    source_model = args.source_model.expanduser().resolve()
+    image = (args.image or source_model / "images" / "gme_logo.png").expanduser().resolve()
+    cpp_binary = args.cpp_binary.expanduser().resolve()
+    openvino_setup = args.openvino_install.expanduser().resolve() / "setupvars.sh"
+    if not package.is_dir():
+        raise SystemExit(f"package directory not found: {package}")
+    if not source_model.is_dir():
+        raise SystemExit(f"source model directory not found: {source_model}")
+    if not image.is_file():
+        raise SystemExit(f"probe image not found: {image}")
+    if not cpp_binary.is_file():
+        raise SystemExit(f"C++ binary not found: {cpp_binary}")
+    if not openvino_setup.is_file():
+        raise SystemExit(f"OpenVINO setupvars.sh not found: {openvino_setup}")
+
+    paths = BatchPaths(package, artifacts, source_model, cpp_binary, openvino_setup, image)
+    artifacts.mkdir(parents=True, exist_ok=True)
+    dump_dir = artifacts / "cpp_dumps"
+    dump_dir.mkdir(parents=True, exist_ok=True)
+    images = make_images(artifacts, image)
 
     report: dict = {"device": "CPU", "sizes": SIZES, "image_sizes": IMAGE_SIZES}
-    batch_vs_sequential(report, images)
-    streams_invariance(report, images)
-    official_parity(report, images)
-    cpp_parity(report, images, dump_dir)
-    api_parity(report, images)
-    truncation_parity(report, images, dump_dir)
-    visual_any_n(report, images)
-    same_shape_rows(report)
+    batch_vs_sequential(report, images, paths)
+    streams_invariance(report, images, paths)
+    official_parity(report, images, paths)
+    cpp_parity(report, images, dump_dir, paths)
+    api_parity(report, images, paths)
+    truncation_parity(report, images, dump_dir, paths)
+    visual_any_n(report, images, paths)
+    same_shape_rows(report, paths)
 
-    (ART / "batch_validation.json").write_text(json.dumps(report, indent=2) + "\n")
+    output = (args.output or artifacts / "batch_validation.json").expanduser().resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, indent=2) + "\n")
     for path in images:
         path.unlink(missing_ok=True)
-    print(f"\n[batch] all checks passed; wrote {ART / 'batch_validation.json'}")
+    print(f"\n[batch] all checks passed; wrote {output}")
 
 
 if __name__ == "__main__":

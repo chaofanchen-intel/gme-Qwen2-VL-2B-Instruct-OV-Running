@@ -34,7 +34,10 @@ from transformers import AutoConfig, AutoModelForVision2Seq, AutoProcessor
 from transformers.models.qwen2_vl.modeling_qwen2_vl import Qwen2VisionTransformerPretrainedModel
 from safetensors import safe_open
 from openvino.properties import hint
-from gme_paths import GME_ROOT as HERE, PACKAGE as DEFAULT_OUTPUT, SOURCE_MODEL
+
+HERE = Path(__file__).resolve().parent
+DEFAULT_SOURCE_MODEL = HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct"
+DEFAULT_OUTPUT = HERE / "ov_models" / "gme-qwen2-vl-2b-instruct-openvino"
 
 DEFAULT_INSTRUCTION = "You are a helpful assistant."
 MIN_IMAGE_TOKENS = 256
@@ -117,11 +120,15 @@ def processor_for(
     return processor
 
 
-def make_example(processor: AutoProcessor, model_dir: Path) -> dict[str, torch.Tensor]:
+def make_example(
+    processor: AutoProcessor,
+    model_dir: Path,
+    image_path: Path,
+) -> dict[str, torch.Tensor]:
     sys.path.insert(0, str(model_dir))
     fetch_image = importlib.import_module("gme_inference").fetch_image
 
-    image = fetch_image(str(model_dir / "images" / "gme_logo.png"))
+    image = fetch_image(str(image_path))
     inputs = processor(
         text=[prompt("A photo of a cat sitting on a sofa.", has_image=True)],
         images=[image],
@@ -183,7 +190,7 @@ def link_or_copy(source: Path, destination: Path) -> None:
         shutil.copy2(source, destination)
 
 
-def package_processor_assets(source: Path, output: Path) -> None:
+def package_processor_assets(source: Path, output: Path, runtime_module: Path) -> None:
     asset_names = [
         "config.json",
         "preprocessor_config.json",
@@ -199,7 +206,9 @@ def package_processor_assets(source: Path, output: Path) -> None:
         asset = source / name
         if asset.exists():
             shutil.copy2(asset, output / name)
-    shutil.copy2(HERE / "gme_openvino.py", output / "gme_openvino.py")
+    destination = output / "gme_openvino.py"
+    if runtime_module.resolve() != destination.resolve():
+        shutil.copy2(runtime_module, destination)
 
 
 def cosine(left: np.ndarray, right: np.ndarray) -> float:
@@ -254,8 +263,25 @@ def validate_pipeline(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--source-model",
+        type=Path,
+        default=DEFAULT_SOURCE_MODEL,
+        help="directory containing the GME checkpoint and gme_inference.py",
+    )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--example-image",
+        type=Path,
+        help="image used for the export/validation trace (default: <source-model>/images/gme_logo.png)",
+    )
+    parser.add_argument(
+        "--runtime-module",
+        type=Path,
+        default=HERE / "gme_openvino.py",
+        help="runtime module copied into the exported package",
+    )
     parser.add_argument("--device", default="CPU", help="OpenVINO device used for the post-export check")
     parser.add_argument("--force", action="store_true", help="re-export models that already exist")
     parser.add_argument(
@@ -266,9 +292,18 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    output = args.output.resolve()
+    source_model = args.source_model.expanduser().resolve()
+    output = args.output.expanduser().resolve()
+    example_image = (args.example_image or source_model / "images" / "gme_logo.png").expanduser().resolve()
+    runtime_module = args.runtime_module.expanduser().resolve()
+    if not source_model.is_dir():
+        raise SystemExit(f"source model directory not found: {source_model}")
+    if not example_image.is_file():
+        raise SystemExit(f"example image not found: {example_image}")
+    if not runtime_module.is_file():
+        raise SystemExit(f"runtime module not found: {runtime_module}")
     output.mkdir(parents=True, exist_ok=True)
-    package_processor_assets(SOURCE_MODEL, output)
+    package_processor_assets(source_model, output, runtime_module)
 
     if args.stage == "all":
         for stage in ("language", "visual", "validate"):
@@ -277,6 +312,12 @@ def main() -> None:
                 str(Path(__file__).resolve()),
                 "--output",
                 str(output),
+                "--source-model",
+                str(source_model),
+                "--example-image",
+                str(example_image),
+                "--runtime-module",
+                str(runtime_module),
                 "--device",
                 args.device,
                 "--stage",
@@ -288,13 +329,13 @@ def main() -> None:
             subprocess.run(command, check=True)
         return
 
-    export_processor = processor_for(SOURCE_MODEL, MIN_IMAGE_TOKENS, MIN_IMAGE_TOKENS)
-    vision_inputs = make_example(export_processor, SOURCE_MODEL)
+    export_processor = processor_for(source_model, MIN_IMAGE_TOKENS, MIN_IMAGE_TOKENS)
+    vision_inputs = make_example(export_processor, source_model, example_image)
 
     language_path = output / "gme_language_fp32.xml"
     if args.stage == "language" and (args.force or not language_path.exists()):
-        print(f"[export] loading language checkpoint from {SOURCE_MODEL}")
-        base = AutoModelForVision2Seq.from_pretrained(str(SOURCE_MODEL), torch_dtype=torch.float32)
+        print(f"[export] loading language checkpoint from {source_model}")
+        base = AutoModelForVision2Seq.from_pretrained(str(source_model), torch_dtype=torch.float32)
         base.eval()
         language_module = GmeLanguageEmbed(base).eval()
         export_model(
@@ -315,8 +356,8 @@ def main() -> None:
 
     visual_path = output / "gme_visual_fp32.xml"
     if args.stage == "visual" and (args.force or not visual_path.exists()):
-        print(f"[export] loading visual-only checkpoint from {SOURCE_MODEL}")
-        visual_module = GmeVisualEncoder(load_visual_encoder(SOURCE_MODEL)).eval()
+        print(f"[export] loading visual-only checkpoint from {source_model}")
+        visual_module = GmeVisualEncoder(load_visual_encoder(source_model)).eval()
         export_model(
             visual_module,
             (vision_inputs["pixel_values"], vision_inputs["image_grid_thw"]),
@@ -329,30 +370,34 @@ def main() -> None:
         return
     if not language_path.exists() or not visual_path.exists():
         raise RuntimeError("both language and visual IRs must exist before validation")
-    print(f"[validate] loading reference checkpoint from {SOURCE_MODEL}")
-    base = AutoModelForVision2Seq.from_pretrained(str(SOURCE_MODEL), torch_dtype=torch.float32)
+    print(f"[validate] loading reference checkpoint from {source_model}")
+    base = AutoModelForVision2Seq.from_pretrained(str(source_model), torch_dtype=torch.float32)
     base.eval()
     language_module = GmeLanguageEmbed(base).eval()
     visual_module = GmeVisualEncoder(base.visual).eval()
-    validation_inputs = make_example(processor_for(SOURCE_MODEL), SOURCE_MODEL)
-    report = {
+    validation_inputs = make_example(processor_for(source_model), source_model, example_image)
+    config_path = output / "gme_openvino_config.json"
+    report = json.loads(config_path.read_text()) if config_path.exists() else {}
+    report.update({
         "format": 1,
         "model": "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct",
         "embedding_dim": 1536,
         "pooling": "last valid token, L2 normalized",
         "language_model": language_path.name,
         "visual_model": visual_path.name,
-        "processor": {
-            "min_image_tokens": MIN_IMAGE_TOKENS,
-            "max_image_tokens": MAX_IMAGE_TOKENS,
-            "max_length": MAX_LENGTH,
-            "padding_side": "right",
-        },
-    }
+    })
+    processor = dict(report.get("processor", {}))
+    processor.update({
+        "min_image_tokens": MIN_IMAGE_TOKENS,
+        "max_image_tokens": MAX_IMAGE_TOKENS,
+        "max_length": MAX_LENGTH,
+        "padding_side": "right",
+    })
+    report["processor"] = processor
     report["vision_fp32_reference_cosine"] = validate_pipeline(
         output, args.device, language_module, visual_module, validation_inputs
     )
-    (output / "gme_openvino_config.json").write_text(json.dumps(report, indent=2) + "\n")
+    config_path.write_text(json.dumps(report, indent=2) + "\n")
     print(f"[export] complete OpenVINO package: {output}")
 
 

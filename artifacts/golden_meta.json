@@ -477,6 +477,7 @@
     ]
   ],
   "eos_token_id": 151645,
+  "max_length": 1800,
   "embedding_dim": 1536,
   "dtype": "float32",
   "pooling": "last-token (index attention_mask.sum(-1)-1); L2 normalized"

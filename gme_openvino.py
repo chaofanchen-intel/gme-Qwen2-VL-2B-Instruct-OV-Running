@@ -186,7 +186,7 @@ class _RequestPool:
     (it depends on how the compiled model was used beforehand). Same-shaped feeds
     are exactly the common case (two 448x448 images, two equal-length queries), so
     this had to go. Explicit ``start_async`` + ``wait`` per slot is what the C++
-    runtime already does, and 08_validate_batch.py now pins both against distinct
+    runtime already does, and 07_validate_batch.py now pins both against distinct
     same-shape samples.
     """
 
@@ -600,7 +600,7 @@ class GmeOpenVINO:
 
         Chunking is a memory knob only. Each row is computed from its own sample, so
         the concatenation of the chunks is the same array the single-chunk call
-        returns -- 08_validate_batch.py asserts that bit-exactly.
+        returns -- 07_validate_batch.py asserts that bit-exactly.
         """
         count = len(images) if images is not None else len(texts or [])
         if not count:

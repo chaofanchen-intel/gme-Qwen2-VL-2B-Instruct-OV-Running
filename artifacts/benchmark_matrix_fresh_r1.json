@@ -1,21 +1,20 @@
 {
   "unit": "ms, warm, end-to-end per call (tokenize/preprocess + inference), excludes load/compile",
-  "repeat": 20,
+  "repeat": 1,
   "config": {
     "devices": [
       "CPU",
       "GPU"
     ],
     "precisions": [
-      "fp32",
-      "int8",
-      "int4"
+      "int8"
     ],
     "backends": [
       "python",
       "cpp"
     ],
-    "repeat": 20,
+    "instruction": "Find an image that matches the given text.",
+    "repeat": 1,
     "text_lengths": [
       32,
       128,
@@ -320,6 +319,455 @@
     "note": "sequence_tokens is the effective unpadded length after GME templating, including the expanded image-pad run; visual_tokens is grid_t*grid_h*grid_w/4"
   },
   "suites": {
+    "latency": {
+      "text_length": "32",
+      "image_size": "448x448",
+      "batch": 1,
+      "cells": {
+        "python/CPU/int8": {
+          "text": {
+            "ms_per_call": 175.7,
+            "ms_per_embedding": 175.7
+          },
+          "query": {
+            "ms_per_call": 175.66,
+            "ms_per_embedding": 175.66
+          },
+          "image": {
+            "ms_per_call": 5334.73,
+            "ms_per_embedding": 5334.73
+          },
+          "fused": {
+            "ms_per_call": 5275.17,
+            "ms_per_embedding": 5275.17
+          }
+        },
+        "cpp/CPU/int8": {
+          "text": {
+            "ms_per_call": 176.34,
+            "ms_per_embedding": 176.34
+          },
+          "query": {
+            "ms_per_call": 192.1,
+            "ms_per_embedding": 192.1
+          },
+          "image": {
+            "ms_per_call": 5316.84,
+            "ms_per_embedding": 5316.84
+          },
+          "fused": {
+            "ms_per_call": 5259.75,
+            "ms_per_embedding": 5259.75
+          }
+        },
+        "python/GPU/int8": {
+          "text": {
+            "ms_per_call": 50.14,
+            "ms_per_embedding": 50.14
+          },
+          "query": {
+            "ms_per_call": 50.54,
+            "ms_per_embedding": 50.54
+          },
+          "image": {
+            "ms_per_call": 479.05,
+            "ms_per_embedding": 479.05
+          },
+          "fused": {
+            "ms_per_call": 460.77,
+            "ms_per_embedding": 460.77
+          }
+        },
+        "cpp/GPU/int8": {
+          "text": {
+            "ms_per_call": 51.0,
+            "ms_per_embedding": 51.0
+          },
+          "query": {
+            "ms_per_call": 51.49,
+            "ms_per_embedding": 51.49
+          },
+          "image": {
+            "ms_per_call": 516.58,
+            "ms_per_embedding": 516.58
+          },
+          "fused": {
+            "ms_per_call": 504.37,
+            "ms_per_embedding": 504.37
+          }
+        }
+      }
+    },
+    "text-lengths": {
+      "batch": 1,
+      "cells": {
+        "python/CPU/int8/32tok": {
+          "text": {
+            "ms_per_call": 176.06,
+            "ms_per_embedding": 176.06
+          },
+          "query": {
+            "ms_per_call": 175.79,
+            "ms_per_embedding": 175.79
+          }
+        },
+        "cpp/CPU/int8/32tok": {
+          "text": {
+            "ms_per_call": 175.31,
+            "ms_per_embedding": 175.31
+          },
+          "query_query": {
+            "ms_per_call": 175.55,
+            "ms_per_embedding": 175.55
+          }
+        },
+        "python/GPU/int8/32tok": {
+          "text": {
+            "ms_per_call": 51.55,
+            "ms_per_embedding": 51.55
+          },
+          "query": {
+            "ms_per_call": 49.41,
+            "ms_per_embedding": 49.41
+          }
+        },
+        "cpp/GPU/int8/32tok": {
+          "text": {
+            "ms_per_call": 50.57,
+            "ms_per_embedding": 50.57
+          },
+          "query_query": {
+            "ms_per_call": 51.04,
+            "ms_per_embedding": 51.04
+          }
+        },
+        "python/CPU/int8/128tok": {
+          "text": {
+            "ms_per_call": 675.51,
+            "ms_per_embedding": 675.51
+          },
+          "query": {
+            "ms_per_call": 671.39,
+            "ms_per_embedding": 671.39
+          }
+        },
+        "cpp/CPU/int8/128tok": {
+          "text": {
+            "ms_per_call": 670.52,
+            "ms_per_embedding": 670.52
+          },
+          "query_query": {
+            "ms_per_call": 670.07,
+            "ms_per_embedding": 670.07
+          }
+        },
+        "python/GPU/int8/128tok": {
+          "text": {
+            "ms_per_call": 64.07,
+            "ms_per_embedding": 64.07
+          },
+          "query": {
+            "ms_per_call": 62.74,
+            "ms_per_embedding": 62.74
+          }
+        },
+        "cpp/GPU/int8/128tok": {
+          "text": {
+            "ms_per_call": 61.77,
+            "ms_per_embedding": 61.77
+          },
+          "query_query": {
+            "ms_per_call": 61.81,
+            "ms_per_embedding": 61.81
+          }
+        },
+        "python/CPU/int8/512tok": {
+          "text": {
+            "ms_per_call": 2861.94,
+            "ms_per_embedding": 2861.94
+          },
+          "query": {
+            "ms_per_call": 2862.63,
+            "ms_per_embedding": 2862.63
+          }
+        },
+        "cpp/CPU/int8/512tok": {
+          "text": {
+            "ms_per_call": 2860.55,
+            "ms_per_embedding": 2860.55
+          },
+          "query_query": {
+            "ms_per_call": 2860.14,
+            "ms_per_embedding": 2860.14
+          }
+        },
+        "python/GPU/int8/512tok": {
+          "text": {
+            "ms_per_call": 144.65,
+            "ms_per_embedding": 144.65
+          },
+          "query": {
+            "ms_per_call": 139.36,
+            "ms_per_embedding": 139.36
+          }
+        },
+        "cpp/GPU/int8/512tok": {
+          "text": {
+            "ms_per_call": 143.13,
+            "ms_per_embedding": 143.13
+          },
+          "query_query": {
+            "ms_per_call": 142.66,
+            "ms_per_embedding": 142.66
+          }
+        },
+        "python/CPU/int8/1024tok": {
+          "text": {
+            "ms_per_call": 6237.87,
+            "ms_per_embedding": 6237.87
+          },
+          "query": {
+            "ms_per_call": 6225.3,
+            "ms_per_embedding": 6225.3
+          }
+        },
+        "cpp/CPU/int8/1024tok": {
+          "text": {
+            "ms_per_call": 6315.58,
+            "ms_per_embedding": 6315.58
+          },
+          "query_query": {
+            "ms_per_call": 6218.72,
+            "ms_per_embedding": 6218.72
+          }
+        },
+        "python/GPU/int8/1024tok": {
+          "text": {
+            "ms_per_call": 296.57,
+            "ms_per_embedding": 296.57
+          },
+          "query": {
+            "ms_per_call": 296.01,
+            "ms_per_embedding": 296.01
+          }
+        },
+        "cpp/GPU/int8/1024tok": {
+          "text": {
+            "ms_per_call": 304.97,
+            "ms_per_embedding": 304.97
+          },
+          "query_query": {
+            "ms_per_call": 690.1,
+            "ms_per_embedding": 690.1
+          }
+        }
+      }
+    },
+    "image-sizes": {
+      "batch": 1,
+      "cells": {
+        "python/CPU/int8/448x448(256vt)": {
+          "image": {
+            "ms_per_call": 5338.7,
+            "ms_per_embedding": 5338.7
+          },
+          "fused": {
+            "ms_per_call": 5289.55,
+            "ms_per_embedding": 5289.55
+          }
+        },
+        "cpp/CPU/int8/448x448(256vt)": {
+          "image": {
+            "ms_per_call": 5358.75,
+            "ms_per_embedding": 5358.75
+          },
+          "fused": {
+            "ms_per_call": 5269.45,
+            "ms_per_embedding": 5269.45
+          }
+        },
+        "python/GPU/int8/448x448(256vt)": {
+          "image": {
+            "ms_per_call": 476.69,
+            "ms_per_embedding": 476.69
+          },
+          "fused": {
+            "ms_per_call": 468.07,
+            "ms_per_embedding": 468.07
+          }
+        },
+        "cpp/GPU/int8/448x448(256vt)": {
+          "image": {
+            "ms_per_call": 508.3,
+            "ms_per_embedding": 508.3
+          },
+          "fused": {
+            "ms_per_call": 507.83,
+            "ms_per_embedding": 507.83
+          }
+        },
+        "python/CPU/int8/644x476(391vt)": {
+          "image": {
+            "ms_per_call": 8896.27,
+            "ms_per_embedding": 8896.27
+          },
+          "fused": {
+            "ms_per_call": 8937.55,
+            "ms_per_embedding": 8937.55
+          }
+        },
+        "cpp/CPU/int8/644x476(391vt)": {
+          "image": {
+            "ms_per_call": 8854.17,
+            "ms_per_embedding": 8854.17
+          },
+          "fused": {
+            "ms_per_call": 8900.98,
+            "ms_per_embedding": 8900.98
+          }
+        },
+        "python/GPU/int8/644x476(391vt)": {
+          "image": {
+            "ms_per_call": 868.95,
+            "ms_per_embedding": 868.95
+          },
+          "fused": {
+            "ms_per_call": 868.82,
+            "ms_per_embedding": 868.82
+          }
+        },
+        "cpp/GPU/int8/644x476(391vt)": {
+          "image": {
+            "ms_per_call": 1177.22,
+            "ms_per_embedding": 1177.22
+          },
+          "fused": {
+            "ms_per_call": 854.68,
+            "ms_per_embedding": 854.68
+          }
+        },
+        "python/CPU/int8/672x672(576vt)": {
+          "image": {
+            "ms_per_call": 14622.95,
+            "ms_per_embedding": 14622.95
+          },
+          "fused": {
+            "ms_per_call": 14621.12,
+            "ms_per_embedding": 14621.12
+          }
+        },
+        "cpp/CPU/int8/672x672(576vt)": {
+          "image": {
+            "ms_per_call": 14600.0,
+            "ms_per_embedding": 14600.0
+          },
+          "fused": {
+            "ms_per_call": 14613.6,
+            "ms_per_embedding": 14613.6
+          }
+        },
+        "python/GPU/int8/672x672(576vt)": {
+          "image": {
+            "ms_per_call": 1372.3,
+            "ms_per_embedding": 1372.3
+          },
+          "fused": {
+            "ms_per_call": 1338.03,
+            "ms_per_embedding": 1338.03
+          }
+        },
+        "cpp/GPU/int8/672x672(576vt)": {
+          "image": {
+            "ms_per_call": 1389.65,
+            "ms_per_embedding": 1389.65
+          },
+          "fused": {
+            "ms_per_call": 1405.44,
+            "ms_per_embedding": 1405.44
+          }
+        },
+        "python/CPU/int8/896x896(1024vt)": {
+          "image": {
+            "ms_per_call": 33305.05,
+            "ms_per_embedding": 33305.05
+          },
+          "fused": {
+            "ms_per_call": 33368.13,
+            "ms_per_embedding": 33368.13
+          }
+        },
+        "cpp/CPU/int8/896x896(1024vt)": {
+          "image": {
+            "ms_per_call": 33263.6,
+            "ms_per_embedding": 33263.6
+          },
+          "fused": {
+            "ms_per_call": 33281.0,
+            "ms_per_embedding": 33281.0
+          }
+        },
+        "python/GPU/int8/896x896(1024vt)": {
+          "image": {
+            "ms_per_call": 3233.41,
+            "ms_per_embedding": 3233.41
+          },
+          "fused": {
+            "ms_per_call": 3211.82,
+            "ms_per_embedding": 3211.82
+          }
+        },
+        "cpp/GPU/int8/896x896(1024vt)": {
+          "image": {
+            "ms_per_call": 3879.34,
+            "ms_per_embedding": 3879.34
+          },
+          "fused": {
+            "ms_per_call": 3840.95,
+            "ms_per_embedding": 3840.95
+          }
+        },
+        "python/CPU/int8/1288x728(1196vt)": {
+          "image": {
+            "ms_per_call": 42435.36,
+            "ms_per_embedding": 42435.36
+          },
+          "fused": {
+            "ms_per_call": 42561.66,
+            "ms_per_embedding": 42561.66
+          }
+        },
+        "cpp/CPU/int8/1288x728(1196vt)": {
+          "image": {
+            "ms_per_call": 42370.5,
+            "ms_per_embedding": 42370.5
+          },
+          "fused": {
+            "ms_per_call": 42447.8,
+            "ms_per_embedding": 42447.8
+          }
+        },
+        "python/GPU/int8/1288x728(1196vt)": {
+          "image": {
+            "ms_per_call": 4654.46,
+            "ms_per_embedding": 4654.46
+          },
+          "fused": {
+            "ms_per_call": 4600.58,
+            "ms_per_embedding": 4600.58
+          }
+        },
+        "cpp/GPU/int8/1288x728(1196vt)": {
+          "image": {
+            "ms_per_call": 4581.26,
+            "ms_per_embedding": 4581.26
+          },
+          "fused": {
+            "ms_per_call": 4603.79,
+            "ms_per_embedding": 4603.79
+          }
+        }
+      }
+    },
     "batch": {
       "text_length": "128",
       "image_size": "448x448",
@@ -327,834 +775,834 @@
       "cells": {
         "python/CPU/per_sample/streams=1/N=1": {
           "text": {
-            "ms_per_call": 326.34,
-            "ms_per_embedding": 326.34
+            "ms_per_call": 671.98,
+            "ms_per_embedding": 671.98
           },
           "image": {
-            "ms_per_call": 2608.25,
-            "ms_per_embedding": 2608.25
+            "ms_per_call": 5329.99,
+            "ms_per_embedding": 5329.99
           }
         },
         "python/CPU/per_sample/streams=1/N=2": {
           "text": {
-            "ms_per_call": 662.08,
-            "ms_per_embedding": 331.04
+            "ms_per_call": 1343.35,
+            "ms_per_embedding": 671.67
           },
           "image": {
-            "ms_per_call": 5290.56,
-            "ms_per_embedding": 2645.28
+            "ms_per_call": 10653.79,
+            "ms_per_embedding": 5326.9
           }
         },
         "python/CPU/per_sample/streams=1/N=4": {
           "text": {
-            "ms_per_call": 1347.44,
-            "ms_per_embedding": 336.86
+            "ms_per_call": 2699.29,
+            "ms_per_embedding": 674.82
           },
           "image": {
-            "ms_per_call": 10612.79,
-            "ms_per_embedding": 2653.2
+            "ms_per_call": 21355.4,
+            "ms_per_embedding": 5338.85
           }
         },
         "python/CPU/per_sample/streams=1/N=8": {
           "text": {
-            "ms_per_call": 2684.03,
-            "ms_per_embedding": 335.5
+            "ms_per_call": 5428.91,
+            "ms_per_embedding": 678.61
           },
           "image": {
-            "ms_per_call": 21227.83,
-            "ms_per_embedding": 2653.48
+            "ms_per_call": 42720.74,
+            "ms_per_embedding": 5340.09
           }
         },
         "python/CPU/per_sample/streams=1/N=16": {
           "text": {
-            "ms_per_call": 5366.06,
-            "ms_per_embedding": 335.38
+            "ms_per_call": 10785.8,
+            "ms_per_embedding": 674.11
           }
         },
         "python/CPU/per_sample/streams=1/N=32": {
           "text": {
-            "ms_per_call": 10789.89,
-            "ms_per_embedding": 337.18
+            "ms_per_call": 21582.17,
+            "ms_per_embedding": 674.44
           }
         },
         "cpp/CPU/per_sample/streams=1/N=1": {
           "text": {
-            "ms_per_call": 332.08,
-            "ms_per_embedding": 332.08
+            "ms_per_call": 669.42,
+            "ms_per_embedding": 669.42
           },
           "image": {
-            "ms_per_call": 2670.1,
-            "ms_per_embedding": 2670.1
+            "ms_per_call": 5311.71,
+            "ms_per_embedding": 5311.71
           }
         },
         "cpp/CPU/per_sample/streams=1/N=2": {
           "text": {
-            "ms_per_call": 658.87,
-            "ms_per_embedding": 329.44
+            "ms_per_call": 1338.9,
+            "ms_per_embedding": 669.45
           },
           "image": {
-            "ms_per_call": 5321.04,
-            "ms_per_embedding": 2660.52
+            "ms_per_call": 10627.0,
+            "ms_per_embedding": 5313.52
           }
         },
         "cpp/CPU/per_sample/streams=1/N=4": {
           "text": {
-            "ms_per_call": 1321.87,
-            "ms_per_embedding": 330.47
+            "ms_per_call": 2676.94,
+            "ms_per_embedding": 669.24
           },
           "image": {
-            "ms_per_call": 10629.5,
-            "ms_per_embedding": 2657.38
+            "ms_per_call": 21348.3,
+            "ms_per_embedding": 5337.07
           }
         },
         "cpp/CPU/per_sample/streams=1/N=8": {
           "text": {
-            "ms_per_call": 2654.78,
-            "ms_per_embedding": 331.85
+            "ms_per_call": 5351.62,
+            "ms_per_embedding": 668.95
           },
           "image": {
-            "ms_per_call": 21298.3,
-            "ms_per_embedding": 2662.29
+            "ms_per_call": 42545.6,
+            "ms_per_embedding": 5318.2
           }
         },
         "cpp/CPU/per_sample/streams=1/N=16": {
           "text": {
-            "ms_per_call": 5333.27,
-            "ms_per_embedding": 333.33
+            "ms_per_call": 10713.3,
+            "ms_per_embedding": 669.58
           }
         },
         "cpp/CPU/per_sample/streams=1/N=32": {
           "text": {
-            "ms_per_call": 10727.2,
-            "ms_per_embedding": 335.23
+            "ms_per_call": 21397.8,
+            "ms_per_embedding": 668.68
           }
         },
         "python/CPU/per_sample/streams=auto/N=1": {
           "text": {
-            "ms_per_call": 552.49,
-            "ms_per_embedding": 552.49
+            "ms_per_call": 1336.78,
+            "ms_per_embedding": 1336.78
           },
           "image": {
-            "ms_per_call": 4303.41,
-            "ms_per_embedding": 4303.41
+            "ms_per_call": 10395.24,
+            "ms_per_embedding": 10395.24
           }
         },
         "python/CPU/per_sample/streams=auto/N=2": {
           "text": {
-            "ms_per_call": 641.42,
-            "ms_per_embedding": 320.71
+            "ms_per_call": 1329.8,
+            "ms_per_embedding": 664.9
           },
           "image": {
-            "ms_per_call": 5162.11,
-            "ms_per_embedding": 2581.06
+            "ms_per_call": 10518.33,
+            "ms_per_embedding": 5259.17
           }
         },
         "python/CPU/per_sample/streams=auto/N=4": {
           "text": {
-            "ms_per_call": 698.73,
-            "ms_per_embedding": 174.68
+            "ms_per_call": 1416.24,
+            "ms_per_embedding": 354.06
           },
           "image": {
-            "ms_per_call": 5918.21,
-            "ms_per_embedding": 1479.55
+            "ms_per_call": 10753.57,
+            "ms_per_embedding": 2688.39
           }
         },
         "python/CPU/per_sample/streams=auto/N=8": {
           "text": {
-            "ms_per_call": 1466.59,
-            "ms_per_embedding": 183.32
+            "ms_per_call": 2637.63,
+            "ms_per_embedding": 329.7
           },
           "image": {
-            "ms_per_call": 11898.36,
-            "ms_per_embedding": 1487.3
+            "ms_per_call": 22002.86,
+            "ms_per_embedding": 2750.36
           }
         },
         "python/CPU/per_sample/streams=auto/N=16": {
           "text": {
-            "ms_per_call": 2951.11,
-            "ms_per_embedding": 184.44
+            "ms_per_call": 5432.92,
+            "ms_per_embedding": 339.56
           }
         },
         "python/CPU/per_sample/streams=auto/N=32": {
           "text": {
-            "ms_per_call": 5547.57,
-            "ms_per_embedding": 173.36
+            "ms_per_call": 9920.87,
+            "ms_per_embedding": 310.03
           }
         },
         "cpp/CPU/per_sample/streams=auto/N=1": {
           "text": {
-            "ms_per_call": 558.94,
-            "ms_per_embedding": 558.94
+            "ms_per_call": 1334.61,
+            "ms_per_embedding": 1334.61
           },
           "image": {
-            "ms_per_call": 4322.35,
-            "ms_per_embedding": 4322.35
+            "ms_per_call": 10327.4,
+            "ms_per_embedding": 10327.4
           }
         },
         "cpp/CPU/per_sample/streams=auto/N=2": {
           "text": {
-            "ms_per_call": 640.66,
-            "ms_per_embedding": 320.33
+            "ms_per_call": 1344.34,
+            "ms_per_embedding": 672.17
           },
           "image": {
-            "ms_per_call": 5123.98,
-            "ms_per_embedding": 2561.99
+            "ms_per_call": 10554.2,
+            "ms_per_embedding": 5277.11
           }
         },
         "cpp/CPU/per_sample/streams=auto/N=4": {
           "text": {
-            "ms_per_call": 697.44,
-            "ms_per_embedding": 174.36
+            "ms_per_call": 1328.47,
+            "ms_per_embedding": 332.12
           },
           "image": {
-            "ms_per_call": 5906.09,
-            "ms_per_embedding": 1476.52
+            "ms_per_call": 10661.7,
+            "ms_per_embedding": 2665.43
           }
         },
         "cpp/CPU/per_sample/streams=auto/N=8": {
           "text": {
-            "ms_per_call": 1437.16,
-            "ms_per_embedding": 179.65
+            "ms_per_call": 2706.85,
+            "ms_per_embedding": 338.36
           },
           "image": {
-            "ms_per_call": 11886.2,
-            "ms_per_embedding": 1485.77
+            "ms_per_call": 21535.4,
+            "ms_per_embedding": 2691.92
           }
         },
         "cpp/CPU/per_sample/streams=auto/N=16": {
           "text": {
-            "ms_per_call": 2869.55,
-            "ms_per_embedding": 179.35
+            "ms_per_call": 5255.4,
+            "ms_per_embedding": 328.46
           }
         },
         "cpp/CPU/per_sample/streams=auto/N=32": {
           "text": {
-            "ms_per_call": 5500.0,
-            "ms_per_embedding": 171.88
+            "ms_per_call": 9856.29,
+            "ms_per_embedding": 308.01
           }
         },
         "python/CPU/padded/streams=1/N=1": {
           "text": {
-            "ms_per_call": 368.73,
-            "ms_per_embedding": 368.73
+            "ms_per_call": 677.35,
+            "ms_per_embedding": 677.35
           },
           "image": {
-            "ms_per_call": 2790.26,
-            "ms_per_embedding": 2790.26
+            "ms_per_call": 5332.72,
+            "ms_per_embedding": 5332.72
           }
         },
         "python/CPU/padded/streams=1/N=2": {
           "text": {
-            "ms_per_call": 684.99,
-            "ms_per_embedding": 342.49
+            "ms_per_call": 1338.85,
+            "ms_per_embedding": 669.43
           },
           "image": {
-            "ms_per_call": 5283.26,
-            "ms_per_embedding": 2641.63
+            "ms_per_call": 10400.28,
+            "ms_per_embedding": 5200.14
           }
         },
         "python/CPU/padded/streams=1/N=4": {
           "text": {
-            "ms_per_call": 1360.18,
-            "ms_per_embedding": 340.04
+            "ms_per_call": 2683.07,
+            "ms_per_embedding": 670.77
           },
           "image": {
-            "ms_per_call": 10466.48,
-            "ms_per_embedding": 2616.62
+            "ms_per_call": 20697.01,
+            "ms_per_embedding": 5174.25
           }
         },
         "python/CPU/padded/streams=1/N=8": {
           "text": {
-            "ms_per_call": 2721.14,
-            "ms_per_embedding": 340.14
+            "ms_per_call": 5363.76,
+            "ms_per_embedding": 670.47
           },
           "image": {
-            "ms_per_call": 20973.94,
-            "ms_per_embedding": 2621.74
+            "ms_per_call": 41174.13,
+            "ms_per_embedding": 5146.77
           }
         },
         "python/CPU/padded/streams=1/N=16": {
           "text": {
-            "ms_per_call": 5548.75,
-            "ms_per_embedding": 346.8
+            "ms_per_call": 10760.73,
+            "ms_per_embedding": 672.55
           }
         },
         "python/CPU/padded/streams=1/N=32": {
           "text": {
-            "ms_per_call": 11233.74,
-            "ms_per_embedding": 351.05
+            "ms_per_call": 21575.78,
+            "ms_per_embedding": 674.24
           }
         },
         "cpp/CPU/padded/streams=1/N=1": {
           "text": {
-            "ms_per_call": 340.52,
-            "ms_per_embedding": 340.52
+            "ms_per_call": 669.62,
+            "ms_per_embedding": 669.62
           },
           "image": {
-            "ms_per_call": 2691.97,
-            "ms_per_embedding": 2691.97
+            "ms_per_call": 5320.93,
+            "ms_per_embedding": 5320.93
           }
         },
         "cpp/CPU/padded/streams=1/N=2": {
           "text": {
-            "ms_per_call": 661.12,
-            "ms_per_embedding": 330.56
+            "ms_per_call": 1338.4,
+            "ms_per_embedding": 669.2
           },
           "image": {
-            "ms_per_call": 5213.56,
-            "ms_per_embedding": 2606.78
+            "ms_per_call": 10310.8,
+            "ms_per_embedding": 5155.39
           }
         },
         "cpp/CPU/padded/streams=1/N=4": {
           "text": {
-            "ms_per_call": 1345.61,
-            "ms_per_embedding": 336.4
+            "ms_per_call": 2671.88,
+            "ms_per_embedding": 667.97
           },
           "image": {
-            "ms_per_call": 10443.8,
-            "ms_per_embedding": 2610.94
+            "ms_per_call": 23513.0,
+            "ms_per_embedding": 5878.25
           }
         },
         "cpp/CPU/padded/streams=1/N=8": {
           "text": {
-            "ms_per_call": 2738.66,
-            "ms_per_embedding": 342.33
+            "ms_per_call": 5568.72,
+            "ms_per_embedding": 696.09
           },
           "image": {
-            "ms_per_call": 20853.6,
-            "ms_per_embedding": 2606.7
+            "ms_per_call": 41009.4,
+            "ms_per_embedding": 5126.17
           }
         },
         "cpp/CPU/padded/streams=1/N=16": {
           "text": {
-            "ms_per_call": 5566.12,
-            "ms_per_embedding": 347.88
+            "ms_per_call": 10744.6,
+            "ms_per_embedding": 671.54
           }
         },
         "cpp/CPU/padded/streams=1/N=32": {
           "text": {
-            "ms_per_call": 11275.8,
-            "ms_per_embedding": 352.37
+            "ms_per_call": 21525.1,
+            "ms_per_embedding": 672.66
           }
         },
         "python/CPU/padded/streams=auto/N=1": {
           "text": {
-            "ms_per_call": 554.74,
-            "ms_per_embedding": 554.74
+            "ms_per_call": 1644.26,
+            "ms_per_embedding": 1644.26
           },
           "image": {
-            "ms_per_call": 4320.09,
-            "ms_per_embedding": 4320.09
+            "ms_per_call": 11409.77,
+            "ms_per_embedding": 11409.77
           }
         },
         "python/CPU/padded/streams=auto/N=2": {
           "text": {
-            "ms_per_call": 1098.96,
-            "ms_per_embedding": 549.48
+            "ms_per_call": 2617.59,
+            "ms_per_embedding": 1308.79
           },
           "image": {
-            "ms_per_call": 6074.06,
-            "ms_per_embedding": 3037.03
+            "ms_per_call": 13004.61,
+            "ms_per_embedding": 6502.31
           }
         },
         "python/CPU/padded/streams=auto/N=4": {
           "text": {
-            "ms_per_call": 2198.57,
-            "ms_per_embedding": 549.64
+            "ms_per_call": 5554.26,
+            "ms_per_embedding": 1388.56
           },
           "image": {
-            "ms_per_call": 9008.18,
-            "ms_per_embedding": 2252.04
+            "ms_per_call": 20404.52,
+            "ms_per_embedding": 5101.13
           }
         },
         "python/CPU/padded/streams=auto/N=8": {
           "text": {
-            "ms_per_call": 4395.08,
-            "ms_per_embedding": 549.38
+            "ms_per_call": 12430.71,
+            "ms_per_embedding": 1553.84
           },
           "image": {
-            "ms_per_call": 17698.03,
-            "ms_per_embedding": 2212.25
+            "ms_per_call": 40782.23,
+            "ms_per_embedding": 5097.78
           }
         },
         "python/CPU/padded/streams=auto/N=16": {
           "text": {
-            "ms_per_call": 8805.76,
-            "ms_per_embedding": 550.36
+            "ms_per_call": 21379.83,
+            "ms_per_embedding": 1336.24
           }
         },
         "python/CPU/padded/streams=auto/N=32": {
           "text": {
-            "ms_per_call": 17557.13,
-            "ms_per_embedding": 548.66
+            "ms_per_call": 41842.16,
+            "ms_per_embedding": 1307.57
           }
         },
         "cpp/CPU/padded/streams=auto/N=1": {
           "text": {
-            "ms_per_call": 671.31,
-            "ms_per_embedding": 671.31
+            "ms_per_call": 1471.19,
+            "ms_per_embedding": 1471.19
           },
           "image": {
-            "ms_per_call": 4605.33,
-            "ms_per_embedding": 4605.33
+            "ms_per_call": 11596.3,
+            "ms_per_embedding": 11596.3
           }
         },
         "cpp/CPU/padded/streams=auto/N=2": {
           "text": {
-            "ms_per_call": 1331.21,
-            "ms_per_embedding": 665.61
+            "ms_per_call": 2639.05,
+            "ms_per_embedding": 1319.53
           },
           "image": {
-            "ms_per_call": 6547.92,
-            "ms_per_embedding": 3273.96
+            "ms_per_call": 13286.7,
+            "ms_per_embedding": 6643.35
           }
         },
         "cpp/CPU/padded/streams=auto/N=4": {
           "text": {
-            "ms_per_call": 2698.86,
-            "ms_per_embedding": 674.72
+            "ms_per_call": 5249.73,
+            "ms_per_embedding": 1312.43
           },
           "image": {
-            "ms_per_call": 10051.7,
-            "ms_per_embedding": 2512.92
+            "ms_per_call": 19234.8,
+            "ms_per_embedding": 4808.69
           }
         },
         "cpp/CPU/padded/streams=auto/N=8": {
           "text": {
-            "ms_per_call": 5388.34,
-            "ms_per_embedding": 673.54
+            "ms_per_call": 10401.7,
+            "ms_per_embedding": 1300.21
           },
           "image": {
-            "ms_per_call": 19708.7,
-            "ms_per_embedding": 2463.59
+            "ms_per_call": 38352.1,
+            "ms_per_embedding": 4794.02
           }
         },
         "cpp/CPU/padded/streams=auto/N=16": {
           "text": {
-            "ms_per_call": 10759.9,
-            "ms_per_embedding": 672.49
+            "ms_per_call": 20794.8,
+            "ms_per_embedding": 1299.68
           }
         },
         "cpp/CPU/padded/streams=auto/N=32": {
           "text": {
-            "ms_per_call": 21479.1,
-            "ms_per_embedding": 671.22
+            "ms_per_call": 41501.0,
+            "ms_per_embedding": 1296.91
           }
         },
         "python/GPU/per_sample/streams=1/N=1": {
           "text": {
-            "ms_per_call": 54.47,
-            "ms_per_embedding": 54.47
+            "ms_per_call": 66.52,
+            "ms_per_embedding": 66.52
           },
           "image": {
-            "ms_per_call": 516.81,
-            "ms_per_embedding": 516.81
+            "ms_per_call": 464.9,
+            "ms_per_embedding": 464.9
           }
         },
         "python/GPU/per_sample/streams=1/N=2": {
           "text": {
-            "ms_per_call": 107.31,
-            "ms_per_embedding": 53.65
+            "ms_per_call": 117.11,
+            "ms_per_embedding": 58.55
           },
           "image": {
-            "ms_per_call": 1024.65,
-            "ms_per_embedding": 512.32
+            "ms_per_call": 927.37,
+            "ms_per_embedding": 463.69
           }
         },
         "python/GPU/per_sample/streams=1/N=4": {
           "text": {
-            "ms_per_call": 212.65,
-            "ms_per_embedding": 53.16
+            "ms_per_call": 230.16,
+            "ms_per_embedding": 57.54
           },
           "image": {
-            "ms_per_call": 2027.39,
-            "ms_per_embedding": 506.85
+            "ms_per_call": 1852.18,
+            "ms_per_embedding": 463.04
           }
         },
         "python/GPU/per_sample/streams=1/N=8": {
           "text": {
-            "ms_per_call": 426.95,
-            "ms_per_embedding": 53.37
+            "ms_per_call": 463.85,
+            "ms_per_embedding": 57.98
           },
           "image": {
-            "ms_per_call": 4053.48,
-            "ms_per_embedding": 506.69
+            "ms_per_call": 3701.69,
+            "ms_per_embedding": 462.71
           }
         },
         "python/GPU/per_sample/streams=1/N=16": {
           "text": {
-            "ms_per_call": 848.59,
-            "ms_per_embedding": 53.04
+            "ms_per_call": 928.23,
+            "ms_per_embedding": 58.01
           }
         },
         "python/GPU/per_sample/streams=1/N=32": {
           "text": {
-            "ms_per_call": 1698.51,
-            "ms_per_embedding": 53.08
+            "ms_per_call": 1828.51,
+            "ms_per_embedding": 57.14
           }
         },
         "cpp/GPU/per_sample/streams=1/N=1": {
           "text": {
-            "ms_per_call": 52.94,
-            "ms_per_embedding": 52.94
+            "ms_per_call": 85.97,
+            "ms_per_embedding": 85.97
           },
           "image": {
-            "ms_per_call": 508.26,
-            "ms_per_embedding": 508.26
+            "ms_per_call": 507.52,
+            "ms_per_embedding": 507.52
           }
         },
         "cpp/GPU/per_sample/streams=1/N=2": {
           "text": {
-            "ms_per_call": 105.49,
-            "ms_per_embedding": 52.74
+            "ms_per_call": 121.02,
+            "ms_per_embedding": 60.51
           },
           "image": {
-            "ms_per_call": 1014.45,
-            "ms_per_embedding": 507.23
+            "ms_per_call": 1034.93,
+            "ms_per_embedding": 517.47
           }
         },
         "cpp/GPU/per_sample/streams=1/N=4": {
           "text": {
-            "ms_per_call": 210.33,
-            "ms_per_embedding": 52.58
+            "ms_per_call": 237.13,
+            "ms_per_embedding": 59.28
           },
           "image": {
-            "ms_per_call": 1988.6,
-            "ms_per_embedding": 497.15
+            "ms_per_call": 2005.0,
+            "ms_per_embedding": 501.25
           }
         },
         "cpp/GPU/per_sample/streams=1/N=8": {
           "text": {
-            "ms_per_call": 419.44,
-            "ms_per_embedding": 52.43
+            "ms_per_call": 468.05,
+            "ms_per_embedding": 58.51
           },
           "image": {
-            "ms_per_call": 4000.52,
-            "ms_per_embedding": 500.06
+            "ms_per_call": 4099.29,
+            "ms_per_embedding": 512.41
           }
         },
         "cpp/GPU/per_sample/streams=1/N=16": {
           "text": {
-            "ms_per_call": 838.9,
-            "ms_per_embedding": 52.43
+            "ms_per_call": 947.83,
+            "ms_per_embedding": 59.24
           }
         },
         "cpp/GPU/per_sample/streams=1/N=32": {
           "text": {
-            "ms_per_call": 1675.68,
-            "ms_per_embedding": 52.36
+            "ms_per_call": 1976.64,
+            "ms_per_embedding": 61.77
           }
         },
         "python/GPU/per_sample/streams=auto/N=1": {
           "text": {
-            "ms_per_call": 57.43,
-            "ms_per_embedding": 57.43
+            "ms_per_call": 166.04,
+            "ms_per_embedding": 166.04
           },
           "image": {
-            "ms_per_call": 510.7,
-            "ms_per_embedding": 510.7
+            "ms_per_call": 583.67,
+            "ms_per_embedding": 583.67
           }
         },
         "python/GPU/per_sample/streams=auto/N=2": {
           "text": {
-            "ms_per_call": 106.75,
-            "ms_per_embedding": 53.38
+            "ms_per_call": 126.29,
+            "ms_per_embedding": 63.14
           },
           "image": {
-            "ms_per_call": 1107.2,
-            "ms_per_embedding": 553.6
+            "ms_per_call": 946.98,
+            "ms_per_embedding": 473.49
           }
         },
         "python/GPU/per_sample/streams=auto/N=4": {
           "text": {
-            "ms_per_call": 209.72,
-            "ms_per_embedding": 52.43
+            "ms_per_call": 229.21,
+            "ms_per_embedding": 57.3
           },
           "image": {
-            "ms_per_call": 2148.51,
-            "ms_per_embedding": 537.13
+            "ms_per_call": 1888.73,
+            "ms_per_embedding": 472.18
           }
         },
         "python/GPU/per_sample/streams=auto/N=8": {
           "text": {
-            "ms_per_call": 427.63,
-            "ms_per_embedding": 53.45
+            "ms_per_call": 459.13,
+            "ms_per_embedding": 57.39
           },
           "image": {
-            "ms_per_call": 4514.76,
-            "ms_per_embedding": 564.34
+            "ms_per_call": 3717.54,
+            "ms_per_embedding": 464.69
           }
         },
         "python/GPU/per_sample/streams=auto/N=16": {
           "text": {
-            "ms_per_call": 969.45,
-            "ms_per_embedding": 60.59
+            "ms_per_call": 914.93,
+            "ms_per_embedding": 57.18
           }
         },
         "python/GPU/per_sample/streams=auto/N=32": {
           "text": {
-            "ms_per_call": 1712.89,
-            "ms_per_embedding": 53.53
+            "ms_per_call": 1820.88,
+            "ms_per_embedding": 56.9
           }
         },
         "cpp/GPU/per_sample/streams=auto/N=1": {
           "text": {
-            "ms_per_call": 56.8,
-            "ms_per_embedding": 56.8
+            "ms_per_call": 159.77,
+            "ms_per_embedding": 159.77
           },
           "image": {
-            "ms_per_call": 512.26,
-            "ms_per_embedding": 512.26
+            "ms_per_call": 712.19,
+            "ms_per_embedding": 712.19
           }
         },
         "cpp/GPU/per_sample/streams=auto/N=2": {
           "text": {
-            "ms_per_call": 105.73,
-            "ms_per_embedding": 52.87
+            "ms_per_call": 118.97,
+            "ms_per_embedding": 59.48
           },
           "image": {
-            "ms_per_call": 1024.79,
-            "ms_per_embedding": 512.39
+            "ms_per_call": 971.67,
+            "ms_per_embedding": 485.83
           }
         },
         "cpp/GPU/per_sample/streams=auto/N=4": {
           "text": {
-            "ms_per_call": 214.73,
-            "ms_per_embedding": 53.68
+            "ms_per_call": 241.94,
+            "ms_per_embedding": 60.49
           },
           "image": {
-            "ms_per_call": 2040.82,
-            "ms_per_embedding": 510.2
+            "ms_per_call": 2084.86,
+            "ms_per_embedding": 521.21
           }
         },
         "cpp/GPU/per_sample/streams=auto/N=8": {
           "text": {
-            "ms_per_call": 417.61,
-            "ms_per_embedding": 52.2
+            "ms_per_call": 456.48,
+            "ms_per_embedding": 57.06
           },
           "image": {
-            "ms_per_call": 4083.14,
-            "ms_per_embedding": 510.39
+            "ms_per_call": 4109.09,
+            "ms_per_embedding": 513.64
           }
         },
         "cpp/GPU/per_sample/streams=auto/N=16": {
           "text": {
-            "ms_per_call": 837.11,
-            "ms_per_embedding": 52.32
+            "ms_per_call": 901.87,
+            "ms_per_embedding": 56.37
           }
         },
         "cpp/GPU/per_sample/streams=auto/N=32": {
           "text": {
-            "ms_per_call": 1674.3,
-            "ms_per_embedding": 52.32
+            "ms_per_call": 1782.36,
+            "ms_per_embedding": 55.7
           }
         },
         "python/GPU/padded/streams=1/N=1": {
           "text": {
-            "ms_per_call": 53.67,
-            "ms_per_embedding": 53.67
+            "ms_per_call": 62.63,
+            "ms_per_embedding": 62.63
           },
           "image": {
-            "ms_per_call": 524.13,
-            "ms_per_embedding": 524.13
+            "ms_per_call": 462.14,
+            "ms_per_embedding": 462.14
           }
         },
         "python/GPU/padded/streams=1/N=2": {
           "text": {
-            "ms_per_call": 75.46,
-            "ms_per_embedding": 37.73
+            "ms_per_call": 78.68,
+            "ms_per_embedding": 39.34
           },
           "image": {
-            "ms_per_call": 974.56,
-            "ms_per_embedding": 487.28
+            "ms_per_call": 891.74,
+            "ms_per_embedding": 445.87
           }
         },
         "python/GPU/padded/streams=1/N=4": {
           "text": {
-            "ms_per_call": 134.79,
-            "ms_per_embedding": 33.7
+            "ms_per_call": 138.25,
+            "ms_per_embedding": 34.56
           },
           "image": {
-            "ms_per_call": 1957.13,
-            "ms_per_embedding": 489.28
+            "ms_per_call": 1754.82,
+            "ms_per_embedding": 438.71
           }
         },
         "python/GPU/padded/streams=1/N=8": {
           "text": {
-            "ms_per_call": 272.21,
-            "ms_per_embedding": 34.03
+            "ms_per_call": 280.27,
+            "ms_per_embedding": 35.03
           },
           "image": {
-            "ms_per_call": 3872.3,
-            "ms_per_embedding": 484.04
+            "ms_per_call": 3539.7,
+            "ms_per_embedding": 442.46
           }
         },
         "python/GPU/padded/streams=1/N=16": {
           "text": {
-            "ms_per_call": 522.45,
-            "ms_per_embedding": 32.65
+            "ms_per_call": 534.01,
+            "ms_per_embedding": 33.38
           }
         },
         "python/GPU/padded/streams=1/N=32": {
           "text": {
-            "ms_per_call": 1088.13,
-            "ms_per_embedding": 34.0
+            "ms_per_call": 1106.77,
+            "ms_per_embedding": 34.59
           }
         },
         "cpp/GPU/padded/streams=1/N=1": {
           "text": {
-            "ms_per_call": 52.77,
-            "ms_per_embedding": 52.77
+            "ms_per_call": 62.57,
+            "ms_per_embedding": 62.57
           },
           "image": {
-            "ms_per_call": 498.89,
-            "ms_per_embedding": 498.89
+            "ms_per_call": 510.98,
+            "ms_per_embedding": 510.98
           }
         },
         "cpp/GPU/padded/streams=1/N=2": {
           "text": {
-            "ms_per_call": 73.18,
-            "ms_per_embedding": 36.59
+            "ms_per_call": 82.05,
+            "ms_per_embedding": 41.03
           },
           "image": {
-            "ms_per_call": 975.67,
-            "ms_per_embedding": 487.84
+            "ms_per_call": 1007.89,
+            "ms_per_embedding": 503.95
           }
         },
         "cpp/GPU/padded/streams=1/N=4": {
           "text": {
-            "ms_per_call": 132.17,
-            "ms_per_embedding": 33.04
+            "ms_per_call": 140.67,
+            "ms_per_embedding": 35.17
           },
           "image": {
-            "ms_per_call": 1918.58,
-            "ms_per_embedding": 479.64
+            "ms_per_call": 1939.84,
+            "ms_per_embedding": 484.96
           }
         },
         "cpp/GPU/padded/streams=1/N=8": {
           "text": {
-            "ms_per_call": 275.23,
-            "ms_per_embedding": 34.4
+            "ms_per_call": 280.3,
+            "ms_per_embedding": 35.04
           },
           "image": {
-            "ms_per_call": 5732.21,
-            "ms_per_embedding": 716.53
+            "ms_per_call": 3975.08,
+            "ms_per_embedding": 496.89
           }
         },
         "cpp/GPU/padded/streams=1/N=16": {
           "text": {
-            "ms_per_call": 548.05,
-            "ms_per_embedding": 34.25
+            "ms_per_call": 532.56,
+            "ms_per_embedding": 33.28
           }
         },
         "cpp/GPU/padded/streams=1/N=32": {
           "text": {
-            "ms_per_call": 1078.12,
-            "ms_per_embedding": 33.69
+            "ms_per_call": 1076.9,
+            "ms_per_embedding": 33.65
           }
         },
         "python/GPU/padded/streams=auto/N=1": {
           "text": {
-            "ms_per_call": 59.74,
-            "ms_per_embedding": 59.74
+            "ms_per_call": 161.36,
+            "ms_per_embedding": 161.36
           },
           "image": {
-            "ms_per_call": 589.84,
-            "ms_per_embedding": 589.84
+            "ms_per_call": 559.78,
+            "ms_per_embedding": 559.78
           }
         },
         "python/GPU/padded/streams=auto/N=2": {
           "text": {
-            "ms_per_call": 186.96,
-            "ms_per_embedding": 93.48
+            "ms_per_call": 117.74,
+            "ms_per_embedding": 58.87
           },
           "image": {
-            "ms_per_call": 1145.31,
-            "ms_per_embedding": 572.65
+            "ms_per_call": 906.96,
+            "ms_per_embedding": 453.48
           }
         },
         "python/GPU/padded/streams=auto/N=4": {
           "text": {
-            "ms_per_call": 134.95,
-            "ms_per_embedding": 33.74
+            "ms_per_call": 158.29,
+            "ms_per_embedding": 39.57
           },
           "image": {
-            "ms_per_call": 1958.54,
-            "ms_per_embedding": 489.64
+            "ms_per_call": 1775.58,
+            "ms_per_embedding": 443.9
           }
         },
         "python/GPU/padded/streams=auto/N=8": {
           "text": {
-            "ms_per_call": 282.87,
-            "ms_per_embedding": 35.36
+            "ms_per_call": 296.18,
+            "ms_per_embedding": 37.02
           },
           "image": {
-            "ms_per_call": 4326.68,
-            "ms_per_embedding": 540.83
+            "ms_per_call": 3518.01,
+            "ms_per_embedding": 439.75
           }
         },
         "python/GPU/padded/streams=auto/N=16": {
           "text": {
-            "ms_per_call": 601.11,
-            "ms_per_embedding": 37.57
+            "ms_per_call": 542.88,
+            "ms_per_embedding": 33.93
           }
         },
         "python/GPU/padded/streams=auto/N=32": {
           "text": {
-            "ms_per_call": 2643.89,
-            "ms_per_embedding": 82.62
+            "ms_per_call": 1242.49,
+            "ms_per_embedding": 38.83
           }
         },
         "cpp/GPU/padded/streams=auto/N=1": {
           "text": {
-            "ms_per_call": 56.73,
-            "ms_per_embedding": 56.73
+            "ms_per_call": 160.54,
+            "ms_per_embedding": 160.54
           },
           "image": {
-            "ms_per_call": 510.1,
-            "ms_per_embedding": 510.1
+            "ms_per_call": 633.3,
+            "ms_per_embedding": 633.3
           }
         },
         "cpp/GPU/padded/streams=auto/N=2": {
           "text": {
-            "ms_per_call": 75.3,
-            "ms_per_embedding": 37.65
+            "ms_per_call": 166.84,
+            "ms_per_embedding": 83.42
           },
           "image": {
-            "ms_per_call": 998.62,
-            "ms_per_embedding": 499.31
+            "ms_per_call": 1065.53,
+            "ms_per_embedding": 532.76
           }
         },
         "cpp/GPU/padded/streams=auto/N=4": {
           "text": {
-            "ms_per_call": 229.42,
-            "ms_per_embedding": 57.36
+            "ms_per_call": 257.53,
+            "ms_per_embedding": 64.38
           },
           "image": {
-            "ms_per_call": 2898.13,
-            "ms_per_embedding": 724.53
+            "ms_per_call": 1974.12,
+            "ms_per_embedding": 493.53
           }
         },
         "cpp/GPU/padded/streams=auto/N=8": {
           "text": {
-            "ms_per_call": 320.61,
-            "ms_per_embedding": 40.08
+            "ms_per_call": 452.0,
+            "ms_per_embedding": 56.5
           },
           "image": {
-            "ms_per_call": 5175.83,
-            "ms_per_embedding": 646.98
+            "ms_per_call": 4150.21,
+            "ms_per_embedding": 518.78
           }
         },
         "cpp/GPU/padded/streams=auto/N=16": {
           "text": {
-            "ms_per_call": 748.84,
-            "ms_per_embedding": 46.8
+            "ms_per_call": 706.3,
+            "ms_per_embedding": 44.14
           }
         },
         "cpp/GPU/padded/streams=auto/N=32": {
           "text": {
-            "ms_per_call": 1883.88,
-            "ms_per_embedding": 58.87
+            "ms_per_call": 1445.81,
+            "ms_per_embedding": 45.18
           }
         }
       }

@@ -25,28 +25,44 @@ Suites (``--suite``, default all four):
 
 Written for report generation, so the matrix is wide: check the printed estimate
 before running the full thing, and cut it down with the flags. Nothing here is
-required for correctness -- 08_validate_batch.py owns that.
+required for correctness -- 07_validate_batch.py owns that.
 
-    source "${GME_OPENVINO_INSTALL:-../benchmark/openvino/install}/setupvars.sh"
-    ./env-ref/bin/python 09_benchmark_matrix.py --suite latency --devices GPU
+        ./env-ref/bin/python 08_benchmark_matrix.py \
+            --openvino-install /path/to/openvino/install \
+            --suite latency --devices GPU
 """
 from __future__ import annotations
 
 import argparse
 import json
 import re
+import shlex
 import subprocess
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
 from gme_openvino import GmeOpenVINO, load_image
-from gme_paths import ARTIFACTS as ART, CPP_BINARY as BIN, LOGO_IMAGE as LOGO, OPENVINO_SETUP as SETUP, PACKAGE as PKG
 
 HERE = Path(__file__).resolve().parent
-BENCH_IMAGES = ART / "bench_images"
+DEFAULT_SOURCE_MODEL = HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct"
+DEFAULT_PACKAGE = HERE / "ov_models" / "gme-qwen2-vl-2b-instruct-openvino"
+DEFAULT_ARTIFACTS = HERE / "artifacts"
+DEFAULT_CPP_BINARY = HERE / "cpp" / "build" / "gme_embed"
+DEFAULT_OPENVINO_INSTALL = HERE.parent / "benchmark" / "openvino" / "install"
+
+
+@dataclass(frozen=True)
+class MatrixPaths:
+    package: Path
+    artifacts: Path
+    bench_images: Path
+    cpp_binary: Path
+    openvino_setup: Path
+    logo: Path
 
 INSTRUCTION = "Find an image that matches the given text."
 # Effective token counts after GME prompt templating, not raw text length. The
@@ -76,15 +92,15 @@ def parse_size(value: str) -> tuple[int, int]:
     return width, height
 
 
-def make_bench_image(width: int, height: int) -> Path:
+def make_bench_image(width: int, height: int, bench_images: Path) -> Path:
     """A deterministic gradient at the exact requested size.
 
     Synthetic rather than a resized logo: content does not affect latency, and a
     neutral image keeps the file reproducible and avoids implying that these
     timings say anything about the logo's 1260-token worst case.
     """
-    BENCH_IMAGES.mkdir(parents=True, exist_ok=True)
-    path = BENCH_IMAGES / f"bench_{width}x{height}.png"
+    bench_images.mkdir(parents=True, exist_ok=True)
+    path = bench_images / f"bench_{width}x{height}.png"
     if path.exists():
         return path
     x = np.linspace(0, 255, width, dtype=np.float32)[None, :]
@@ -138,25 +154,31 @@ def describe_image(encoder: GmeOpenVINO, path: Path, text: str | None) -> dict:
     }
 
 
-def build_workloads(text_lengths: list[int], image_sizes: list[str], include_logo: bool) -> dict:
+def build_workloads(
+    paths: MatrixPaths,
+    text_lengths: list[int],
+    image_sizes: list[str],
+    include_logo: bool,
+    instruction: str,
+) -> dict:
     """Resolve every workload once, on CPU, so all backends measure the same input."""
-    encoder = GmeOpenVINO(PKG, device="CPU", precision="int8")
+    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8")
     default_instruction = encoder._instruction(None, False)
     texts = {}
     for target in text_lengths:
         text = text_for_length(encoder, target, default_instruction)
-        query = text_for_length(encoder, target, INSTRUCTION)
+        query = text_for_length(encoder, target, instruction)
         texts[str(target)] = {
             "text": {"raw_text": text, "raw_text_chars": len(text),
                      "sequence_tokens": sequence_length(encoder, text, default_instruction)},
-            "query": {"raw_text": query, "raw_text_chars": len(query), "instruction": INSTRUCTION,
-                      "sequence_tokens": sequence_length(encoder, query, INSTRUCTION)},
+            "query": {"raw_text": query, "raw_text_chars": len(query), "instruction": instruction,
+                      "sequence_tokens": sequence_length(encoder, query, instruction)},
         }
-    paths = [make_bench_image(*parse_size(size)) for size in image_sizes]
+    image_paths = [make_bench_image(*parse_size(size), paths.bench_images) for size in image_sizes]
     if include_logo:
-        paths.append(LOGO)
+        image_paths.append(paths.logo)
     images = {}
-    for path in paths:
+    for path in image_paths:
         key = f"{Image.open(path).size[0]}x{Image.open(path).size[1]}"
         images[key] = {"path": str(path),
                        "image": describe_image(encoder, path, None),
@@ -176,10 +198,13 @@ def timed(call, repeat: int, batch: int) -> dict:
     return {"ms_per_call": round(elapsed, 2), "ms_per_embedding": round(elapsed / batch, 2)}
 
 
-def run_cpp(arguments: list[str], timeout: int = 3600) -> dict[str, dict]:
-    command = (f'set +u; source "{SETUP}" >/dev/null 2>&1; "{BIN}" --package "{PKG}" '
-               + " ".join(arguments))
-    result = subprocess.run(["bash", "-c", command], capture_output=True, text=True, timeout=timeout)
+def run_cpp(arguments: list[str], paths: MatrixPaths, timeout: int = 3600) -> dict[str, dict]:
+    command = [str(paths.cpp_binary), "--package", str(paths.package), *arguments]
+    shell = (
+        f"set +u; source {shlex.quote(str(paths.openvino_setup))} >/dev/null 2>&1; "
+        f"exec {shlex.join(command)}"
+    )
+    result = subprocess.run(["bash", "-c", shell], capture_output=True, text=True, timeout=timeout)
     rows = {}
     for match in re.finditer(
         r"mode=(\w+) batch=(\d+) streams=(\S+) batch_mode=(\S+) avg_ms=([\d.eE+-]+) ms_per_embedding=([\d.eE+-]+)",
@@ -194,8 +219,8 @@ def run_cpp(arguments: list[str], timeout: int = 3600) -> dict[str, dict]:
     return rows
 
 
-def available_devices(devices: list[str]) -> list[str]:
-    present = GmeOpenVINO(PKG, device="CPU", precision="int8").core.available_devices
+def available_devices(package: Path, devices: list[str]) -> list[str]:
+    present = GmeOpenVINO(package, device="CPU", precision="int8").core.available_devices
     usable = [device for device in devices if device in present]
     for device in devices:
         if device not in present:
@@ -204,7 +229,7 @@ def available_devices(devices: list[str]) -> list[str]:
 
 
 # --------------------------------------------------------------------- suites
-def suite_latency(config: dict, workloads: dict) -> dict:
+def suite_latency(config: dict, workloads: dict, paths: MatrixPaths) -> dict:
     """N=1 across mode x precision x device: the base comparison table."""
     length = str(config["text_lengths"][0])
     text = workloads["texts"][length]["text"]["raw_text"]
@@ -216,12 +241,12 @@ def suite_latency(config: dict, workloads: dict) -> dict:
         for precision in config["precisions"]:
             key = f"{device}/{precision}"
             if "python" in config["backends"]:
-                encoder = GmeOpenVINO(PKG, device=device, precision=precision)
+                encoder = GmeOpenVINO(paths.package, device=device, precision=precision)
                 results["cells"][f"python/{key}"] = {
                     "text": timed(lambda: encoder.get_text_embeddings(
                         [text], is_query=False, show_progress_bar=False), config["repeat"], 1),
                     "query": timed(lambda: encoder.get_text_embeddings(
-                        [query], instruction=INSTRUCTION, show_progress_bar=False), config["repeat"], 1),
+                        [query], instruction=config["instruction"], show_progress_bar=False), config["repeat"], 1),
                     "image": timed(lambda: encoder.get_image_embeddings(
                         [path], show_progress_bar=False), config["repeat"], 1),
                     "fused": timed(lambda: encoder.get_fused_embeddings(
@@ -232,13 +257,13 @@ def suite_latency(config: dict, workloads: dict) -> dict:
                 results["cells"][f"cpp/{key}"] = run_cpp([
                     "--device", device, "--precision", precision, "--benchmark",
                     "--benchmark-modes", "text,query,image,fused", "--repeat", str(config["repeat"]),
-                    "--instruction", f'"{INSTRUCTION}"', "--image", f'"{path}"', f'"{text}"',
-                ])
+                    "--instruction", config["instruction"], "--image", str(path), text,
+                ], paths)
                 report_cell(f"cpp/{key}", results["cells"][f"cpp/{key}"])
     return results
 
 
-def suite_text_lengths(config: dict, workloads: dict) -> dict:
+def suite_text_lengths(config: dict, workloads: dict, paths: MatrixPaths) -> dict:
     """text/query at each exact final token length."""
     results: dict = {"batch": 1, "cells": {}}
     for length in config["text_lengths"]:
@@ -248,28 +273,28 @@ def suite_text_lengths(config: dict, workloads: dict) -> dict:
             for precision in config["precisions"]:
                 key = f"{device}/{precision}/{length}tok"
                 if "python" in config["backends"]:
-                    encoder = GmeOpenVINO(PKG, device=device, precision=precision)
+                    encoder = GmeOpenVINO(paths.package, device=device, precision=precision)
                     cell = {
                         "text": timed(lambda: encoder.get_text_embeddings(
                             [text], is_query=False, show_progress_bar=False), config["repeat"], 1),
                         "query": timed(lambda: encoder.get_text_embeddings(
-                            [query], instruction=INSTRUCTION, show_progress_bar=False), config["repeat"], 1),
+                            [query], instruction=config["instruction"], show_progress_bar=False), config["repeat"], 1),
                     }
                     results["cells"][f"python/{key}"] = cell
                     report_cell(f"python/{key}", cell)
                 if "cpp" in config["backends"]:
                     cell = run_cpp(["--device", device, "--precision", precision, "--benchmark",
-                                    "--benchmark-modes", "text", "--repeat", str(config["repeat"]), f'"{text}"'])
+                                    "--benchmark-modes", "text", "--repeat", str(config["repeat"]), text], paths)
                     cell.update({f"query_{name}": value for name, value in run_cpp([
                         "--device", device, "--precision", precision, "--benchmark",
                         "--benchmark-modes", "query", "--repeat", str(config["repeat"]),
-                        "--instruction", f'"{INSTRUCTION}"', f'"{query}"']).items()})
+                        "--instruction", config["instruction"], query], paths).items()})
                     results["cells"][f"cpp/{key}"] = cell
                     report_cell(f"cpp/{key}", cell)
     return results
 
 
-def suite_image_sizes(config: dict, workloads: dict) -> dict:
+def suite_image_sizes(config: dict, workloads: dict, paths: MatrixPaths) -> dict:
     """image/fused across the image-size ladder."""
     text = workloads["texts"][str(config["text_lengths"][0])]["text"]["raw_text"]
     results: dict = {"batch": 1, "cells": {}}
@@ -277,14 +302,14 @@ def suite_image_sizes(config: dict, workloads: dict) -> dict:
         entry = workloads["images"][size] if size in workloads["images"] else None
         if entry is None:  # the logo keys by its own pixel size
             entry = next(value for key, value in workloads["images"].items()
-                         if value["image"]["file"] == LOGO.name)
+                         if value["image"]["file"] == paths.logo.name)
         path = entry["path"]
         tokens = entry["image"]["visual_tokens"]
         for device in config["devices"]:
             for precision in config["precisions"]:
                 key = f"{device}/{precision}/{size}({tokens}vt)"
                 if "python" in config["backends"]:
-                    encoder = GmeOpenVINO(PKG, device=device, precision=precision)
+                    encoder = GmeOpenVINO(paths.package, device=device, precision=precision)
                     cell = {
                         "image": timed(lambda: encoder.get_image_embeddings(
                             [path], show_progress_bar=False), config["repeat"], 1),
@@ -296,13 +321,13 @@ def suite_image_sizes(config: dict, workloads: dict) -> dict:
                 if "cpp" in config["backends"]:
                     cell = run_cpp(["--device", device, "--precision", precision, "--benchmark",
                                     "--benchmark-modes", "image,fused", "--repeat", str(config["repeat"]),
-                                    "--image", f'"{path}"', f'"{text}"'])
+                                    "--image", str(path), text], paths)
                     results["cells"][f"cpp/{key}"] = cell
                     report_cell(f"cpp/{key}", cell)
     return results
 
 
-def suite_batch(config: dict, workloads: dict) -> dict:
+def suite_batch(config: dict, workloads: dict, paths: MatrixPaths) -> dict:
     """N sweep x batch_mode x streams, for text and image.
 
     The two knobs interact with the device, not with each other: on CPU one request
@@ -321,7 +346,7 @@ def suite_batch(config: dict, workloads: dict) -> dict:
             for streams in config["streams"]:
                 tag = f"{device}/{batch_mode}/streams={streams}"
                 if "python" in config["backends"]:
-                    encoder = GmeOpenVINO(PKG, device=device, precision=precision,
+                    encoder = GmeOpenVINO(paths.package, device=device, precision=precision,
                                           streams=streams, batch_mode=batch_mode)
                     for count in config["batch_sizes"]:
                         cell = {"text": timed(lambda: encoder.get_text_embeddings(
@@ -342,8 +367,8 @@ def suite_batch(config: dict, workloads: dict) -> dict:
                             "--batch", str(count), "--batch-mode", batch_mode,
                             "--streams", "0" if streams == "auto" else str(streams),
                             "--batch-size", "0",  # one chunk: measure the batch, not the chunking
-                            "--image", f'"{path}"', f'"{text}"',
-                        ])
+                            "--image", str(path), text,
+                        ], paths)
                         results["cells"][f"cpp/{tag}/N={count}"] = cell
                         report_cell(f"cpp/{tag}/N={count}", cell)
     return results
@@ -367,11 +392,25 @@ SUITES = {"latency": suite_latency, "text-lengths": suite_text_lengths,
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--package", type=Path, default=DEFAULT_PACKAGE,
+                        help="exported OpenVINO package directory")
+    parser.add_argument("--artifacts", type=Path, default=DEFAULT_ARTIFACTS,
+                        help="directory for synthetic images and default report")
+    parser.add_argument("--source-model", type=Path, default=DEFAULT_SOURCE_MODEL,
+                        help="used for the default logo path")
+    parser.add_argument("--logo", type=Path,
+                        help="logo image for --include-logo (default: <source-model>/images/gme_logo.png)")
+    parser.add_argument("--cpp-binary", type=Path, default=DEFAULT_CPP_BINARY,
+                        help="gme_embed executable")
+    parser.add_argument("--openvino-install", type=Path, default=DEFAULT_OPENVINO_INSTALL,
+                        help="OpenVINO installation containing setupvars.sh")
     parser.add_argument("--suite", default=",".join(SUITES),
                         help=f"comma-separated subset of {list(SUITES)} (default: all)")
     parser.add_argument("--devices", default=",".join(DEVICES))
     parser.add_argument("--precisions", default=",".join(PRECISIONS))
     parser.add_argument("--backends", default="python,cpp")
+    parser.add_argument("--instruction", default=INSTRUCTION,
+                        help="query instruction used to construct query workloads")
     parser.add_argument("--repeat", type=int, default=5,
                         help="warm calls per cell (default 5; use >=20 for anything quoted as a threshold)")
     parser.add_argument("--text-lengths", default=",".join(str(value) for value in TEXT_LENGTHS),
@@ -388,7 +427,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-precision", default="int8",
                         help="batch suite precision; int8 keeps the sweep affordable")
     parser.add_argument("--batch-text-length", type=int, default=128)
-    parser.add_argument("--output", type=Path, default=ART / "benchmark_matrix.json")
+    parser.add_argument("--output", type=Path,
+                        help="report path (default: <artifacts>/benchmark_matrix.json)")
     return parser.parse_args()
 
 
@@ -396,6 +436,23 @@ def main() -> None:
     args = parse_args()
     if args.repeat < 1:
         raise ValueError("--repeat must be positive")
+    package = args.package.expanduser().resolve()
+    artifacts = args.artifacts.expanduser().resolve()
+    source_model = args.source_model.expanduser().resolve()
+    logo = (args.logo or source_model / "images" / "gme_logo.png").expanduser().resolve()
+    cpp_binary = args.cpp_binary.expanduser().resolve()
+    openvino_setup = args.openvino_install.expanduser().resolve() / "setupvars.sh"
+    if not package.is_dir():
+        raise SystemExit(f"package directory not found: {package}")
+    if "cpp" in [item.strip() for item in args.backends.split(",") if item.strip()]:
+        if not cpp_binary.is_file():
+            raise SystemExit(f"C++ binary not found: {cpp_binary}")
+        if not openvino_setup.is_file():
+            raise SystemExit(f"OpenVINO setupvars.sh not found: {openvino_setup}")
+    if args.include_logo and not logo.is_file():
+        raise SystemExit(f"logo image not found: {logo}")
+    artifacts.mkdir(parents=True, exist_ok=True)
+    paths = MatrixPaths(package, artifacts, artifacts / "bench_images", cpp_binary, openvino_setup, logo)
     suites = [name.strip() for name in args.suite.split(",") if name.strip()]
     unknown = [name for name in suites if name not in SUITES]
     if unknown:
@@ -404,10 +461,15 @@ def main() -> None:
     def ints(value: str) -> list[int]:
         return [int(item) for item in value.split(",") if item.strip()]
 
+    backends = [item.strip() for item in args.backends.split(",") if item.strip()]
+    unknown_backends = [item for item in backends if item not in {"python", "cpp"}]
+    if unknown_backends:
+        raise ValueError(f"unknown backend(s) {unknown_backends}; choose python and/or cpp")
     config = {
-        "devices": available_devices([d.strip() for d in args.devices.split(",") if d.strip()]),
+        "devices": available_devices(paths.package, [d.strip() for d in args.devices.split(",") if d.strip()]),
         "precisions": [p.strip() for p in args.precisions.split(",") if p.strip()],
-        "backends": [b.strip() for b in args.backends.split(",") if b.strip()],
+        "backends": backends,
+        "instruction": args.instruction,
         "repeat": args.repeat,
         "text_lengths": ints(args.text_lengths),
         "image_sizes": [s.strip() for s in args.image_sizes.split(",") if s.strip()],
@@ -425,7 +487,9 @@ def main() -> None:
         config["text_lengths"] = sorted(set(config["text_lengths"] + [config["batch_text_length"]]))
 
     print("resolving workloads (tokenizing filler text, writing benchmark images) ...")
-    workloads = build_workloads(config["text_lengths"], config["image_sizes"], config["include_logo"])
+    workloads = build_workloads(
+        paths, config["text_lengths"], config["image_sizes"], config["include_logo"], config["instruction"]
+    )
     for length, entry in workloads["texts"].items():
         print(f"  text {length:>5} tokens <- {entry['text']['raw_text_chars']} chars "
               f"(query: {entry['query']['raw_text_chars']} chars + instruction)")
@@ -443,11 +507,12 @@ def main() -> None:
     }
     for name in suites:
         print(f"\n=== suite: {name} ===")
-        report["suites"][name] = SUITES[name](config, workloads)
+        report["suites"][name] = SUITES[name](config, workloads, paths)
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
-    print(f"\nwrote {args.output}")
+    output = (args.output or paths.artifacts / "benchmark_matrix.json").expanduser().resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+    print(f"\nwrote {output}")
 
 
 if __name__ == "__main__":

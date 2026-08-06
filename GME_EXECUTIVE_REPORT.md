@@ -365,7 +365,6 @@ Python GPU image：
 - OpenVINO GenAI `TextEmbeddingPipeline` 不能直接加载当前 GME language IR；
 - `VLMPipeline`/`LLMPipeline` 面向生成模型，不提供 GME embedding contract；
 - Optimum CLI 可以导出 Qwen2-VL 生成模型，但输出是 logits/KV-cache，不是 GME 的 1536 维 embedding；
-- GGUF + llama.cpp 当前仅验证了文本，精度低于 OpenVINO INT8，且不覆盖图像路径。
 
 ---
 
@@ -410,13 +409,14 @@ INT4 仅在业务检索质量验证通过后作为 GPU 文本低延迟配置启�
 - `02_export.py`：FP32 IR 导出；
 - `03_finalize.py`：tokenizer IR 与量化；
 - `04_validate_python.py` / `05_validate_cpp.py`：精度验证；
-- `08_validate_batch.py`：batch 正确性；
-- `09_benchmark_matrix.py`：完整性能矩阵；
-- `10_retest_gpu_1024.py`：GPU 1024 长序列诊断。
+- `07_validate_batch.py`：batch 正确性；
+- `08_benchmark_matrix.py`：完整性能矩阵；
+- `09_retest_gpu_1024.py`：GPU 1024 长序列诊断。
 
 原始报告与数据：
 
-- [README.md](README.md)：完整技术说明与操作手册；
+- [README.md](README.md)：handoff 操作手册与 CLI 参数；
+- [GME_TECHNICAL_DETAILS.md](GME_TECHNICAL_DETAILS.md)：完整技术说明、兼容性结论与历史实测结果；
 - [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md)：完整性能矩阵与异常分析；
 - `artifacts/benchmark_matrix_latency_r20.json`；
 - `artifacts/benchmark_matrix_text_lengths_r20.json`；

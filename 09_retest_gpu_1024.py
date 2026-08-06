@@ -27,24 +27,28 @@ work exclusively inside it, the reproducible fixed point to benchmark is the
 steady-state regime -- so WARMUP below is deliberately large enough (per
 precision) to run past the transition before timing starts, for both backends.
 
-    source "${GME_OPENVINO_INSTALL:-../benchmark/openvino/install}/setupvars.sh"
-    ./env-ref/bin/python 10_retest_gpu_1024.py
+        ./env-ref/bin/python 09_retest_gpu_1024.py \
+            --openvino-install /path/to/openvino/install
 """
 from __future__ import annotations
 
+import argparse
 import json
 import re
+import shlex
 import statistics
 import subprocess
 import time
 from pathlib import Path
 
 from gme_openvino import GmeOpenVINO
-from gme_paths import ARTIFACTS as ART, CPP_BINARY as BIN, OPENVINO_SETUP as SETUP, PACKAGE as PKG
 
 HERE = Path(__file__).resolve().parent
-WORKLOAD_SOURCE = ART / "benchmark_matrix_text_lengths_r20.json"
-OUT_PATH = ART / "benchmark_gpu_1024_interleaved_retest.json"
+DEFAULT_PACKAGE = HERE / "ov_models" / "gme-qwen2-vl-2b-instruct-openvino"
+DEFAULT_ARTIFACTS = HERE / "artifacts"
+DEFAULT_WORKLOAD_SOURCE = DEFAULT_ARTIFACTS / "benchmark_matrix_text_lengths_r20.json"
+DEFAULT_CPP_BINARY = HERE / "cpp" / "build" / "gme_embed"
+DEFAULT_OPENVINO_INSTALL = HERE.parent / "benchmark" / "openvino" / "install"
 
 INSTRUCTION = "Find an image that matches the given text."
 
@@ -70,8 +74,8 @@ PLAN = [
 ]
 
 
-def load_workload() -> tuple[str, str]:
-    data = json.loads(WORKLOAD_SOURCE.read_text())
+def load_workload(workload_source: Path) -> tuple[str, str]:
+    data = json.loads(workload_source.read_text())
     entry = data["workloads"]["texts"]["1024"]
     return entry["text"]["raw_text"], entry["query"]["raw_text"]
 
@@ -85,7 +89,18 @@ def timed(call, repeat: int, warmup: int) -> float:
     return (time.perf_counter() - start) / repeat * 1000
 
 
-def cpp_session(text: str, precision: str, repeat: int, warmup: int, batch_mode: str | None) -> dict[str, float]:
+def cpp_session(
+    package: Path,
+    binary: Path,
+    setup: Path,
+    device: str,
+    instruction: str,
+    text: str,
+    precision: str,
+    repeat: int,
+    warmup: int,
+    batch_mode: str | None,
+) -> dict[str, float]:
     """One fresh subprocess: compiles the language+visual IR, then benches text and
     query modes back to back. Both modes reuse the same (text-calibrated) prompt
     string -- main.cpp's --benchmark-modes always feeds texts[0] to every mode -- so
@@ -95,14 +110,18 @@ def cpp_session(text: str, precision: str, repeat: int, warmup: int, batch_mode:
     1024-token reproduction), but it means this artifact's cpp "query" figure is not
     directly comparable token-for-token to PERFORMANCE_REPORT.md's table.
     """
-    args = ["--device", "GPU", "--precision", precision, "--benchmark",
+    args = ["--device", device, "--precision", precision, "--benchmark",
             "--benchmark-modes", "text,query", "--repeat", str(repeat),
-            "--warmup", str(warmup), "--instruction", f'"{INSTRUCTION}"']
+            "--warmup", str(warmup), "--instruction", instruction]
     if batch_mode:
         args += ["--batch-mode", batch_mode]
-    args.append(f'"{text}"')
-    command = (f'set +u; source "{SETUP}" >/dev/null 2>&1; "{BIN}" --package "{PKG}" ' + " ".join(args))
-    result = subprocess.run(["bash", "-c", command], capture_output=True, text=True, timeout=600)
+    args.append(text)
+    command = [str(binary), "--package", str(package), *args]
+    shell = (
+        f"set +u; source {shlex.quote(str(setup))} >/dev/null 2>&1; "
+        f"exec {shlex.join(command)}"
+    )
+    result = subprocess.run(["bash", "-c", shell], capture_output=True, text=True, timeout=600)
     rows: dict[str, float] = {}
     for match in re.finditer(
         r"mode=(\w+) batch=(\d+) streams=(\S+) batch_mode=(\S+) avg_ms=([\d.eE+-]+) ms_per_embedding=([\d.eE+-]+)",
@@ -114,14 +133,23 @@ def cpp_session(text: str, precision: str, repeat: int, warmup: int, batch_mode:
     return rows
 
 
-def python_session(text: str, query: str, precision: str, repeat: int, warmup: int,
-                    batch_mode: str | None) -> dict[str, float]:
-    encoder = GmeOpenVINO(PKG, device="GPU", precision=precision, batch_mode=batch_mode or "auto")
+def python_session(
+    package: Path,
+    device: str,
+    instruction: str,
+    text: str,
+    query: str,
+    precision: str,
+    repeat: int,
+    warmup: int,
+    batch_mode: str | None,
+) -> dict[str, float]:
+    encoder = GmeOpenVINO(package, device=device, precision=precision, batch_mode=batch_mode or "auto")
     return {
         "text": timed(lambda: encoder.get_text_embeddings(
             [text], is_query=False, show_progress_bar=False), repeat, warmup),
         "query": timed(lambda: encoder.get_text_embeddings(
-            [query], instruction=INSTRUCTION, show_progress_bar=False), repeat, warmup),
+            [query], instruction=instruction, show_progress_bar=False), repeat, warmup),
     }
 
 
@@ -144,7 +172,39 @@ def summarize(values: list[float]) -> dict[str, float]:
 
 
 def main() -> None:
-    text, query = load_workload()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--package", type=Path, default=DEFAULT_PACKAGE,
+                        help="exported OpenVINO package directory")
+    parser.add_argument("--artifacts", type=Path, default=DEFAULT_ARTIFACTS,
+                        help="directory for the default workload and output")
+    parser.add_argument("--workload-source", type=Path, default=DEFAULT_WORKLOAD_SOURCE,
+                        help="benchmark-matrix JSON containing the 1024-token workload")
+    parser.add_argument("--cpp-binary", type=Path, default=DEFAULT_CPP_BINARY,
+                        help="gme_embed executable")
+    parser.add_argument("--openvino-install", type=Path, default=DEFAULT_OPENVINO_INSTALL,
+                        help="OpenVINO installation containing setupvars.sh")
+    parser.add_argument("--device", default="GPU", help="device to retest (default: GPU)")
+    parser.add_argument("--instruction", default=INSTRUCTION, help="query instruction")
+    parser.add_argument("--output", type=Path,
+                        help="report path (default: <artifacts>/benchmark_gpu_1024_interleaved_retest.json)")
+    args = parser.parse_args()
+
+    package = args.package.expanduser().resolve()
+    artifacts = args.artifacts.expanduser().resolve()
+    workload_source = args.workload_source.expanduser().resolve()
+    binary = args.cpp_binary.expanduser().resolve()
+    setup = args.openvino_install.expanduser().resolve() / "setupvars.sh"
+    if not package.is_dir():
+        raise SystemExit(f"package directory not found: {package}")
+    if not workload_source.is_file():
+        raise SystemExit(f"workload source not found: {workload_source}")
+    if not binary.is_file():
+        raise SystemExit(f"C++ binary not found: {binary}")
+    if not setup.is_file():
+        raise SystemExit(f"OpenVINO setupvars.sh not found: {setup}")
+    artifacts.mkdir(parents=True, exist_ok=True)
+
+    text, query = load_workload(workload_source)
     sessions: list[dict] = []
     session_id = 0
     total_plan_sessions = sum(count for _, count, _, _ in PLAN)
@@ -158,9 +218,15 @@ def main() -> None:
                 session_id += 1
                 t0 = time.perf_counter()
                 if backend == "cpp":
-                    ms = cpp_session(text, precision, repeat, warmup, batch_mode)
+                    ms = cpp_session(
+                        package, binary, setup, args.device, args.instruction,
+                        text, precision, repeat, warmup, batch_mode,
+                    )
                 else:
-                    ms = python_session(text, query, precision, repeat, warmup, batch_mode)
+                    ms = python_session(
+                        package, args.device, args.instruction,
+                        text, query, precision, repeat, warmup, batch_mode,
+                    )
                 elapsed = time.perf_counter() - t0
                 sessions.append({
                     "session_id": session_id,
@@ -185,10 +251,12 @@ def main() -> None:
             for mode in ("text", "query"):
                 summary[f"{label}/{backend}/{mode}"] = summarize([row["ms_per_call"][mode] for row in rows])
 
-    OUT_PATH.write_text(json.dumps({
-        "device": "GPU",
+    output = (args.output or artifacts / "benchmark_gpu_1024_interleaved_retest.json").expanduser().resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps({
+        "device": args.device,
         "sequence_tokens": 1024,
-        "workload_source": str(WORKLOAD_SOURCE.relative_to(HERE)),
+        "workload_source": str(workload_source),
         "note": "Both backends are warmed up past the boost->steady-state GPU clock "
                 "transition (see module docstring) before timing starts, using "
                 "STEADY_WARMUP calls per precision -- this is what makes the two "
@@ -203,7 +271,7 @@ def main() -> None:
         "sessions": sessions,
         "summary": summary,
     }, indent=2))
-    print(f"wrote {OUT_PATH}")
+    print(f"wrote {output}")
 
 
 if __name__ == "__main__":

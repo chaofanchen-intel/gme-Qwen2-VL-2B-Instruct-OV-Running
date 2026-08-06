@@ -1,7 +1,7 @@
 {
   "device": "GPU",
   "sequence_tokens": 1024,
-  "workload_source": "artifacts/benchmark_matrix_text_lengths_r20.json",
+  "workload_source": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/artifacts/benchmark_matrix_fresh_r1.json",
   "note": "Both backends are warmed up past the boost->steady-state GPU clock transition (see module docstring) before timing starts, using STEADY_WARMUP calls per precision -- this is what makes the two backends comparable; a single warmup call (the previous methodology) left the measured regime up to chance. cpp sessions reuse the text-calibrated 1024-tok prompt for both text and query benches (main.cpp feeds one positional TEXT to every --benchmark-modes entry); python sessions use the separately-calibrated text/query prompts.",
   "steady_warmup": {
     "fp32": 3,
@@ -48,10 +48,10 @@
       "round": 0,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1619.63,
-        "query": 1766.03
+        "text": 1630.96,
+        "query": 1804.07
       },
-      "session_wall_seconds": 33.03
+      "session_wall_seconds": 35.92
     },
     {
       "session_id": 2,
@@ -62,10 +62,10 @@
       "round": 0,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1614.2815835191868,
-        "query": 1616.800700488966
+        "text": 1659.3131225090474,
+        "query": 1653.6231510108337
       },
-      "session_wall_seconds": 22.63
+      "session_wall_seconds": 35.38
     },
     {
       "session_id": 3,
@@ -76,10 +76,10 @@
       "round": 1,
       "repeat": 2,
       "ms_per_call": {
-        "text": 2978.23,
-        "query": 1775.98
+        "text": 1615.07,
+        "query": 1777.21
       },
-      "session_wall_seconds": 28.97
+      "session_wall_seconds": 29.71
     },
     {
       "session_id": 4,
@@ -90,10 +90,10 @@
       "round": 1,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1616.3816715124995,
-        "query": 1624.6586890192702
+        "text": 1621.7470549745485,
+        "query": 1619.9262129957788
       },
-      "session_wall_seconds": 22.46
+      "session_wall_seconds": 31.69
     },
     {
       "session_id": 5,
@@ -104,10 +104,10 @@
       "round": 2,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1616.38,
-        "query": 1774.96
+        "text": 1621.7,
+        "query": 1781.95
       },
-      "session_wall_seconds": 23.71
+      "session_wall_seconds": 28.73
     },
     {
       "session_id": 6,
@@ -118,10 +118,10 @@
       "round": 2,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1615.0563859846443,
-        "query": 1626.2324459967203
+        "text": 1621.8744494835846,
+        "query": 1630.4837790085003
       },
-      "session_wall_seconds": 22.27
+      "session_wall_seconds": 27.43
     },
     {
       "session_id": 7,
@@ -132,10 +132,10 @@
       "round": 3,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1614.86,
-        "query": 1776.69
+        "text": 1618.9,
+        "query": 1777.77
       },
-      "session_wall_seconds": 23.86
+      "session_wall_seconds": 29.06
     },
     {
       "session_id": 8,
@@ -146,10 +146,10 @@
       "round": 3,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1622.9120134958066,
-        "query": 1627.3159595148172
+        "text": 1619.6586595033295,
+        "query": 1631.553911487572
       },
-      "session_wall_seconds": 22.33
+      "session_wall_seconds": 27.42
     },
     {
       "session_id": 9,
@@ -160,10 +160,10 @@
       "round": 4,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1619.98,
-        "query": 1778.78
+        "text": 1621.73,
+        "query": 1782.97
       },
-      "session_wall_seconds": 23.65
+      "session_wall_seconds": 31.2
     },
     {
       "session_id": 10,
@@ -174,10 +174,10 @@
       "round": 4,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1629.4917819905095,
-        "query": 1627.7907415060326
+        "text": 1625.1945620169863,
+        "query": 1632.0936124539003
       },
-      "session_wall_seconds": 22.31
+      "session_wall_seconds": 27.39
     },
     {
       "session_id": 11,
@@ -188,10 +188,10 @@
       "round": 5,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1626.65,
-        "query": 1779.46
+        "text": 1617.47,
+        "query": 1799.62
       },
-      "session_wall_seconds": 23.54
+      "session_wall_seconds": 28.46
     },
     {
       "session_id": 12,
@@ -202,10 +202,10 @@
       "round": 5,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1630.8118460001424,
-        "query": 1625.1993099867832
+        "text": 1622.765498002991,
+        "query": 1628.7576870527118
       },
-      "session_wall_seconds": 22.41
+      "session_wall_seconds": 33.61
     },
     {
       "session_id": 13,
@@ -216,10 +216,10 @@
       "round": 6,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1625.42,
-        "query": 1770.14
+        "text": 1618.76,
+        "query": 1771.02
       },
-      "session_wall_seconds": 23.77
+      "session_wall_seconds": 28.39
     },
     {
       "session_id": 14,
@@ -230,10 +230,10 @@
       "round": 6,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1630.423887516372,
-        "query": 1624.6044705039822
+        "text": 1620.6905565341003,
+        "query": 1629.341182531789
       },
-      "session_wall_seconds": 22.33
+      "session_wall_seconds": 27.87
     },
     {
       "session_id": 15,
@@ -244,10 +244,10 @@
       "round": 7,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1626.34,
-        "query": 1775.54
+        "text": 1621.49,
+        "query": 1770.52
       },
-      "session_wall_seconds": 23.74
+      "session_wall_seconds": 28.3
     },
     {
       "session_id": 16,
@@ -258,10 +258,10 @@
       "round": 7,
       "repeat": 2,
       "ms_per_call": {
-        "text": 1629.792757506948,
-        "query": 1627.4766905116849
+        "text": 1619.1328860004432,
+        "query": 1631.5277245012112
       },
-      "session_wall_seconds": 22.35
+      "session_wall_seconds": 26.91
     },
     {
       "session_id": 17,
@@ -272,10 +272,10 @@
       "round": 0,
       "repeat": 5,
       "ms_per_call": {
-        "text": 290.413,
-        "query": 353.409
+        "text": 674.172,
+        "query": 354.515
       },
-      "session_wall_seconds": 18.59
+      "session_wall_seconds": 24.66
     },
     {
       "session_id": 18,
@@ -286,10 +286,10 @@
       "round": 0,
       "repeat": 5,
       "ms_per_call": {
-        "text": 294.78578359121457,
-        "query": 291.5888029965572
+        "text": 297.0905099995434,
+        "query": 297.8411661926657
       },
-      "session_wall_seconds": 14.24
+      "session_wall_seconds": 18.15
     },
     {
       "session_id": 19,
@@ -300,10 +300,10 @@
       "round": 1,
       "repeat": 5,
       "ms_per_call": {
-        "text": 520.514,
-        "query": 353.621
+        "text": 673.402,
+        "query": 356.369
       },
-      "session_wall_seconds": 19.46
+      "session_wall_seconds": 22.13
     },
     {
       "session_id": 20,
@@ -314,10 +314,10 @@
       "round": 1,
       "repeat": 5,
       "ms_per_call": {
-        "text": 292.8165749995969,
-        "query": 290.7347755972296
+        "text": 299.55458699259907,
+        "query": 301.6097371932119
       },
-      "session_wall_seconds": 14.2
+      "session_wall_seconds": 18.48
     },
     {
       "session_id": 21,
@@ -328,10 +328,10 @@
       "round": 2,
       "repeat": 5,
       "ms_per_call": {
-        "text": 473.345,
-        "query": 354.466
+        "text": 680.131,
+        "query": 355.19
       },
-      "session_wall_seconds": 17.13
+      "session_wall_seconds": 21.99
     },
     {
       "session_id": 22,
@@ -342,10 +342,10 @@
       "round": 2,
       "repeat": 5,
       "ms_per_call": {
-        "text": 291.3720678072423,
-        "query": 292.3808941966854
+        "text": 296.82550178840756,
+        "query": 304.2607272043824
       },
-      "session_wall_seconds": 14.1
+      "session_wall_seconds": 18.18
     },
     {
       "session_id": 23,
@@ -356,10 +356,10 @@
       "round": 3,
       "repeat": 5,
       "ms_per_call": {
-        "text": 467.517,
-        "query": 352.938
+        "text": 605.535,
+        "query": 360.369
       },
-      "session_wall_seconds": 17.18
+      "session_wall_seconds": 21.16
     },
     {
       "session_id": 24,
@@ -370,10 +370,10 @@
       "round": 3,
       "repeat": 5,
       "ms_per_call": {
-        "text": 292.71366141038015,
-        "query": 294.26426319405437
+        "text": 308.11523240990937,
+        "query": 299.3951899930835
       },
-      "session_wall_seconds": 14.21
+      "session_wall_seconds": 18.35
     },
     {
       "session_id": 25,
@@ -384,10 +384,10 @@
       "round": 4,
       "repeat": 5,
       "ms_per_call": {
-        "text": 370.501,
-        "query": 353.852
+        "text": 672.471,
+        "query": 355.359
       },
-      "session_wall_seconds": 18.64
+      "session_wall_seconds": 22.23
     },
     {
       "session_id": 26,
@@ -398,10 +398,10 @@
       "round": 4,
       "repeat": 5,
       "ms_per_call": {
-        "text": 293.8602254027501,
-        "query": 292.15064499294385
+        "text": 296.0240577813238,
+        "query": 297.7489141980186
       },
-      "session_wall_seconds": 14.2
+      "session_wall_seconds": 18.2
     },
     {
       "session_id": 27,
@@ -412,10 +412,10 @@
       "round": 5,
       "repeat": 5,
       "ms_per_call": {
-        "text": 428.146,
-        "query": 353.278
+        "text": 675.605,
+        "query": 363.984
       },
-      "session_wall_seconds": 17.38
+      "session_wall_seconds": 21.51
     },
     {
       "session_id": 28,
@@ -426,10 +426,10 @@
       "round": 5,
       "repeat": 5,
       "ms_per_call": {
-        "text": 292.09188040113077,
-        "query": 291.05275500332937
+        "text": 296.989064803347,
+        "query": 301.27173240762204
       },
-      "session_wall_seconds": 14.26
+      "session_wall_seconds": 18.35
     },
     {
       "session_id": 29,
@@ -440,10 +440,10 @@
       "round": 6,
       "repeat": 5,
       "ms_per_call": {
-        "text": 369.765,
-        "query": 353.775
+        "text": 677.466,
+        "query": 354.383
       },
-      "session_wall_seconds": 18.83
+      "session_wall_seconds": 22.38
     },
     {
       "session_id": 30,
@@ -454,10 +454,10 @@
       "round": 6,
       "repeat": 5,
       "ms_per_call": {
-        "text": 292.91031799511984,
-        "query": 293.70157279772684
+        "text": 297.5542556028813,
+        "query": 307.01110961381346
       },
-      "session_wall_seconds": 14.17
+      "session_wall_seconds": 18.2
     },
     {
       "session_id": 31,
@@ -468,10 +468,10 @@
       "round": 7,
       "repeat": 5,
       "ms_per_call": {
-        "text": 292.061,
-        "query": 352.607
+        "text": 674.141,
+        "query": 355.11
       },
-      "session_wall_seconds": 17.98
+      "session_wall_seconds": 22.11
     },
     {
       "session_id": 32,
@@ -482,10 +482,10 @@
       "round": 7,
       "repeat": 5,
       "ms_per_call": {
-        "text": 291.93670820677653,
-        "query": 292.8463016054593
+        "text": 295.9469406167045,
+        "query": 298.4378598164767
       },
-      "session_wall_seconds": 14.22
+      "session_wall_seconds": 18.1
     },
     {
       "session_id": 33,
@@ -496,10 +496,10 @@
       "round": 8,
       "repeat": 5,
       "ms_per_call": {
-        "text": 297.561,
-        "query": 354.223
+        "text": 675.053,
+        "query": 355.272
       },
-      "session_wall_seconds": 18.31
+      "session_wall_seconds": 22.86
     },
     {
       "session_id": 34,
@@ -510,10 +510,10 @@
       "round": 8,
       "repeat": 5,
       "ms_per_call": {
-        "text": 291.8653729953803,
-        "query": 291.4773697964847
+        "text": 297.3768897820264,
+        "query": 295.6050985958427
       },
-      "session_wall_seconds": 14.23
+      "session_wall_seconds": 18.15
     },
     {
       "session_id": 35,
@@ -524,10 +524,10 @@
       "round": 9,
       "repeat": 5,
       "ms_per_call": {
-        "text": 487.253,
-        "query": 352.928
+        "text": 674.262,
+        "query": 354.944
       },
-      "session_wall_seconds": 16.63
+      "session_wall_seconds": 22.12
     },
     {
       "session_id": 36,
@@ -538,10 +538,10 @@
       "round": 9,
       "repeat": 5,
       "ms_per_call": {
-        "text": 291.1940437974408,
-        "query": 291.0413922043517
+        "text": 297.1018076175824,
+        "query": 295.1166518032551
       },
-      "session_wall_seconds": 14.24
+      "session_wall_seconds": 18.14
     },
     {
       "session_id": 37,
@@ -552,10 +552,10 @@
       "round": 10,
       "repeat": 5,
       "ms_per_call": {
-        "text": 528.482,
-        "query": 354.016
+        "text": 673.408,
+        "query": 354.805
       },
-      "session_wall_seconds": 16.56
+      "session_wall_seconds": 23.53
     },
     {
       "session_id": 38,
@@ -566,10 +566,10 @@
       "round": 10,
       "repeat": 5,
       "ms_per_call": {
-        "text": 289.89071620162576,
-        "query": 291.1612360039726
+        "text": 298.7188046099618,
+        "query": 296.32625540252775
       },
-      "session_wall_seconds": 14.1
+      "session_wall_seconds": 18.16
     },
     {
       "session_id": 39,
@@ -580,10 +580,10 @@
       "round": 11,
       "repeat": 5,
       "ms_per_call": {
-        "text": 520.425,
-        "query": 352.4
+        "text": 674.281,
+        "query": 354.292
       },
-      "session_wall_seconds": 19.59
+      "session_wall_seconds": 22.07
     },
     {
       "session_id": 40,
@@ -594,10 +594,10 @@
       "round": 11,
       "repeat": 5,
       "ms_per_call": {
-        "text": 291.76849559880793,
-        "query": 290.7940797973424
+        "text": 296.80427978746593,
+        "query": 295.4411417944357
       },
-      "session_wall_seconds": 14.15
+      "session_wall_seconds": 18.04
     },
     {
       "session_id": 41,
@@ -608,10 +608,10 @@
       "round": 12,
       "repeat": 5,
       "ms_per_call": {
-        "text": 448.607,
-        "query": 353.0
+        "text": 674.516,
+        "query": 355.188
       },
-      "session_wall_seconds": 18.93
+      "session_wall_seconds": 23.55
     },
     {
       "session_id": 42,
@@ -622,10 +622,10 @@
       "round": 12,
       "repeat": 5,
       "ms_per_call": {
-        "text": 291.72830019379035,
-        "query": 292.4522686051205
+        "text": 297.96809621620923,
+        "query": 295.80268419813365
       },
-      "session_wall_seconds": 14.22
+      "session_wall_seconds": 18.07
     },
     {
       "session_id": 43,
@@ -636,10 +636,10 @@
       "round": 13,
       "repeat": 5,
       "ms_per_call": {
-        "text": 433.015,
-        "query": 352.753
+        "text": 674.745,
+        "query": 354.136
       },
-      "session_wall_seconds": 17.17
+      "session_wall_seconds": 22.86
     },
     {
       "session_id": 44,
@@ -650,10 +650,10 @@
       "round": 13,
       "repeat": 5,
       "ms_per_call": {
-        "text": 291.70673079788685,
-        "query": 290.28948380146176
+        "text": 295.56438378058374,
+        "query": 294.1712504019961
       },
-      "session_wall_seconds": 14.13
+      "session_wall_seconds": 17.98
     },
     {
       "session_id": 45,
@@ -664,10 +664,10 @@
       "round": 14,
       "repeat": 5,
       "ms_per_call": {
-        "text": 452.327,
-        "query": 353.416
+        "text": 674.25,
+        "query": 354.724
       },
-      "session_wall_seconds": 18.86
+      "session_wall_seconds": 22.59
     },
     {
       "session_id": 46,
@@ -678,10 +678,10 @@
       "round": 14,
       "repeat": 5,
       "ms_per_call": {
-        "text": 290.58154720114544,
-        "query": 292.9485316039063
+        "text": 295.01104201190174,
+        "query": 297.54014459904283
       },
-      "session_wall_seconds": 14.12
+      "session_wall_seconds": 18.01
     },
     {
       "session_id": 47,
@@ -692,10 +692,10 @@
       "round": 0,
       "repeat": 5,
       "ms_per_call": {
-        "text": 370.615,
-        "query": 345.241
+        "text": 506.457,
+        "query": 346.881
       },
-      "session_wall_seconds": 19.05
+      "session_wall_seconds": 25.26
     },
     {
       "session_id": 48,
@@ -706,10 +706,10 @@
       "round": 0,
       "repeat": 5,
       "ms_per_call": {
-        "text": 279.062270198483,
-        "query": 280.43157680658624
+        "text": 282.57841439917684,
+        "query": 283.74398900195956
       },
-      "session_wall_seconds": 15.31
+      "session_wall_seconds": 19.66
     },
     {
       "session_id": 49,
@@ -720,10 +720,10 @@
       "round": 1,
       "repeat": 5,
       "ms_per_call": {
-        "text": 278.992,
-        "query": 345.535
+        "text": 506.231,
+        "query": 346.999
       },
-      "session_wall_seconds": 18.95
+      "session_wall_seconds": 22.72
     },
     {
       "session_id": 50,
@@ -734,10 +734,10 @@
       "round": 1,
       "repeat": 5,
       "ms_per_call": {
-        "text": 279.87455119146034,
-        "query": 278.65939940093085
+        "text": 282.5395251857117,
+        "query": 283.75185299664736
       },
-      "session_wall_seconds": 15.18
+      "session_wall_seconds": 19.54
     },
     {
       "session_id": 51,
@@ -748,10 +748,10 @@
       "round": 2,
       "repeat": 5,
       "ms_per_call": {
-        "text": 418.639,
-        "query": 345.449
+        "text": 507.378,
+        "query": 345.835
       },
-      "session_wall_seconds": 19.28
+      "session_wall_seconds": 23.4
     },
     {
       "session_id": 52,
@@ -762,10 +762,10 @@
       "round": 2,
       "repeat": 5,
       "ms_per_call": {
-        "text": 277.57107639918104,
-        "query": 279.5965468045324
+        "text": 281.86141399201006,
+        "query": 282.5845911866054
       },
-      "session_wall_seconds": 15.2
+      "session_wall_seconds": 19.59
     },
     {
       "session_id": 53,
@@ -776,10 +776,10 @@
       "round": 3,
       "repeat": 5,
       "ms_per_call": {
-        "text": 276.275,
-        "query": 345.431
+        "text": 508.728,
+        "query": 346.263
       },
-      "session_wall_seconds": 18.93
+      "session_wall_seconds": 23.56
     },
     {
       "session_id": 54,
@@ -790,10 +790,10 @@
       "round": 3,
       "repeat": 5,
       "ms_per_call": {
-        "text": 278.9262316073291,
-        "query": 278.64195539150387
+        "text": 283.0984416184947,
+        "query": 283.5503439884633
       },
-      "session_wall_seconds": 15.18
+      "session_wall_seconds": 19.59
     },
     {
       "session_id": 55,
@@ -804,10 +804,10 @@
       "round": 4,
       "repeat": 5,
       "ms_per_call": {
-        "text": 278.687,
-        "query": 345.493
+        "text": 505.785,
+        "query": 345.609
       },
-      "session_wall_seconds": 18.81
+      "session_wall_seconds": 23.38
     },
     {
       "session_id": 56,
@@ -818,10 +818,10 @@
       "round": 4,
       "repeat": 5,
       "ms_per_call": {
-        "text": 280.1013504038565,
-        "query": 280.22999400272965
+        "text": 284.01572038419545,
+        "query": 282.38599619362503
       },
-      "session_wall_seconds": 15.21
+      "session_wall_seconds": 19.79
     },
     {
       "session_id": 57,
@@ -832,10 +832,10 @@
       "round": 5,
       "repeat": 5,
       "ms_per_call": {
-        "text": 324.569,
-        "query": 345.631
+        "text": 505.83,
+        "query": 346.936
       },
-      "session_wall_seconds": 18.78
+      "session_wall_seconds": 23.45
     },
     {
       "session_id": 58,
@@ -846,10 +846,10 @@
       "round": 5,
       "repeat": 5,
       "ms_per_call": {
-        "text": 278.98377520032227,
-        "query": 279.06273019034415
+        "text": 281.2505348119885,
+        "query": 283.0455709947273
       },
-      "session_wall_seconds": 15.3
+      "session_wall_seconds": 19.58
     },
     {
       "session_id": 59,
@@ -860,10 +860,10 @@
       "round": 6,
       "repeat": 5,
       "ms_per_call": {
-        "text": 314.282,
-        "query": 344.983
+        "text": 507.9,
+        "query": 345.945
       },
-      "session_wall_seconds": 18.12
+      "session_wall_seconds": 23.9
     },
     {
       "session_id": 60,
@@ -874,10 +874,10 @@
       "round": 6,
       "repeat": 5,
       "ms_per_call": {
-        "text": 281.05779939796776,
-        "query": 279.51425940264016
+        "text": 284.4283366110176,
+        "query": 282.0453678024933
       },
-      "session_wall_seconds": 15.21
+      "session_wall_seconds": 19.55
     },
     {
       "session_id": 61,
@@ -888,10 +888,10 @@
       "round": 7,
       "repeat": 5,
       "ms_per_call": {
-        "text": 362.378,
-        "query": 348.505
+        "text": 507.701,
+        "query": 345.529
       },
-      "session_wall_seconds": 18.38
+      "session_wall_seconds": 23.53
     },
     {
       "session_id": 62,
@@ -902,10 +902,10 @@
       "round": 7,
       "repeat": 5,
       "ms_per_call": {
-        "text": 277.4281115969643,
-        "query": 278.560953005217
+        "text": 286.12807421013713,
+        "query": 285.7673543971032
       },
-      "session_wall_seconds": 15.23
+      "session_wall_seconds": 19.83
     },
     {
       "session_id": 63,
@@ -916,10 +916,10 @@
       "round": 8,
       "repeat": 5,
       "ms_per_call": {
-        "text": 277.108,
-        "query": 345.965
+        "text": 508.093,
+        "query": 346.505
       },
-      "session_wall_seconds": 18.96
+      "session_wall_seconds": 23.77
     },
     {
       "session_id": 64,
@@ -930,10 +930,10 @@
       "round": 8,
       "repeat": 5,
       "ms_per_call": {
-        "text": 279.4103170046583,
-        "query": 277.82285840949044
+        "text": 282.88934701122344,
+        "query": 283.66741619538516
       },
-      "session_wall_seconds": 15.11
+      "session_wall_seconds": 19.74
     },
     {
       "session_id": 65,
@@ -944,10 +944,10 @@
       "round": 9,
       "repeat": 5,
       "ms_per_call": {
-        "text": 369.845,
-        "query": 345.378
+        "text": 507.179,
+        "query": 346.431
       },
-      "session_wall_seconds": 19.42
+      "session_wall_seconds": 24.08
     },
     {
       "session_id": 66,
@@ -958,10 +958,10 @@
       "round": 9,
       "repeat": 5,
       "ms_per_call": {
-        "text": 277.46329799992964,
-        "query": 279.01327919680625
+        "text": 282.7404849929735,
+        "query": 283.5720550036058
       },
-      "session_wall_seconds": 15.09
+      "session_wall_seconds": 19.67
     },
     {
       "session_id": 67,
@@ -972,10 +972,10 @@
       "round": 10,
       "repeat": 5,
       "ms_per_call": {
-        "text": 278.893,
-        "query": 345.708
+        "text": 511.037,
+        "query": 351.002
       },
-      "session_wall_seconds": 18.81
+      "session_wall_seconds": 23.83
     },
     {
       "session_id": 68,
@@ -986,10 +986,10 @@
       "round": 10,
       "repeat": 5,
       "ms_per_call": {
-        "text": 280.90689439559355,
-        "query": 279.7236420097761
+        "text": 293.3821192011237,
+        "query": 289.69131940975785
       },
-      "session_wall_seconds": 15.25
+      "session_wall_seconds": 20.5
     },
     {
       "session_id": 69,
@@ -1000,10 +1000,10 @@
       "round": 11,
       "repeat": 5,
       "ms_per_call": {
-        "text": 418.06,
-        "query": 344.813
+        "text": 418.081,
+        "query": 343.5
       },
-      "session_wall_seconds": 19.39
+      "session_wall_seconds": 22.15
     },
     {
       "session_id": 70,
@@ -1014,10 +1014,10 @@
       "round": 11,
       "repeat": 5,
       "ms_per_call": {
-        "text": 278.9335257955827,
-        "query": 278.1451798044145
+        "text": 283.19444600492716,
+        "query": 283.72225859202445
       },
-      "session_wall_seconds": 15.23
+      "session_wall_seconds": 19.69
     },
     {
       "session_id": 71,
@@ -1028,10 +1028,10 @@
       "round": 12,
       "repeat": 5,
       "ms_per_call": {
-        "text": 460.093,
-        "query": 345.972
+        "text": 506.624,
+        "query": 345.251
       },
-      "session_wall_seconds": 19.87
+      "session_wall_seconds": 23.72
     },
     {
       "session_id": 72,
@@ -1042,10 +1042,10 @@
       "round": 12,
       "repeat": 5,
       "ms_per_call": {
-        "text": 278.751186595764,
-        "query": 278.31402260344476
+        "text": 286.7731845937669,
+        "query": 286.637527984567
       },
-      "session_wall_seconds": 15.27
+      "session_wall_seconds": 19.84
     },
     {
       "session_id": 73,
@@ -1056,10 +1056,10 @@
       "round": 13,
       "repeat": 5,
       "ms_per_call": {
-        "text": 371.512,
-        "query": 345.412
+        "text": 507.416,
+        "query": 346.421
       },
-      "session_wall_seconds": 18.86
+      "session_wall_seconds": 23.73
     },
     {
       "session_id": 74,
@@ -1070,10 +1070,10 @@
       "round": 13,
       "repeat": 5,
       "ms_per_call": {
-        "text": 281.1864115996286,
-        "query": 281.56503620557487
+        "text": 282.90419678669423,
+        "query": 282.0103481877595
       },
-      "session_wall_seconds": 15.31
+      "session_wall_seconds": 19.81
     },
     {
       "session_id": 75,
@@ -1084,10 +1084,10 @@
       "round": 14,
       "repeat": 5,
       "ms_per_call": {
-        "text": 373.345,
-        "query": 345.616
+        "text": 513.179,
+        "query": 346.473
       },
-      "session_wall_seconds": 19.06
+      "session_wall_seconds": 24.16
     },
     {
       "session_id": 76,
@@ -1098,10 +1098,10 @@
       "round": 14,
       "repeat": 5,
       "ms_per_call": {
-        "text": 279.4951694086194,
-        "query": 279.60666939616203
+        "text": 284.4697630032897,
+        "query": 285.1827454054728
       },
-      "session_wall_seconds": 15.2
+      "session_wall_seconds": 20.06
     },
     {
       "session_id": 77,
@@ -1112,10 +1112,10 @@
       "round": 0,
       "repeat": 5,
       "ms_per_call": {
-        "text": 290.153,
-        "query": 352.195
+        "text": 678.883,
+        "query": 355.177
       },
-      "session_wall_seconds": 18.4
+      "session_wall_seconds": 23.13
     },
     {
       "session_id": 78,
@@ -1126,10 +1126,10 @@
       "round": 0,
       "repeat": 5,
       "ms_per_call": {
-        "text": 290.4752444010228,
-        "query": 290.9839359926991
+        "text": 293.86636298149824,
+        "query": 293.9010747941211
       },
-      "session_wall_seconds": 14.19
+      "session_wall_seconds": 18.05
     },
     {
       "session_id": 79,
@@ -1140,10 +1140,10 @@
       "round": 1,
       "repeat": 5,
       "ms_per_call": {
-        "text": 291.71,
-        "query": 354.184
+        "text": 673.146,
+        "query": 355.338
       },
-      "session_wall_seconds": 18.53
+      "session_wall_seconds": 23.3
     },
     {
       "session_id": 80,
@@ -1154,10 +1154,10 @@
       "round": 1,
       "repeat": 5,
       "ms_per_call": {
-        "text": 299.75191559642553,
-        "query": 299.3464980041608
+        "text": 299.23140921164304,
+        "query": 296.8570424010977
       },
-      "session_wall_seconds": 14.29
+      "session_wall_seconds": 18.21
     },
     {
       "session_id": 81,
@@ -1168,10 +1168,10 @@
       "round": 2,
       "repeat": 5,
       "ms_per_call": {
-        "text": 444.031,
-        "query": 353.793
+        "text": 673.954,
+        "query": 354.826
       },
-      "session_wall_seconds": 16.34
+      "session_wall_seconds": 23.05
     },
     {
       "session_id": 82,
@@ -1182,10 +1182,10 @@
       "round": 2,
       "repeat": 5,
       "ms_per_call": {
-        "text": 289.8457970004529,
-        "query": 290.3881166013889
+        "text": 294.2017496097833,
+        "query": 295.64166120253503
       },
-      "session_wall_seconds": 14.1
+      "session_wall_seconds": 18.07
     },
     {
       "session_id": 83,
@@ -1196,10 +1196,10 @@
       "round": 3,
       "repeat": 5,
       "ms_per_call": {
-        "text": 369.352,
-        "query": 353.481
+        "text": 674.304,
+        "query": 355.707
       },
-      "session_wall_seconds": 18.49
+      "session_wall_seconds": 21.56
     },
     {
       "session_id": 84,
@@ -1210,10 +1210,10 @@
       "round": 3,
       "repeat": 5,
       "ms_per_call": {
-        "text": 290.26037820149213,
-        "query": 290.78713100170717
+        "text": 294.3633371964097,
+        "query": 297.18355040531605
       },
-      "session_wall_seconds": 14.05
+      "session_wall_seconds": 18.13
     },
     {
       "session_id": 85,
@@ -1224,10 +1224,10 @@
       "round": 4,
       "repeat": 5,
       "ms_per_call": {
-        "text": 522.779,
-        "query": 353.99
+        "text": 598.403,
+        "query": 355.446
       },
-      "session_wall_seconds": 19.69
+      "session_wall_seconds": 21.46
     },
     {
       "session_id": 86,
@@ -1238,10 +1238,10 @@
       "round": 4,
       "repeat": 5,
       "ms_per_call": {
-        "text": 290.49498500535265,
-        "query": 289.99281220603734
+        "text": 295.12404140550643,
+        "query": 294.74223980214447
       },
-      "session_wall_seconds": 14.17
+      "session_wall_seconds": 18.0
     },
     {
       "session_id": 87,
@@ -1252,10 +1252,10 @@
       "round": 5,
       "repeat": 5,
       "ms_per_call": {
-        "text": 292.268,
-        "query": 354.538
+        "text": 673.514,
+        "query": 355.282
       },
-      "session_wall_seconds": 18.72
+      "session_wall_seconds": 22.83
     },
     {
       "session_id": 88,
@@ -1266,140 +1266,140 @@
       "round": 5,
       "repeat": 5,
       "ms_per_call": {
-        "text": 290.2213773922995,
-        "query": 289.77735999505967
+        "text": 293.97594779729843,
+        "query": 293.5862252023071
       },
-      "session_wall_seconds": 14.23
+      "session_wall_seconds": 18.11
     }
   ],
   "summary": {
     "fp32/cpp/text": {
       "n": 8,
-      "median": 1622.7,
-      "p10": 1616.38,
-      "p90": 1626.65,
-      "min": 1614.86,
-      "max": 2978.23
+      "median": 1620.2,
+      "p10": 1617.47,
+      "p90": 1621.73,
+      "min": 1615.07,
+      "max": 1630.96
     },
     "fp32/cpp/query": {
       "n": 8,
-      "median": 1775.76,
-      "p10": 1770.14,
-      "p90": 1778.78,
-      "min": 1766.03,
-      "max": 1779.46
+      "median": 1779.86,
+      "p10": 1771.02,
+      "p90": 1799.62,
+      "min": 1770.52,
+      "max": 1804.07
     },
     "fp32/python/text": {
       "n": 8,
-      "median": 1626.2,
-      "p10": 1615.06,
-      "p90": 1630.42,
-      "min": 1614.28,
-      "max": 1630.81
+      "median": 1621.81,
+      "p10": 1619.66,
+      "p90": 1625.19,
+      "min": 1619.13,
+      "max": 1659.31
     },
     "fp32/python/query": {
       "n": 8,
-      "median": 1625.72,
-      "p10": 1624.6,
-      "p90": 1627.48,
-      "min": 1616.8,
-      "max": 1627.79
+      "median": 1631.01,
+      "p10": 1628.76,
+      "p90": 1632.09,
+      "min": 1619.93,
+      "max": 1653.62
     },
     "int8/cpp/text": {
       "n": 15,
-      "median": 448.61,
-      "p10": 292.06,
-      "p90": 520.51,
-      "min": 290.41,
-      "max": 528.48
+      "median": 674.26,
+      "p10": 672.47,
+      "p90": 677.47,
+      "min": 605.53,
+      "max": 680.13
     },
     "int8/cpp/query": {
       "n": 15,
-      "median": 353.41,
-      "p10": 352.61,
-      "p90": 354.22,
-      "min": 352.4,
-      "max": 354.47
+      "median": 355.11,
+      "p10": 354.29,
+      "p90": 360.37,
+      "min": 354.14,
+      "max": 363.98
     },
     "int8/python/text": {
       "n": 15,
-      "median": 291.87,
-      "p10": 290.58,
-      "p90": 293.86,
-      "min": 289.89,
-      "max": 294.79
+      "median": 297.09,
+      "p10": 295.56,
+      "p90": 299.55,
+      "min": 295.01,
+      "max": 308.12
     },
     "int8/python/query": {
       "n": 15,
-      "median": 291.59,
-      "p10": 290.73,
-      "p90": 293.7,
-      "min": 290.29,
-      "max": 294.26
+      "median": 297.75,
+      "p10": 295.12,
+      "p90": 304.26,
+      "min": 294.17,
+      "max": 307.01
     },
     "int4/cpp/text": {
       "n": 15,
-      "median": 362.38,
-      "p10": 277.11,
-      "p90": 418.64,
-      "min": 276.27,
-      "max": 460.09
+      "median": 507.38,
+      "p10": 505.79,
+      "p90": 511.04,
+      "min": 418.08,
+      "max": 513.18
     },
     "int4/cpp/query": {
       "n": 15,
-      "median": 345.49,
-      "p10": 344.98,
-      "p90": 345.97,
-      "min": 344.81,
-      "max": 348.5
+      "median": 346.42,
+      "p10": 345.25,
+      "p90": 347.0,
+      "min": 343.5,
+      "max": 351.0
     },
     "int4/python/text": {
       "n": 15,
-      "median": 279.06,
-      "p10": 277.46,
-      "p90": 281.06,
-      "min": 277.43,
-      "max": 281.19
+      "median": 283.1,
+      "p10": 281.86,
+      "p90": 286.77,
+      "min": 281.25,
+      "max": 293.38
     },
     "int4/python/query": {
       "n": 15,
-      "median": 279.06,
-      "p10": 278.15,
-      "p90": 280.43,
-      "min": 277.82,
-      "max": 281.57
+      "median": 283.67,
+      "p10": 282.05,
+      "p90": 286.64,
+      "min": 282.01,
+      "max": 289.69
     },
     "int8+per_sample/cpp/text": {
       "n": 6,
-      "median": 330.81,
-      "p10": 290.15,
-      "p90": 444.03,
-      "min": 290.15,
-      "max": 522.78
+      "median": 673.73,
+      "p10": 598.4,
+      "p90": 674.3,
+      "min": 598.4,
+      "max": 678.88
     },
     "int8+per_sample/cpp/query": {
       "n": 6,
-      "median": 353.89,
-      "p10": 352.19,
-      "p90": 354.18,
-      "min": 352.19,
-      "max": 354.54
+      "median": 355.31,
+      "p10": 354.83,
+      "p90": 355.45,
+      "min": 354.83,
+      "max": 355.71
     },
     "int8+per_sample/python/text": {
       "n": 6,
-      "median": 290.37,
-      "p10": 289.85,
-      "p90": 290.49,
-      "min": 289.85,
-      "max": 299.75
+      "median": 294.28,
+      "p10": 293.87,
+      "p90": 295.12,
+      "min": 293.87,
+      "max": 299.23
     },
     "int8+per_sample/python/query": {
       "n": 6,
-      "median": 290.59,
-      "p10": 289.78,
-      "p90": 290.98,
-      "min": 289.78,
-      "max": 299.35
+      "median": 295.19,
+      "p10": 293.59,
+      "p90": 296.86,
+      "min": 293.59,
+      "max": 297.18
     }
   }
 }

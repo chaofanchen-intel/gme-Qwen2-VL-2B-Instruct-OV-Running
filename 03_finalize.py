@@ -26,6 +26,7 @@ inputs -- it is not a no-op skip.
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -34,19 +35,24 @@ import numpy as np
 import openvino as ov
 import nncf
 from transformers import AutoTokenizer
-from gme_paths import ARTIFACTS as ART, PACKAGE, SOURCE_MODEL
 
 HERE = Path(__file__).resolve().parent
-# compress()'s staleness fingerprint per output file (see compress()).
-FINGERPRINTS_PATH = PACKAGE / "nncf_fingerprints.json"
+DEFAULT_SOURCE_MODEL = HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct"
+DEFAULT_PACKAGE = HERE / "ov_models" / "gme-qwen2-vl-2b-instruct-openvino"
+DEFAULT_ARTIFACTS = HERE / "artifacts"
 
 
 # ---------------------------------------------------------------- tokenizer
-def convert_and_check_tokenizer(max_length: int) -> None:
+def convert_and_check_tokenizer(
+    source_model: Path,
+    package: Path,
+    artifacts: Path,
+    max_length: int,
+) -> None:
     from openvino_tokenizers import convert_tokenizer
 
-    out = PACKAGE / "openvino_tokenizer.xml"
-    tok = AutoTokenizer.from_pretrained(str(SOURCE_MODEL))
+    out = package / "openvino_tokenizer.xml"
+    tok = AutoTokenizer.from_pretrained(str(source_model))
     tok.padding_side = "right"  # GME pools the last valid token -> must right-pad
     # max_length bakes GME's truncation into the IR. Without it the C++ runtime would
     # happily tokenize past 1800 tokens while Python (HF `truncation=True`) and the
@@ -58,7 +64,7 @@ def convert_and_check_tokenizer(max_length: int) -> None:
     print(f"[tok] saved {out.name} (truncating at max_length={max_length})")
 
     # bit-exact check against the golden HF tokenization
-    meta = json.loads((ART / "golden_meta.json").read_text())
+    meta = json.loads((artifacts / "golden_meta.json").read_text())
     prompts = meta["templated_text_default"]
     gold_ids = meta["input_ids"]
     gold_mask = meta["attention_mask"]
@@ -190,7 +196,7 @@ def _prompt(text: str, instruction: str | None) -> str:
     )
 
 
-def _calibration_dataset(max_length: int, embedding_dim: int) -> "nncf.Dataset":
+def _calibration_dataset(source_model: Path, max_length: int, embedding_dim: int) -> "nncf.Dataset":
     """Build the nncf.Dataset used to calibrate the language IR's INT4 variants.
 
     Each item is tokenized independently (its own [1, S] shape), matching how the
@@ -198,7 +204,7 @@ def _calibration_dataset(max_length: int, embedding_dim: int) -> "nncf.Dataset":
     of real sequence lengths rather than one padded shape. image_embeds is the same
     empty [0, dim] tensor text-only inference uses -- see _language_embedding.
     """
-    tok = AutoTokenizer.from_pretrained(str(SOURCE_MODEL))
+    tok = AutoTokenizer.from_pretrained(str(source_model))
     tok.padding_side = "right"
     prompts = [_prompt(text, instruction) for text, instruction in _CALIBRATION_TEXTS]
 
@@ -240,23 +246,24 @@ def _fingerprint(src_xml: Path, kw: dict) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def _read_fingerprints() -> dict:
-    if FINGERPRINTS_PATH.exists():
-        return json.loads(FINGERPRINTS_PATH.read_text())
+def _read_fingerprints(path: Path) -> dict:
+    if path.exists():
+        return json.loads(path.read_text())
     return {}
 
 
-def _write_fingerprint(name: str, fingerprint: str) -> None:
-    fingerprints = _read_fingerprints()
+def _write_fingerprint(path: Path, name: str, fingerprint: str) -> None:
+    fingerprints = _read_fingerprints(path)
     fingerprints[name] = fingerprint
-    FINGERPRINTS_PATH.write_text(json.dumps(fingerprints, indent=2) + "\n")
+    path.write_text(json.dumps(fingerprints, indent=2) + "\n")
 
 
-def compress(src_xml: Path, dst_xml: Path, **kw) -> float:
+def compress(src_xml: Path, dst_xml: Path, fingerprints_path: Path, force: bool = False, **kw) -> float:
     fingerprint = _fingerprint(src_xml, kw)
     if dst_xml.exists():
-        size = dst_xml.with_suffix(".bin").stat().st_size / 1e6
-        if _read_fingerprints().get(dst_xml.name) == fingerprint:
+        binary = dst_xml.with_suffix(".bin")
+        size = binary.stat().st_size / 1e6 if binary.exists() else 0
+        if not force and binary.exists() and _read_fingerprints(fingerprints_path).get(dst_xml.name) == fingerprint:
             print(f"[nncf] {dst_xml.name} exists ({size:.0f} MB), config unchanged, skip")
             return size
         # Existing file's compression config no longer matches this call -- e.g. a
@@ -270,7 +277,7 @@ def compress(src_xml: Path, dst_xml: Path, **kw) -> float:
     comp = nncf.compress_weights(model, **kw)
     ov.save_model(comp, str(dst_xml))
     size = dst_xml.with_suffix(".bin").stat().st_size / 1e6
-    _write_fingerprint(dst_xml.name, fingerprint)
+    _write_fingerprint(fingerprints_path, dst_xml.name, fingerprint)
     # nncf.Dataset's default repr is a bare memory address; swap in something
     # readable for the log line (the fingerprint above already covers correctness).
     logged_kw = dict(kw)
@@ -281,22 +288,47 @@ def compress(src_xml: Path, dst_xml: Path, **kw) -> float:
 
 
 def main() -> None:
-    if not (PACKAGE / "gme_language_fp32.xml").exists():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source-model", type=Path, default=DEFAULT_SOURCE_MODEL,
+                        help="directory containing the GME checkpoint")
+    parser.add_argument("--package", type=Path, default=DEFAULT_PACKAGE,
+                        help="exported package directory containing the FP32 IRs")
+    parser.add_argument("--artifacts", type=Path, default=DEFAULT_ARTIFACTS,
+                        help="directory containing golden_meta.json")
+    parser.add_argument("--max-length", type=int,
+                        help="tokenizer truncation limit (default: value in package config)")
+    parser.add_argument("--force", action="store_true",
+                        help="recompress existing artifacts even when their fingerprint matches")
+    args = parser.parse_args()
+
+    source_model = args.source_model.expanduser().resolve()
+    package = args.package.expanduser().resolve()
+    artifacts = args.artifacts.expanduser().resolve()
+    if not source_model.is_dir():
+        raise SystemExit(f"source model directory not found: {source_model}")
+    if not package.is_dir():
+        raise SystemExit(f"package directory not found: {package}")
+    if not artifacts.is_dir():
+        raise SystemExit(f"artifacts directory not found: {artifacts}")
+    if not (package / "gme_language_fp32.xml").exists():
         raise SystemExit("run 02_export.py first (FP32 IRs missing)")
 
-    cfg_path = PACKAGE / "gme_openvino_config.json"
+    cfg_path = package / "gme_openvino_config.json"
     package_config = json.loads(cfg_path.read_text())
-    max_length = package_config["processor"]["max_length"]
+    max_length = package_config["processor"]["max_length"] if args.max_length is None else args.max_length
+    if max_length < 1:
+        raise SystemExit("--max-length must be positive")
     embedding_dim = int(package_config["embedding_dim"])
-    convert_and_check_tokenizer(max_length)
+    fingerprints_path = package / "nncf_fingerprints.json"
+    convert_and_check_tokenizer(source_model, package, artifacts, max_length)
 
     from nncf.quantization.advanced_parameters import (
         AdvancedCompressionParameters,
         GroupSizeFallbackMode,
     )
 
-    lang_fp32 = PACKAGE / "gme_language_fp32.xml"
-    vis_fp32 = PACKAGE / "gme_visual_fp32.xml"
+    lang_fp32 = package / "gme_language_fp32.xml"
+    vis_fp32 = package / "gme_visual_fp32.xml"
 
     # CRITICAL for the vision tower: exclude the ViT rotary-embedding constant
     # (`rotary_pos_emb` inv_freq, an aten::outer MatMul). Quantizing it corrupts the
@@ -310,30 +342,32 @@ def main() -> None:
     vis_int4_adv = AdvancedCompressionParameters(group_size_fallback_mode=GroupSizeFallbackMode.ADJUST)
 
     # INT8 (near-lossless for embeddings): both towers.
-    compress(lang_fp32, PACKAGE / "gme_language_int8.xml", mode=nncf.CompressWeightsMode.INT8_ASYM)
-    compress(vis_fp32, PACKAGE / "gme_visual_int8.xml",
+    compress(lang_fp32, package / "gme_language_int8.xml", fingerprints_path, args.force,
+             mode=nncf.CompressWeightsMode.INT8_ASYM)
+    compress(vis_fp32, package / "gme_visual_int8.xml", fingerprints_path, args.force,
              mode=nncf.CompressWeightsMode.INT8_ASYM, ignored_scope=vis_ignore)
 
     # INT4 language (default gs128) and accuracy-recovered (gs64): data-aware, see
     # _calibration_dataset for why -- plain (data-free) INT4 hurts text embeddings
     # noticeably more than image/fused.
-    lang_calibration = _calibration_dataset(max_length, embedding_dim)
-    compress(lang_fp32, PACKAGE / "gme_language_int4.xml",
+    lang_calibration = _calibration_dataset(source_model, max_length, embedding_dim)
+    compress(lang_fp32, package / "gme_language_int4.xml", fingerprints_path, args.force,
              mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=128, ratio=1.0,
              dataset=lang_calibration, awq=True, scale_estimation=True,
              subset_size=len(_CALIBRATION_TEXTS))
-    compress(lang_fp32, PACKAGE / "gme_language_int4_gs64.xml",
+    compress(lang_fp32, package / "gme_language_int4_gs64.xml", fingerprints_path, args.force,
              mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=64, ratio=1.0,
              dataset=lang_calibration, awq=True, scale_estimation=True,
              subset_size=len(_CALIBRATION_TEXTS))
     # INT4 vision (rotary excluded), so a fully-INT4 package exists. Left data-free:
     # measured accuracy shows the vision tower does not have the text tower's INT4
     # degradation (see _calibration_dataset), so there is nothing here to recover.
-    compress(vis_fp32, PACKAGE / "gme_visual_int4.xml",
+    compress(vis_fp32, package / "gme_visual_int4.xml", fingerprints_path, args.force,
              mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=128, ratio=1.0,
              ignored_scope=vis_ignore, advanced_parameters=vis_int4_adv)
 
     cfg = json.loads(cfg_path.read_text())
+    cfg["processor"]["max_length"] = max_length
     cfg["tokenizer_model"] = "openvino_tokenizer.xml"
     cfg["precisions"] = {
         "fp32": {"language": "gme_language_fp32.xml", "visual": "gme_visual_fp32.xml"},

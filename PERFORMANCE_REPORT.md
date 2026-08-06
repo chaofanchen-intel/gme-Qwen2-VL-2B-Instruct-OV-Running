@@ -1,17 +1,17 @@
 # GME-Qwen2-VL-2B-Instruct OpenVINO 性能测试报告
 
-**状态：已完成实测（2026-08-03）。** 所有时延数据均来自 `09_benchmark_matrix.py` 的 `repeat=20` 结果；
-原始 JSON 保存在 `artifacts/benchmark_matrix_*_r20*.json`。**不要**引用 README §6.4/§6.5 的旧数值来填本表：
+**状态：已完成实测（2026-08-03）。** 所有时延数据均来自 `08_benchmark_matrix.py` 的 `repeat=20` 结果；
+原始 JSON 保存在 `artifacts/benchmark_matrix_*_r20*.json`。**不要**引用 `GME_TECHNICAL_DETAILS.md` §9.1/§9.2 的历史数值来填本表：
 那些是另一套 workload（`gme_logo.png` + 27 token 短句），与本报告的常见尺寸/长文本口径不可比。
 
-本报告与 README §6.4–6.6 的关系：README 记录**固定参考 workload** 的历史结果（用于回归对比）；本报告覆盖
+本报告与 `GME_TECHNICAL_DETAILS.md` §9.1–§9.3 的关系：技术说明记录**固定参考 workload** 的历史结果（用于回归对比）；本报告覆盖
 **部署选型真正需要的维度**——指定 token 长度的文本、常见分辨率的图片、以及 batch 扩展性。
 
 ---
 
 ## 1. 为什么需要这份报告
 
-README §6.4 的 image/fused 时延全部基于仓库自带的 `gme_logo.png`。该文件是 `5164x600` 的超宽横幅，
+历史技术说明 §9.1 的 image/fused 时延全部基于仓库自带的 `gme_logo.png`。该文件是 `5164x600` 的超宽横幅，
 经 Qwen2-VL processor 后得到 `grid=[1,24,210]`、**1260 个视觉 token**，逼近 GME 配置上限 `max_image_tokens=1280`。
 视觉注意力随 patch 数约二次增长，因此它测的是**最坏情况**，不能作为常规图片的服务时延依据。
 
@@ -20,7 +20,7 @@ README §6.4 的 image/fused 时延全部基于仓库自带的 `gme_logo.png`。
 | 图片 | 视觉 token | image 时延（量级） |
 | --- | ---: | ---: |
 | `448x448`（本报告基准尺寸） | 256 | ~0.55 s |
-| `gme_logo.png`（README §6.4） | 1260 | ~5.2 s |
+| `gme_logo.png`（技术说明 §9.1） | 1260 | ~5.2 s |
 
 约 **9x** 差距。同理，README 的 text 基准是 27 token 的短句，而检索场景常见的 512/1024 token 文本会显著更慢。
 
@@ -52,12 +52,12 @@ README §6.4 的 image/fused 时延全部基于仓库自带的 `gme_logo.png`。
   每个单元格先跑 1 次 warmup，再取 `--repeat` 次的平均值。
 - **两个数字**：`ms/call` 是调用方实际等待的时间；`ms/emb` = `ms/call ÷ N`，是跨 batch 比较**唯一**有意义的指标。
   表格中记为 `ms/call (ms/emb)`。
-- **`--repeat` 要求**：探索用 5；**任何写入本报告的数字用 ≥20**。README §6.5 已记录一次反例：
+- **`--repeat` 要求**：探索用 5；**任何写入本报告的数字用 ≥20**。技术说明 §9.2 已记录一次反例：
   C++ CPU INT8 在 256 token 上 `repeat=5` 得到 `920 / 668 ms` 的虚假差异，`repeat=20` 复测为 `669 / 669 ms`。
 - **序列长度的定义**：`sequence_tokens` 是 **GME 模板展开后的有效未 padding token 数**，包含 system/user/assistant
   模板、`<|endoftext|>`，以及 image/fused 模式下展开的 K 个 image-pad token。它不是原始字符串长度，也不是裸文本 token 数。
 - **图片尺寸的定义**：见 §4.2。视觉 token 数 `K = grid_h * grid_w / 4`，是图像时延的主导变量，**不是**像素数。
-- 本报告只测时延/吞吐。精度归 `04_validate_python.py` / `05_validate_cpp.py`，batch 正确性归 `08_validate_batch.py`；
+- 本报告只测时延/吞吐。精度归 `04_validate_python.py` / `05_validate_cpp.py`，batch 正确性归 `07_validate_batch.py`；
   **不要**用性能结论替代精度结论。
 
 ---
@@ -66,7 +66,7 @@ README §6.4 的 image/fused 时延全部基于仓库自带的 `gme_logo.png`。
 
 ### 4.1 text / query
 
-`09_benchmark_matrix.py` 用实际 tokenizer 反复构造 ASCII filler 并**校验**最终 token 数精确命中目标：
+`08_benchmark_matrix.py` 用实际 tokenizer 反复构造 ASCII filler 并**校验**最终 token 数精确命中目标：
 
 | 目标 sequence_tokens | text filler 字符数 | query filler 字符数 | query instruction |
 | ---: | ---: | ---: | --- |
@@ -76,7 +76,7 @@ README §6.4 的 image/fused 时延全部基于仓库自带的 `gme_logo.png`。
 | 1024 | 2007 | 2001 | 同上 |
 
 `query` 的 filler 比 `text` 短，是因为 instruction 本身占掉了 system 段的 token；两者的**最终**长度都精确等于目标值。
-包内 `max_length=1800`，因此 1024 是留有余量的最大整齐档位；超过 1800 的输入会被截断（两端一致，见 README §2.0.5）。
+包内 `max_length=1800`，因此 1024 是留有余量的最大整齐档位；超过 1800 的输入会被截断（两端一致，见 `GME_TECHNICAL_DETAILS.md` §4.4）。
 
 ### 4.2 image / fused
 
@@ -91,7 +91,7 @@ README §6.4 的 image/fused 时延全部基于仓库自带的 `gme_logo.png`。
 | `672x672` | 672x672 | `[1,48,48]` | 2304 | 576 | 598 | 610 | 中等 |
 | `896x896` | 896x896 | `[1,64,64]` | 4096 | 1024 | 1046 | 1058 | 大图 |
 | `1288x728` | 1288x728 | `[1,52,92]` | 4784 | 1196 | 1218 | 1230 | 720p 量级 |
-| `gme_logo.png` | 5152x588 | `[1,24,210]` | 5040 | 1260 | 1282 | 1294 | README §6.4 的最坏情况（`--include-logo` 才测） |
+| `gme_logo.png` | 5152x588 | `[1,24,210]` | 5040 | 1260 | 1282 | 1294 | 技术说明 §9.1 的最坏情况（`--include-logo` 才测） |
 
 > ⚠️ `448x448` 是硬下界。任何 ≤448x448 的输入（`224x224`、`336x336` 等）都会被 processor 放大到 256 视觉 token，
 > 时延与 `448x448` 相同。**不要**在报告里为它们单独开行，否则会让读者误以为小图更便宜。
@@ -108,7 +108,7 @@ README §6.4 的 image/fused 时延全部基于仓库自带的 `gme_logo.png`。
 
 本报告使用 `N ∈ {1,2,4,8,16,32}` 测 text，使用 `N ∈ {1,2,4,8}` 测 image。
 batch 内样本内容相同，这是有意的：唯一的自变量是**一次调用携带多少条样本**，而不是 ragged 程度。
-ragged 输入的正确性由 `08_validate_batch.py` 覆盖。
+ragged 输入的正确性由 `07_validate_batch.py` 覆盖。
 
 #### N 到底表示什么
 
@@ -197,24 +197,24 @@ source ../benchmark/openvino/install/setupvars.sh
 cd gme-Qwen2-VL-2B-Instruct-Running
 
 # 表 6.1 基准时延（4 模式 × 3 精度 × 2 设备 × 2 后端，N=1）
-./env-ref/bin/python 09_benchmark_matrix.py --suite latency --repeat 20
+./env-ref/bin/python 08_benchmark_matrix.py --suite latency --repeat 20
 
 # 表 6.2 文本长度扫描（32/128/512/1024 token）
-./env-ref/bin/python 09_benchmark_matrix.py --suite text-lengths --repeat 20
+./env-ref/bin/python 08_benchmark_matrix.py --suite text-lengths --repeat 20
 
 # 表 6.3 图片尺寸扫描（本报告实际同时测 int8/int4，并包含 logo）
-./env-ref/bin/python 09_benchmark_matrix.py --suite image-sizes --repeat 20 \
+./env-ref/bin/python 08_benchmark_matrix.py --suite image-sizes --repeat 20 \
   --precisions int8,int4 --include-logo --output artifacts/benchmark_matrix_image_sizes_r20_int8_int4.json
 
 # 表 6.4/6.5 batch 扩展性（分别执行 int8 和 int4；这是最耗时的一档）
-./env-ref/bin/python 09_benchmark_matrix.py --suite batch --batch-precision int8 --repeat 20 \
+./env-ref/bin/python 08_benchmark_matrix.py --suite batch --batch-precision int8 --repeat 20 \
   --output artifacts/benchmark_matrix_batch_r20_int8.json
-./env-ref/bin/python 09_benchmark_matrix.py --suite batch --batch-precision int4 --repeat 20 \
+./env-ref/bin/python 08_benchmark_matrix.py --suite batch --batch-precision int4 --repeat 20 \
   --output artifacts/benchmark_matrix_batch_r20_int4.json
 
 # 全量（耗时最长，建议限内存并分设备跑）
 systemd-run --user --scope -p MemoryMax=20G -p MemorySwapMax=0 \
-  ./env-ref/bin/python 09_benchmark_matrix.py --repeat 20
+  ./env-ref/bin/python 08_benchmark_matrix.py --repeat 20
 ```
 
 **先估算耗时。** FP32 + 大图在 CPU 上单次调用可达数十秒，乘以 `--repeat 20` 与 batch N 会迅速失控。建议：
@@ -275,7 +275,7 @@ GPU int8/int4 的 C++ 数字**不是一个稳定单值**，只是一个跨越很
 
 最早那次单次数据（574.4/612.9 对 292.9/294.3 等）已知不可靠。第一轮交替复测（15-20 轮、无额外 warmup）
 怀疑是"进程生命周期导致 GPU 频率漂移"，据此给 C++/Python 两套 benchmark harness 都加了可配置的 `--warmup N`
-（C++ 见 `cpp/src/main.cpp` 的 `bench()`，Python 见 `10_retest_gpu_1024.py::timed()`），指望"多跑几次预热"能把
+（C++ 见 `cpp/src/main.cpp` 的 `bench()`，Python 见 `09_retest_gpu_1024.py::timed()`），指望"多跑几次预热"能把
 结果收敛到一个稳定值。**加大 warmup 之后重新测了一遍，结果证明这个直觉是错的**：warmup 深度和结果之间不是单调
 关系——同一台机器、同一个精度、只改 warmup 次数，1 次 warmup 有时给出 415ms，6 次给出 287ms，16 次给出
 674ms；反过来固定 warmup=1 连续起 6 个全新进程，稳定给出 ~287-291ms，固定 warmup=12 连续起 6 个全新进程，
@@ -453,7 +453,7 @@ image（`448x448`，N ∈ 1,2,4,8）：
 | int4 | CPU | per_sample | auto | 8 | 225.8 | 221.9 | 0.98 |
 | int4 | GPU | padded | 1 | 8 | 32.5 | 32.2 | 0.99 |
 
-两端使用同一批 IR，text 路径数值 bit-exact（`08_validate_batch.py` §E）。实测 text 时延比值为 0.98–1.01，
+两端使用同一批 IR，text 路径数值 bit-exact（`07_validate_batch.py` §E）。实测 text 时延比值为 0.98–1.01，
 说明 Python/C++ 的 batch 编排开销接近；image 路径不作为 bit-exact 时延验收，因为 C++ 使用 OpenCV、
 Python 使用 Pillow，图像预处理路径本身不同。
 
@@ -473,14 +473,14 @@ Python 使用 Pillow，图像预处理路径本身不同。
   GPU text/image 使用 `padded`，text 优先 N=8–16，image 优先 N=4–8。
 - [x] int4 在 GPU 上 text 更快、CPU 上通常比 int8 慢；正式部署仍须结合业务 Recall@K/nDCG，而不是只按时延选精度。
 
-本节 batch 扫描未改变 `gme_openvino.py` / `gme_qwen2vl.hpp` 的 `auto` 分支；README §6.6 的历史结论与本次
+本节 batch 扫描未改变 `gme_openvino.py` / `gme_qwen2vl.hpp` 的 `auto` 分支；技术说明 §9.3 的历史结论与本次
 完整矩阵一致，但本报告中的数字应优先作为当前 workload 的选型依据。
 
 ---
 
 ## 7. 已知陷阱
 
-1. **不要把本报告数字与 README §6.4/§6.5 混表**：workload 不同（常见尺寸 vs logo、指定长度 vs 27 token 短句）。
+1. **不要把本报告数字与 `GME_TECHNICAL_DETAILS.md` §9.1/§9.2 混表**：workload 不同（常见尺寸 vs logo、指定长度 vs 27 token 短句）。
 2. **`--repeat 5` 不足以支撑结论**（§3 有实测反例）。
 3. **小图不会更快**：≤`448x448` 一律是 256 视觉 token（§4.2）。
 4. **`ms/call` 不能用来比较不同 N**，只有 `ms/emb` 可以。
