@@ -1,0 +1,11 @@
+Loading int8 on GPU
+Benchmark int8/page_text: 14 items
+Benchmark int8/text_chunk_256: 14 items
+Benchmark int8/page_image_150: 14 items
+Benchmark int8/page_fused_150: 14 items
+Loading int4 on GPU
+Benchmark int4/page_text: 14 items
+Benchmark int4/text_chunk_256: 14 items
+Benchmark int4/page_image_150: 14 items
+Benchmark int4/page_fused_150: 14 items
+Wrote /home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/document_embedding_eval_int8_int4_gpu/results/benchmark.json
