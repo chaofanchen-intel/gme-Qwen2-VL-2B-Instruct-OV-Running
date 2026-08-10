@@ -7,6 +7,17 @@
 本报告与 `GME_TECHNICAL_DETAILS.md` §9.1–§9.3 的关系：技术说明记录**固定参考 workload** 的历史结果（用于回归对比）；本报告覆盖
 **部署选型真正需要的维度**——指定 token 长度的文本、常见分辨率的图片、以及 batch 扩展性。
 
+## PA / SDPA backend 适用性
+
+GME-Qwen2-VL-2B-Instruct 的 OpenVINO runtime 是本目录的 `gme_openvino.py`，直接
+`compile_model()` 已导出的 language/visual IR；它不创建 GenAI `VLMPipeline`，也不
+创建 continuous-batching/PagedAttention adapter。GME language IR 含
+`ScaledDotProductAttention`，不含 `PagedAttentionExtension`，所以不存在像 Qwen3.5
+生成模型那样的 `ATTENTION_BACKEND=PA/SDPA` 选择，也没有“缺失 backend”可补测。
+
+GME 与 Qwen3-VL-Embedding-2B 的详细源码调用链、IR 证据和结论见
+[GME_Qwen3VL_Embedding_PA_SDPA_调查.md](./GME_Qwen3VL_Embedding_PA_SDPA_调查.md)。
+
 ---
 
 ## 1. 为什么需要这份报告

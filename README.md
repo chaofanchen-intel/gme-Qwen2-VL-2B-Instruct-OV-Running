@@ -2,6 +2,9 @@
 
 这个目录提供一个可移交的 GME embedding 工作流：从官方 PyTorch 参考向量开始，导出 OpenVINO FP32 IR，生成 tokenizer 和量化模型包，再分别用 Python 与 C++ 运行时做精度、批量和性能验证。
 
+关于 GME 是否支持 Qwen3.5 风格的 PA/SDPA backend 切换，见
+[GME_Qwen3VL_Embedding_PA_SDPA_调查.md](./GME_Qwen3VL_Embedding_PA_SDPA_调查.md)。
+
 支持四种输入模式：
 
 - `text`：默认 instruction 的文本 embedding；
