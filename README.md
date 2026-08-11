@@ -5,6 +5,10 @@
 关于 GME 是否支持 Qwen3.5 风格的 PA/SDPA backend 切换，见
 [GME_Qwen3VL_Embedding_PA_SDPA_调查.md](./GME_Qwen3VL_Embedding_PA_SDPA_调查.md)。
 
+关于 Intel GPU 上 GME INT4 text/query embedding 的 hotspot 分析、可交付 GPU
+plugin patch 和 bit-identical 回归验证，见
+[gme-qwen2-vl-int4-hotspot-optimization/README.md](./gme-qwen2-vl-int4-hotspot-optimization/README.md)。
+
 支持四种输入模式：
 
 - `text`：默认 instruction 的文本 embedding；

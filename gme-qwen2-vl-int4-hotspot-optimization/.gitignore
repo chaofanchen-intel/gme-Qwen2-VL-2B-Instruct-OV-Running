@@ -1,0 +1,12 @@
+# VTune raw result dirs are machine-specific and hundreds of MB; the summaries and the
+# per-computing-task tables are exported into results/vtune_*.txt / results/vtune_tasks_*.tsv.
+results/vtune-*/
+results/*.sqlite
+results/*.data
+results/gpu-dump-*/
+__pycache__/
+pin.log
+
+# Stale CMake configure dir from an early attempt at a separate official-source build; the
+# actual work reuses benchmark/openvino's existing build tree.
+build-openvino-official/

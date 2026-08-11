@@ -1,0 +1,29 @@
+{
+  "model": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/ov_models/gme-qwen2-vl-2b-instruct-openvino",
+  "precision": "INT4",
+  "device": "GPU",
+  "target_tokens": 32,
+  "effective_tokens": 32,
+  "shape": [
+    1,
+    1536
+  ],
+  "warmup": 14,
+  "repeat": 10,
+  "samples_ms": [
+    32.688,
+    32.622,
+    32.813,
+    32.629,
+    32.501,
+    32.737,
+    33.52,
+    33.151,
+    32.852,
+    32.758
+  ],
+  "mean_ms": 32.827,
+  "median_ms": 32.748,
+  "p10_ms": 32.501,
+  "p90_ms": 33.52
+}

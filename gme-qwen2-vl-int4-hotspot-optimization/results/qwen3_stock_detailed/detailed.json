@@ -1,0 +1,617 @@
+{
+  "suite": "detailed",
+  "devices": [
+    "GPU"
+  ],
+  "precisions": [
+    "INT8",
+    "INT4"
+  ],
+  "text_lengths": [
+    32,
+    64,
+    128,
+    256,
+    512,
+    1024
+  ],
+  "output_dimension": 2048,
+  "image_sizes": [
+    "64x64",
+    "224x224",
+    "448x448",
+    "672x672",
+    "960x480"
+  ],
+  "workloads": {
+    "texts": {
+      "32": {
+        "text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+        "token_count": 32
+      },
+      "64": {
+        "text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+        "token_count": 64
+      },
+      "128": {
+        "text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+        "token_count": 128
+      },
+      "256": {
+        "text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+        "token_count": 256
+      },
+      "512": {
+        "text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+        "token_count": 512
+      },
+      "1024": {
+        "text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+        "token_count": 1024
+      }
+    },
+    "images": {
+      "64x64": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/qwen3_stock_detailed/assets/gradient_64x64.png"
+      },
+      "224x224": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/qwen3_stock_detailed/assets/gradient_224x224.png"
+      },
+      "448x448": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/qwen3_stock_detailed/assets/gradient_448x448.png"
+      },
+      "672x672": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/qwen3_stock_detailed/assets/gradient_672x672.png"
+      },
+      "960x480": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/qwen3_stock_detailed/assets/gradient_960x480.png"
+      }
+    }
+  },
+  "results": {
+    "INT8": {
+      "construct_ms": 8452.77,
+      "text": {
+        "32": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 46.114,
+          "mean_ms_per_embedding": 46.114,
+          "stdev_ms": 1.504,
+          "min_ms": 44.731,
+          "max_ms": 48.08,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "64": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 54.864,
+          "mean_ms_per_embedding": 54.864,
+          "stdev_ms": 1.709,
+          "min_ms": 53.228,
+          "max_ms": 57.76,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "128": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 64.694,
+          "mean_ms_per_embedding": 64.694,
+          "stdev_ms": 0.205,
+          "min_ms": 64.345,
+          "max_ms": 64.881,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "256": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 100.994,
+          "mean_ms_per_embedding": 100.994,
+          "stdev_ms": 0.256,
+          "min_ms": 100.796,
+          "max_ms": 101.428,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "512": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 175.741,
+          "mean_ms_per_embedding": 175.741,
+          "stdev_ms": 0.368,
+          "min_ms": 175.301,
+          "max_ms": 176.181,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "1024": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 367.937,
+          "mean_ms_per_embedding": 367.937,
+          "stdev_ms": 1.69,
+          "min_ms": 366.586,
+          "max_ms": 370.877,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        }
+      },
+      "image": {
+        "64x64": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 56.752,
+          "mean_ms_per_embedding": 56.752,
+          "stdev_ms": 2.725,
+          "min_ms": 54.448,
+          "max_ms": 61.118,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "224x224": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 101.985,
+          "mean_ms_per_embedding": 101.985,
+          "stdev_ms": 0.344,
+          "min_ms": 101.655,
+          "max_ms": 102.453,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "448x448": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 216.917,
+          "mean_ms_per_embedding": 216.917,
+          "stdev_ms": 2.708,
+          "min_ms": 213.814,
+          "max_ms": 220.29,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "672x672": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 645.503,
+          "mean_ms_per_embedding": 645.503,
+          "stdev_ms": 2.976,
+          "min_ms": 642.775,
+          "max_ms": 649.519,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "960x480": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 676.843,
+          "mean_ms_per_embedding": 676.843,
+          "stdev_ms": 1.404,
+          "min_ms": 675.77,
+          "max_ms": 679.233,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        }
+      },
+      "fused": {
+        "64x64": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 57.081,
+          "mean_ms_per_embedding": 57.081,
+          "stdev_ms": 0.623,
+          "min_ms": 56.368,
+          "max_ms": 57.977,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "224x224": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 104.474,
+          "mean_ms_per_embedding": 104.474,
+          "stdev_ms": 0.208,
+          "min_ms": 104.261,
+          "max_ms": 104.802,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "448x448": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 214.253,
+          "mean_ms_per_embedding": 214.253,
+          "stdev_ms": 0.317,
+          "min_ms": 213.815,
+          "max_ms": 214.586,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "672x672": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 648.523,
+          "mean_ms_per_embedding": 648.523,
+          "stdev_ms": 4.248,
+          "min_ms": 643.955,
+          "max_ms": 654.002,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "960x480": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 677.966,
+          "mean_ms_per_embedding": 677.966,
+          "stdev_ms": 0.591,
+          "min_ms": 677.05,
+          "max_ms": 678.396,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        }
+      }
+    },
+    "INT4": {
+      "construct_ms": 6542.911,
+      "text": {
+        "32": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 29.226,
+          "mean_ms_per_embedding": 29.226,
+          "stdev_ms": 0.161,
+          "min_ms": 28.993,
+          "max_ms": 29.404,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "64": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 38.696,
+          "mean_ms_per_embedding": 38.696,
+          "stdev_ms": 0.086,
+          "min_ms": 38.613,
+          "max_ms": 38.799,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "128": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 59.043,
+          "mean_ms_per_embedding": 59.043,
+          "stdev_ms": 0.37,
+          "min_ms": 58.602,
+          "max_ms": 59.619,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "256": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 91.886,
+          "mean_ms_per_embedding": 91.886,
+          "stdev_ms": 0.115,
+          "min_ms": 91.774,
+          "max_ms": 92.013,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "512": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 166.624,
+          "mean_ms_per_embedding": 166.624,
+          "stdev_ms": 0.221,
+          "min_ms": 166.382,
+          "max_ms": 166.876,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "1024": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 353.396,
+          "mean_ms_per_embedding": 353.396,
+          "stdev_ms": 0.491,
+          "min_ms": 352.864,
+          "max_ms": 354.138,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        }
+      },
+      "image": {
+        "64x64": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 37.164,
+          "mean_ms_per_embedding": 37.164,
+          "stdev_ms": 0.16,
+          "min_ms": 37.018,
+          "max_ms": 37.435,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "224x224": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 66.189,
+          "mean_ms_per_embedding": 66.189,
+          "stdev_ms": 0.129,
+          "min_ms": 66.017,
+          "max_ms": 66.312,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "448x448": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 209.19,
+          "mean_ms_per_embedding": 209.19,
+          "stdev_ms": 0.928,
+          "min_ms": 208.373,
+          "max_ms": 210.373,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "672x672": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 642.184,
+          "mean_ms_per_embedding": 642.184,
+          "stdev_ms": 4.503,
+          "min_ms": 637.852,
+          "max_ms": 649.119,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "960x480": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 682.137,
+          "mean_ms_per_embedding": 682.137,
+          "stdev_ms": 3.661,
+          "min_ms": 679.562,
+          "max_ms": 688.469,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        }
+      },
+      "fused": {
+        "64x64": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 40.393,
+          "mean_ms_per_embedding": 40.393,
+          "stdev_ms": 0.177,
+          "min_ms": 40.23,
+          "max_ms": 40.605,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "224x224": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 68.214,
+          "mean_ms_per_embedding": 68.214,
+          "stdev_ms": 0.357,
+          "min_ms": 67.913,
+          "max_ms": 68.695,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "448x448": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 211.252,
+          "mean_ms_per_embedding": 211.252,
+          "stdev_ms": 0.287,
+          "min_ms": 211.052,
+          "max_ms": 211.756,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "672x672": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 644.97,
+          "mean_ms_per_embedding": 644.97,
+          "stdev_ms": 0.821,
+          "min_ms": 644.403,
+          "max_ms": 646.326,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        },
+        "960x480": {
+          "output_shape": [
+            1,
+            2048
+          ],
+          "output_dimension": 2048,
+          "batch_size": 1,
+          "mean_ms": 681.566,
+          "mean_ms_per_embedding": 681.566,
+          "stdev_ms": 1.324,
+          "min_ms": 680.614,
+          "max_ms": 683.84,
+          "repeat": 5,
+          "warmup": 3,
+          "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+        }
+      }
+    }
+  },
+  "environment": {
+    "platform": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "packages": {
+      "openvino": "2026.3.0",
+      "openvino-genai": "2026.3.0.0",
+      "numpy": "2.4.6",
+      "Pillow": "12.3.0"
+    },
+    "available_devices": [
+      "CPU",
+      "GPU"
+    ]
+  }
+}

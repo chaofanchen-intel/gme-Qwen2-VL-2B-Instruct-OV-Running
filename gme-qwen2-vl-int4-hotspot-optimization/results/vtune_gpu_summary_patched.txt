@@ -1,0 +1,24 @@
+Elapsed Time: 103.801s
+    GPU Time: 23.233s
+XVE Array Stalled/Idle: 53.4% of Elapsed time with GPU busy
+ | The percentage of time when the XVEs were stalled or idle is high, which has
+ | a negative impact on compute-bound applications.
+ |
+    Occupancy: 73.3% of peak value
+     | Several factors including shared local memory, use of memory barriers,
+     | and inefficient work scheduling can cause a low value of the occupancy
+     | metric.
+     |
+
+        Hottest GPU Computing Tasks with Low Occupancy
+        Computing Task  Total Time  SIMD Width  Peak XVE Threads Occupancy(%)  Occupancy(%)  SIMD Utilization(%)
+        --------------  ----------  ----------  -----------------------------  ------------  -------------------
+        gemm_kernel         5.927s          16                          40.0%         79.8%               100.0%
+        gemm_kernel         4.511s          16                          40.0%         75.4%               100.0%
+        gemm_kernel         4.280s          16                          40.0%         78.4%               100.0%
+        [Others]            7.823s         N/A                           0.0%         69.4%                 0.0%
+    Sampler Busy: 0.0% of peak value
+
+        Hottest GPU Computing Tasks with High Sampler Usage
+        Computing Task  Total Time
+        --------------  ----------

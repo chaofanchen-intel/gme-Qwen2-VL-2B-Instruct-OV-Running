@@ -1,0 +1,23 @@
+{
+  "script": "/home/chaofan/model_benchmark/Qwen3-VL-Embedding-2B-Running/benchmark_qwen3_vl.py",
+  "suite": "batch-text-lengths",
+  "repeat": 5,
+  "warmup": 3,
+  "baseline_output_dimension": 2048,
+  "detailed_output_dimension": 2048,
+  "batch_sizes": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "batch_text_lengths": [
+    128,
+    256,
+    512,
+    1024
+  ],
+  "note": "OpenVINO GenAI returns native 2048 dimensions. MRL prefix truncation is post-processing and is not a separate latency case."
+}

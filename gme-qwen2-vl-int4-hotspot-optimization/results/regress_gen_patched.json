@@ -1,0 +1,21 @@
+{
+  "model": "/home/chaofan/model_benchmark/benchmark/models/Qwen3-1.7B-INT4",
+  "device": "GPU",
+  "results": [
+    {
+      "prompt": "Explain in one paragraph why grouped-query attention reduces memory bandwidth.",
+      "text": " 1. What is the problem? 2. What is the solution? 3. How does the solution work? 3. What is the benefit? 4. What is the benefit of the solution? 1. What is the problem? 2. What is the solution? 3. How",
+      "elapsed_s": 1.829
+    },
+    {
+      "prompt": "List three prime numbers greater than 100.",
+      "text": " 113, 127, 131. 113 is a prime number. 127 is a prime number. 131 is a prime number. 113, 127, 131 are all prime numbers. 11",
+      "elapsed_s": 1.727
+    },
+    {
+      "prompt": "Write a haiku about integrated GPUs.",
+      "text": " 1. The 2. The 3. The 4. The 5. The 6. The 7. The 8. The 9. The 10. The 11. The 12. The 13. The 14. The 15",
+      "elapsed_s": 1.736
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+diff --git a/src/cpp/src/rag/embedding_pipeline.cpp b/src/cpp/src/rag/embedding_pipeline.cpp
+index 2f026d3f..a0e49b1b 100644
+--- a/src/cpp/src/rag/embedding_pipeline.cpp
++++ b/src/cpp/src/rag/embedding_pipeline.cpp
+@@ -7,6 +7,7 @@
+ #include <numeric>
+ #include <optional>
+ #include <sstream>
++#include <unordered_map>
+ #include <tuple>
+ #include <unordered_set>
+ 
+@@ -225,6 +226,7 @@ private:
+             ov::Tensor inputs_embeds;
+             std::optional<ov::Tensor> token_type_ids;
+             std::optional<ov::Tensor> position_ids;
++            std::unordered_map<std::string, ov::Tensor> extra_inputs;
+         };
+ 
+         std::vector<BatchItem> batch_items;
+@@ -257,6 +259,7 @@ private:
+                                                                           normalized_prompt.images_sequence,
+                                                                           normalized_prompt.videos_sequence);
+             }
++            item.extra_inputs = m_inputs_embedder->get_lm_extra_inputs();
+ 
+             const size_t seq_length = item.inputs_embeds.get_shape().at(1);
+             max_seq_length = std::max(max_seq_length, seq_length);
+@@ -334,6 +337,59 @@ private:
+             }
+         }
+ 
++        std::unordered_map<std::string, ov::Tensor> batched_extra_inputs;
++        for (const auto& [name, source] : batch_items.front().extra_inputs) {
++            if (source.get_size() == 0) {
++                continue;
++            }
++            if (name == "visual_pos_masks") {
++                ov::Tensor batched(ov::element::boolean, {batch_size, max_seq_length});
++                std::fill_n(batched.data<bool>(), batched.get_size(), false);
++                for (size_t batch_idx = 0; batch_idx < batch_size; ++batch_idx) {
++                    const auto it = batch_items[batch_idx].extra_inputs.find(name);
++                    OPENVINO_ASSERT(it != batch_items[batch_idx].extra_inputs.end(),
++                                    "Missing extra input '", name, "' for batch item ", batch_idx);
++                    const ov::Shape source_shape = it->second.get_shape();
++                    OPENVINO_ASSERT(source_shape.size() == 2 && source_shape[0] == 1,
++                                    "Expected Qwen3-VL visual_pos_masks shape [1, sequence], got ", source_shape);
++                    const size_t copy_length = std::min(source_shape[1], max_seq_length);
++                    std::copy_n(it->second.data<const bool>(), copy_length,
++                                batched.data<bool>() + batch_idx * max_seq_length);
++                }
++                batched_extra_inputs.emplace(name, std::move(batched));
++            } else if (name == "deepstack_visual_embeds") {
++                const ov::Shape source_shape = source.get_shape();
++                OPENVINO_ASSERT(source_shape.size() == 3,
++                                "Expected Qwen3-VL deepstack_visual_embeds rank 3, got ", source_shape);
++                const size_t num_layers = source_shape[0];
++                const size_t hidden_size = source_shape[2];
++                size_t total_visual_sequence = 0;
++                for (const auto& item : batch_items) {
++                    const auto it = item.extra_inputs.find(name);
++                    OPENVINO_ASSERT(it != item.extra_inputs.end(),
++                                    "Missing extra input '", name, "' for a batch item");
++                    total_visual_sequence += it->second.get_shape()[1];
++                }
++                ov::Tensor batched(ov::element::f32, {num_layers, total_visual_sequence, hidden_size});
++                size_t visual_offset = 0;
++                for (const auto& item : batch_items) {
++                    const ov::Tensor& item_tensor = item.extra_inputs.at(name);
++                    const size_t item_visual_sequence = item_tensor.get_shape()[1];
++                    for (size_t layer_idx = 0; layer_idx < num_layers; ++layer_idx) {
++                        const float* source_data = item_tensor.data<const float>() + layer_idx * item_visual_sequence * hidden_size;
++                        float* target_data = batched.data<float>() +
++                                             layer_idx * total_visual_sequence * hidden_size +
++                                             visual_offset * hidden_size;
++                        std::copy_n(source_data, item_visual_sequence * hidden_size, target_data);
++                    }
++                    visual_offset += item_visual_sequence;
++                }
++                batched_extra_inputs.emplace(name, std::move(batched));
++            } else {
++                batched_extra_inputs.emplace(name, source);
++            }
++        }
++
+         m_language_model_request.reset_state();
+         m_language_model_request.set_tensor("inputs_embeds", batched_inputs_embeds);
+ 
+@@ -355,8 +411,7 @@ private:
+             m_language_model_request.set_tensor("beam_idx", beam_idx);
+         }
+ 
+-        const auto& lm_extra_inputs = m_inputs_embedder->get_lm_extra_inputs();
+-        for (const auto& [name, tensor] : lm_extra_inputs) {
++        for (const auto& [name, tensor] : batched_extra_inputs) {
+             if (has_lm_input(name) && tensor.get_size() > 0) {
+                 m_language_model_request.set_tensor(name, tensor);
+             }
+diff --git a/src/cpp/src/visual_language/qwen3_vl/classes.cpp b/src/cpp/src/visual_language/qwen3_vl/classes.cpp
+index b885ab12..9096b561 100644
+--- a/src/cpp/src/visual_language/qwen3_vl/classes.cpp
++++ b/src/cpp/src/visual_language/qwen3_vl/classes.cpp
+@@ -736,15 +736,17 @@ ov::Tensor InputsEmbedderQwen3VL::get_inputs_embeds(
+     if (images.empty() && videos.empty()) {
+         if (has_lm_extra_input("visual_pos_masks")) {
+             const size_t batch_size = input_ids.get_shape()[0];
+-            ov::Tensor visual_pos_masks(ov::element::boolean, {batch_size, 1});
++            const size_t sequence_length = input_ids.get_shape()[1];
++            ov::Tensor visual_pos_masks(ov::element::boolean, {batch_size, sequence_length});
+             std::fill_n(visual_pos_masks.data<bool>(), visual_pos_masks.get_size(), false);
+             m_lm_extra_inputs["visual_pos_masks"] = std::move(visual_pos_masks);
+         }
+ 
+         if (has_lm_extra_input("deepstack_visual_embeds")) {
+             const size_t num_layers = m_vlm_config.vision_config_deepstack_visual_indexes.size();
++            const size_t sequence_length = input_ids.get_shape()[1];
+             const size_t hidden_size = text_embeds.get_shape()[2];
+-            ov::Tensor deepstack_visual_embeds(ov::element::f32, {num_layers, 1, hidden_size});
++            ov::Tensor deepstack_visual_embeds(ov::element::f32, {num_layers, sequence_length, hidden_size});
+             std::fill_n(deepstack_visual_embeds.data<float>(), deepstack_visual_embeds.get_size(), 0.0f);
+             m_lm_extra_inputs["deepstack_visual_embeds"] = std::move(deepstack_visual_embeds);
+         }

@@ -1,0 +1,145 @@
+{
+  "suite": "batch_text_lengths",
+  "device": "GPU",
+  "precisions": [
+    "INT8",
+    "INT4"
+  ],
+  "modes": [
+    "text"
+  ],
+  "text_lengths": [
+    512,
+    1024
+  ],
+  "batch_sizes": [
+    1
+  ],
+  "output_dimension": 2048,
+  "workload": {
+    "image": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/qwen3_ab_text/stock_r2/assets/gradient_448x448.png",
+    "image_size_wh": [
+      448,
+      448
+    ],
+    "semantics": "one API call returns N rows; text is a true batch; fused uses one shared image and N text rows"
+  },
+  "results": {
+    "INT8": {
+      "construct_ms": 5700.866,
+      "lengths": {
+        "512": {
+          "token_count": 512,
+          "cells": {
+            "1": {
+              "text": {
+                "output_shape": [
+                  1,
+                  2048
+                ],
+                "output_dimension": 2048,
+                "batch_size": 1,
+                "mean_ms": 175.999,
+                "mean_ms_per_embedding": 175.999,
+                "stdev_ms": 1.925,
+                "min_ms": 174.466,
+                "max_ms": 179.327,
+                "repeat": 5,
+                "warmup": 3,
+                "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+              }
+            }
+          }
+        },
+        "1024": {
+          "token_count": 1024,
+          "cells": {
+            "1": {
+              "text": {
+                "output_shape": [
+                  1,
+                  2048
+                ],
+                "output_dimension": 2048,
+                "batch_size": 1,
+                "mean_ms": 371.517,
+                "mean_ms_per_embedding": 371.517,
+                "stdev_ms": 4.655,
+                "min_ms": 366.465,
+                "max_ms": 378.597,
+                "repeat": 5,
+                "warmup": 3,
+                "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+              }
+            }
+          }
+        }
+      }
+    },
+    "INT4": {
+      "construct_ms": 5799.864,
+      "lengths": {
+        "512": {
+          "token_count": 512,
+          "cells": {
+            "1": {
+              "text": {
+                "output_shape": [
+                  1,
+                  2048
+                ],
+                "output_dimension": 2048,
+                "batch_size": 1,
+                "mean_ms": 169.257,
+                "mean_ms_per_embedding": 169.257,
+                "stdev_ms": 0.234,
+                "min_ms": 169.01,
+                "max_ms": 169.527,
+                "repeat": 5,
+                "warmup": 3,
+                "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+              }
+            }
+          }
+        },
+        "1024": {
+          "token_count": 1024,
+          "cells": {
+            "1": {
+              "text": {
+                "output_shape": [
+                  1,
+                  2048
+                ],
+                "output_dimension": 2048,
+                "batch_size": 1,
+                "mean_ms": 354.774,
+                "mean_ms_per_embedding": 354.774,
+                "stdev_ms": 0.663,
+                "min_ms": 353.811,
+                "max_ms": 355.552,
+                "repeat": 5,
+                "warmup": 3,
+                "timing_scope": "warm native 2048-dimensional embed; model construction excluded"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "environment": {
+    "platform": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "packages": {
+      "openvino": "2026.3.0",
+      "openvino-genai": "2026.3.0.0",
+      "numpy": "2.4.6",
+      "Pillow": "12.3.0"
+    },
+    "available_devices": [
+      "CPU",
+      "GPU"
+    ]
+  }
+}

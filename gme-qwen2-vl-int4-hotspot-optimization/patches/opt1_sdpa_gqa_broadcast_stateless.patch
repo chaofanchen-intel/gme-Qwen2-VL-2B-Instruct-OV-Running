@@ -1,0 +1,43 @@
+diff --git a/src/plugins/intel_gpu/src/plugin/transformations/unsqueeze_broadcast_reshape_sdpa_fusion.cpp b/src/plugins/intel_gpu/src/plugin/transformations/unsqueeze_broadcast_reshape_sdpa_fusion.cpp
+index 6e92271998..c16d7c72ff 100644
+--- a/src/plugins/intel_gpu/src/plugin/transformations/unsqueeze_broadcast_reshape_sdpa_fusion.cpp
++++ b/src/plugins/intel_gpu/src/plugin/transformations/unsqueeze_broadcast_reshape_sdpa_fusion.cpp
+@@ -5,7 +5,6 @@
+ #include "unsqueeze_broadcast_reshape_sdpa_fusion.hpp"
+
+ #include "intel_gpu/op/sdpa.hpp"
+-#include "intel_gpu/op/kv_cache.hpp"
+
+ #include "openvino/core/rt_info.hpp"
+ #include "openvino/op/broadcast.hpp"
+@@ -40,8 +39,17 @@ UnsqueezeBroadcastReshapeSDPAFusion::UnsqueezeBroadcastReshapeSDPAFusion() {
+     auto input_a_m = any_input();
+     auto input_attn_mask_m = any_input();
+     auto input_scale_m = any_input();
+-    auto input_b_kvcache_m = wrap_type<ov::intel_gpu::op::KVCache>({any_input(), any_input()});
+-    auto input_c_kvcache_m = wrap_type<ov::intel_gpu::op::KVCache>({any_input(), any_input()});
++    // The producer of the GQA repeat_kv expansion is a KVCache only in stateful generative
++    // models. A stateless graph -- an embedding/encoder forward pass, or any model compiled
++    // without a KV cache -- feeds the Unsqueeze straight from RoPE / Transpose / FullyConnected,
++    // so restricting it to KVCache leaves the whole Unsqueeze->Broadcast->Reshape chain in the
++    // runtime graph. The chain is materialized as a real `broadcast` primitive that writes an
++    // (num_heads / num_kv_heads)x larger K and V, which SDPA can broadcast internally for free.
++    // Everything the fusion actually depends on is verified in the callback below (bidirectional
++    // broadcast on exactly one axis, identical target shape for K and V), so the producer type
++    // itself carries no information and is left unconstrained.
++    auto input_b_kv_producer_m = any_input();
++    auto input_c_kv_producer_m = any_input();
+
+     auto input_b_rope_m = wrap_type<ov::op::internal::RoPE>({any_input(), any_input(), any_input()});
+     auto concat_b_m = optional<ov::op::v0::Concat>({any_input(), any_input()});
+@@ -55,8 +63,8 @@ UnsqueezeBroadcastReshapeSDPAFusion::UnsqueezeBroadcastReshapeSDPAFusion() {
+     auto axes_const_b_m = wrap_type<ov::op::v0::Constant>();
+     auto axes_const_c_m = wrap_type<ov::op::v0::Constant>();
+
+-    auto unsqueeze_b_m = wrap_type<ov::op::v0::Unsqueeze>({input_b_kvcache_m, axes_const_b_m}, unsqueeze_predicate);
+-    auto unsqueeze_c_m = wrap_type<ov::op::v0::Unsqueeze>({input_c_kvcache_m, axes_const_c_m}, unsqueeze_predicate);
++    auto unsqueeze_b_m = wrap_type<ov::op::v0::Unsqueeze>({input_b_kv_producer_m, axes_const_b_m}, unsqueeze_predicate);
++    auto unsqueeze_c_m = wrap_type<ov::op::v0::Unsqueeze>({input_c_kv_producer_m, axes_const_c_m}, unsqueeze_predicate);
+
+     auto pre_reshape_b_m = wrap_type<ov::op::v1::Reshape>({pre_reshape_input_b_m, any_input()}, unsqueeze_predicate);
+     auto pre_reshape_c_m = wrap_type<ov::op::v1::Reshape>({pre_reshape_input_c_m, any_input()}, unsqueeze_predicate);

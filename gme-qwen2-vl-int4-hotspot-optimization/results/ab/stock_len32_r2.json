@@ -1,0 +1,34 @@
+{
+  "package": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/ov_models/gme-qwen2-vl-2b-instruct-openvino",
+  "device": "GPU",
+  "precision": "int4",
+  "batch_mode": "padded",
+  "streams": "1",
+  "target_tokens": 32,
+  "workloads": {
+    "text": {
+      "effective_tokens": 32,
+      "shape": [
+        1,
+        1536
+      ],
+      "mean_ms": 40.284,
+      "p50_ms": 32.904,
+      "min_ms": 32.721,
+      "max_ms": 179.301
+    },
+    "query": {
+      "effective_tokens": 32,
+      "shape": [
+        1,
+        1536
+      ],
+      "mean_ms": 32.812,
+      "p50_ms": 32.759,
+      "min_ms": 32.514,
+      "max_ms": 33.407
+    }
+  },
+  "warmup": 14,
+  "repeat": 20
+}

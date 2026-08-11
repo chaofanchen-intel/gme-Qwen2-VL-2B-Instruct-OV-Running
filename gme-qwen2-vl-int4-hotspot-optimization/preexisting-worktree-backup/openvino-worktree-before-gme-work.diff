@@ -1,0 +1,439 @@
+diff --git a/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp b/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp
+index 4d4442d4e8..5284f07ea2 100644
+--- a/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp
++++ b/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp
+@@ -24,11 +24,21 @@ static bool should_skip_execution(const dynamic_quantize_node& node, const layou
+         || !act_layout.is_static())
+         return false;
+ 
+-    // Do not skip dynamic quantization if next node is not fully connected.(such as SDPA)
+-    OPENVINO_ASSERT(node.get_users().size() == node.get_outputs_count(),
+-                    "Dynamic quantization is supposed to have only one user-node with duplicated connection: ", node.id());
+-    if (!(*node.get_users().begin())->is_type<fully_connected>())
+-        return false;
++    // Normally a DynamicQuantize feeds exactly one FullyConnected, which consumes every
++    // DQ output (quantized data + scale[+zp]), so users.size() == outputs_count.
++    // When several FullyConnected that share the same activation reuse a single DQ
++    // (e.g. q/k/v/z or gate/up projections), users.size() == outputs_count * num_consumers.
++    // Skipping is still valid in that case - the DQ becomes an f16 pass-through that every
++    // consumer reads identically. Require the user count to be a whole number of full
++    // consumers and that all of them are fully_connected (skipping is a no-op only for the
++    // FC f16 path).
++    const size_t outs = node.get_outputs_count();
++    OPENVINO_ASSERT(outs > 0 && node.get_users().size() % outs == 0,
++                    "Dynamic quantization users are not a whole multiple of its outputs: ", node.id());
++    for (const auto& u : node.get_users()) {
++        if (!u->is_type<fully_connected>())
++            return false;
++    }
+ 
+     // If batch size is 1, dynamic_quantize is disabled for performance reason
+     size_t input_batch = act_layout.batch();
+diff --git a/src/plugins/intel_gpu/src/graph/impls/ocl_v2/paged_causal_conv1d_ref.cl b/src/plugins/intel_gpu/src/graph/impls/ocl_v2/paged_causal_conv1d_ref.cl
+index 82fbebfa2b..fee97a8017 100644
+--- a/src/plugins/intel_gpu/src/graph/impls/ocl_v2/paged_causal_conv1d_ref.cl
++++ b/src/plugins/intel_gpu/src/graph/impls/ocl_v2/paged_causal_conv1d_ref.cl
+@@ -4,6 +4,38 @@
+ 
+ #include "include/batch_headers/common.cl"
+ 
++// Token-tiled causal conv1d.
++//
++// Background. The original reference kernel dispatched GWS={seq_count, hidden_size}
++// and each work-item walked the whole sequence serially (for t in [0, seq_tokens)).
++// During prefill seq_count==1, so only `hidden_size` work-items run. That leaves the
++// dispatch work-size-limited: it cannot fill the device's hardware-thread budget, so
++// occupancy (and throughput) is capped well below 100%.
++//
++// A fully token-parallel dispatch (one work-item per output token, each rebuilding its
++// own K-element window from global memory) reaches full occupancy but multiplies global
++// reads by ~K and becomes memory-bound, which can be a net regression on a
++// bandwidth-limited integrated GPU. This kernel is the middle ground.
++//
++// Split each sequence's tokens into TOKEN_GROUPS (G) contiguous tiles and dispatch
++// GWS={seq_count, hidden_size, G}. Each (seq, h, g) work-item processes ONE tile of
++// ~ceil(seq_tokens/G) tokens SERIALLY with a sliding window exactly like the original
++// kernel — so within a tile there is NO redundant re-reading (streaming reuse is
++// preserved). The only extra reads are the K-1 history elements each tile needs to prime
++// its window at its tile start: hidden_size*G*(K-1) reads total (negligible), not
++// hidden_size*total_tokens*K. Multiplying the work-item count by G lifts occupancy back
++// toward full without the fully-token-parallel variant's memory blow-up. G is chosen
++// adaptively by the host (see the .cpp dispatch); this kernel is correct for any G>=1
++// (G=1 reduces exactly to the original serial kernel).
++//
++// Correctness: the per-output-element fma order is byte-identical to the serial version
++// (a tile computes the same sliding window the serial loop held at those t). Each tile
++// primes state[] from: input_embeds for sequence-relative idx>=0, else the initial
++// conv_state_table history slot (KERNEL_SIZE+idx) — the same window contents the serial
++// loop would have held, just reconstructed once per tile instead of carried token by
++// token. State write-back (interval boundaries + last token) is owned by exactly one
++// tile (contiguous, non-overlapping token ranges) so writes never race.
++
+ KERNEL(paged_causal_conv1d_ref)
+ (__global INPUT0_TYPE* input_embeds,
+  __global INPUT1_TYPE* conv_state_table,
+@@ -27,11 +59,13 @@ KERNEL(paged_causal_conv1d_ref)
+  int bias_hidden_stride,
+  int output_token_stride,
+  int output_hidden_stride,
+- int num_blocks) {
++ int num_blocks,
++ int token_groups) {
+     const int seq = (int)get_global_id(0);
+     const int h = (int)get_global_id(1);
++    const int g = (int)get_global_id(2);
+ 
+-    if (seq >= seq_count || h >= hidden_size)
++    if (seq >= seq_count || h >= hidden_size || g >= token_groups)
+         return;
+ 
+     const int token_begin = subsequence_begins[seq];
+@@ -45,8 +79,18 @@ KERNEL(paged_causal_conv1d_ref)
+     const int seq_tokens = token_end - token_begin;
+     const int block_span = blk_end - blk_begin;
+ 
++    // This work-item owns tile [tile_start, tile_end) of the sequence's tokens.
++    const int tile = (seq_tokens + token_groups - 1) / token_groups;
++    const int tile_start = g * tile;
++    if (tile_start >= seq_tokens)
++        return;
++    int tile_end = tile_start + tile;
++    if (tile_end > seq_tokens)
++        tile_end = seq_tokens;
++
++    // Degenerate cases: write zeros for this tile (matches the serial reference) and bail.
+     if (blk_end <= blk_begin || block_span <= 1) {
+-        for (int t = 0; t < seq_tokens; t++) {
++        for (int t = tile_start; t < tile_end; t++) {
+             const int out_off = (token_begin + t) * output_token_stride + h * output_hidden_stride;
+             output_embeds[out_off] = TO_OUTPUT_TYPE(0.0f);
+         }
+@@ -55,7 +99,7 @@ KERNEL(paged_causal_conv1d_ref)
+ 
+     const int read_physical_block = block_indices[blk_begin];
+     if (read_physical_block < 0 || read_physical_block >= num_blocks) {
+-        for (int t = 0; t < seq_tokens; t++) {
++        for (int t = tile_start; t < tile_end; t++) {
+             const int out_off = (token_begin + t) * output_token_stride + h * output_hidden_stride;
+             output_embeds[out_off] = TO_OUTPUT_TYPE(0.0f);
+         }
+@@ -65,11 +109,24 @@ KERNEL(paged_causal_conv1d_ref)
+     const int seq_interval = cache_interval[seq];
+     const int prev_nums = (seq_interval > 0) ? (past_lens[seq] % seq_interval) : 0;
+ 
+-    float state[KERNEL_SIZE];
+-
+     const int read_state_base = read_physical_block * state_block_stride + h * state_hidden_stride;
++
++    // Prime the sliding window for this tile: state[k] must equal the serial state[]
++    // just before processing token tile_start. That window ends at sequence-relative
++    // index (tile_start - 1); state[k] corresponds to idx = tile_start - KERNEL_SIZE + k.
++    //   idx >= 0 -> input_embeds[token_begin + idx]
++    //   idx  < 0 -> initial conv_state_table history slot (KERNEL_SIZE + idx)
++    // (For g==0, tile_start==0 so all idx<0 -> reads only the initial state, identical
++    //  to the original kernel's state init. Done once per tile, not per token.)
++    float state[KERNEL_SIZE];
+     for (int k = 0; k < KERNEL_SIZE; k++) {
+-        state[k] = convert_float(conv_state_table[read_state_base + k * state_kernel_stride]);
++        const int idx = tile_start - KERNEL_SIZE + k;
++        if (idx >= 0) {
++            const int in_off = (token_begin + idx) * input_token_stride + h * input_hidden_stride;
++            state[k] = convert_float(input_embeds[in_off]);
++        } else {
++            state[k] = convert_float(conv_state_table[read_state_base + (KERNEL_SIZE + idx) * state_kernel_stride]);
++        }
+     }
+ 
+     float bias_val = 0.0f;
+@@ -77,7 +134,9 @@ KERNEL(paged_causal_conv1d_ref)
+     bias_val = convert_float(conv_bias[h * bias_hidden_stride]);
+ #endif
+ 
+-    for (int t = 0; t < seq_tokens; t++) {
++    const int w_base = h * weight_hidden_stride;
++
++    for (int t = tile_start; t < tile_end; t++) {
+         const int token_idx = token_begin + t;
+ 
+         for (int k = 0; k + 1 < KERNEL_SIZE; k++) {
+@@ -88,7 +147,6 @@ KERNEL(paged_causal_conv1d_ref)
+         state[KERNEL_SIZE - 1] = convert_float(input_embeds[in_off]);
+ 
+         float sum = bias_val;
+-        const int w_base = h * weight_hidden_stride;
+         for (int k = 0; k < KERNEL_SIZE; k++) {
+             sum = fma(state[k], convert_float(conv_weight[w_base + k * weight_kernel_stride]), sum);
+         }
+diff --git a/src/plugins/intel_gpu/src/graph/impls/ocl_v2/paged_causal_conv1d_ref.cpp b/src/plugins/intel_gpu/src/graph/impls/ocl_v2/paged_causal_conv1d_ref.cpp
+index cdf3fb0aa5..d8da15f3d4 100644
+--- a/src/plugins/intel_gpu/src/graph/impls/ocl_v2/paged_causal_conv1d_ref.cpp
++++ b/src/plugins/intel_gpu/src/graph/impls/ocl_v2/paged_causal_conv1d_ref.cpp
+@@ -4,6 +4,10 @@
+ 
+ #include "paged_causal_conv1d_ref.hpp"
+ 
++#include <algorithm>
++#include <cstdio>
++#include <cstdlib>
++
+ #include "intel_gpu/primitives/paged_causal_conv1d.hpp"
+ #include "primitive_ocl_base.hpp"
+ #include "utils/kernel_generator.hpp"
+@@ -40,7 +44,7 @@ protected:
+ 
+         args.push_back({ArgumentDescriptor::Types::OUTPUT, 0});
+ 
+-        constexpr size_t num_scalars = 13;  // Must match scalars count in get_dispatch_data_func
++        constexpr size_t num_scalars = 14;  // Must match scalars count in get_dispatch_data_func
+         for (size_t i = 0; i < num_scalars; i++) {
+             args.push_back({ArgumentDescriptor::Types::SCALAR, static_cast<uint32_t>(i)});
+         }
+@@ -90,9 +94,85 @@ protected:
+             const int32_t output_token_stride = read_pitch(out_layout, 0);
+             const int32_t output_hidden_stride = read_pitch(out_layout, 1);
+ 
++            // Token-tiling with an adaptive tiling factor G (see the .cl kernel for the
++            // per-work-item algorithm). The original kernel dispatched
++            // GWS={seq_count, hidden}, so at prefill only `hidden` work-items run, which
++            // is work-size-limited: it cannot fill the device's hardware-thread budget, so
++            // occupancy is capped below full. A fully token-parallel dispatch
++            // (GWS={seq,hidden,total_tokens}) reaches full occupancy but re-reads each
++            // token's K-element window from global memory, becoming memory-bound and a net
++            // regression on a bandwidth-limited integrated GPU. Instead, split each
++            // sequence into G contiguous token tiles (GWS dim 2 = token group); each
++            // (seq,h,g) work-item still streams its tile with a sliding window (no
++            // per-token redundant reads), so a small G lifts occupancy without the
++            // memory blow-up.
++            //
++            // G is chosen adaptively (not a hardcoded constant) from two axes:
++            //   (a) device scale — pick G so seq_count*hidden*G work-items oversubscribe
++            //       the device's hardware-thread budget
++            //       (execution_units_count * num_threads_per_eu) by ~1.5x, enough to hide
++            //       memory latency. A larger device (more EUs) gets a larger G
++            //       automatically; a smaller device gets less. This keeps the kernel
++            //       portable across device sizes without re-tuning.
++            //   (b) sequence length — keep every tile >= MIN_TILE_TOKENS so the one-time
++            //       K-1 window-priming reads per tile stay negligible vs the streamed work,
++            //       and never dispatch more tiles than there are tokens (decode, 1 token
++            //       per sequence, therefore falls back to G=1 = the original serial kernel).
++            // Override with OV_CONV1D_TOKEN_GROUPS=<n> to force G (unset/0 = auto). Set
++            // OV_CONV1D_DEBUG=1 to print the selected G once (diagnostic only).
++            const auto& dev_info = params.get_device_info();
++            const size_t total_tokens = static_cast<size_t>(input_shape[0].get_length());
+             const size_t lws_y = std::min<size_t>(256, static_cast<size_t>(hidden_size));
+             const size_t gws_y = ((static_cast<size_t>(hidden_size) + lws_y - 1) / lws_y) * lws_y;
+-            wgs.global = {static_cast<size_t>(seq_count), gws_y, 1};
++
++            size_t token_groups = 0;  // 0 => auto-select below
++            if (const char* env = std::getenv("OV_CONV1D_TOKEN_GROUPS")) {
++                const int v = std::atoi(env);
++                if (v >= 1)
++                    token_groups = static_cast<size_t>(v);
++            }
++            if (token_groups == 0) {
++                constexpr size_t SIMD = 32;             // SIMD pack width assumed for this scalar kernel
++                constexpr size_t OVERSUB_NUM = 3;       // target 1.5x (= 3/2) oversubscription of the HW-thread budget
++                constexpr size_t OVERSUB_DEN = 2;
++                constexpr size_t MIN_TILE_TOKENS = 16;  // keep tiles long enough that per-tile K-1 priming reads stay negligible
++                constexpr size_t G_HARD_CAP = 64;       // safety cap for very large devices / tiny hidden
++
++                const size_t eu = static_cast<size_t>(dev_info.execution_units_count);
++                const size_t tpe = static_cast<size_t>(dev_info.num_threads_per_eu);
++                // Conservative fallback when the device does not report EU/thread counts.
++                const size_t hw_threads = (eu > 0 && tpe > 0) ? (eu * tpe) : 320;
++                const size_t target_wi = hw_threads * SIMD * OVERSUB_NUM / OVERSUB_DEN;
++
++                const size_t seqs = static_cast<size_t>(std::max(seq_count, 1));
++                const size_t wi_per_group = static_cast<size_t>(hidden_size) * seqs;  // work-items added by each token group
++                const size_t g_occ = (wi_per_group > 0) ? ((target_wi + wi_per_group - 1) / wi_per_group) : 1;  // ceil -> fill the GPU
++
++                const size_t avg_seq_len = (total_tokens > 0) ? std::max<size_t>(1, total_tokens / seqs) : 1;
++                const size_t g_len = std::max<size_t>(1, avg_seq_len / MIN_TILE_TOKENS);  // cap for short sequences
++
++                token_groups = std::min(std::min(g_occ, g_len), G_HARD_CAP);
++            }
++            // Never dispatch more groups than there are tokens; keep >= 1
++            // (clamp unconditionally so a forced env G is bounded even when total_tokens==0).
++            if (token_groups > total_tokens)
++                token_groups = total_tokens;
++            if (token_groups < 1)
++                token_groups = 1;
++
++            if (std::getenv("OV_CONV1D_DEBUG")) {
++                static bool logged = false;
++                if (!logged) {
++                    logged = true;
++                    fprintf(stderr,
++                            "[paged_causal_conv1d] EU=%u threads/EU=%u (HW threads=%u) | seq_count=%d hidden=%d total_tokens=%zu => token_groups(G)=%zu\n",
++                            dev_info.execution_units_count, dev_info.num_threads_per_eu,
++                            dev_info.execution_units_count * dev_info.num_threads_per_eu,
++                            seq_count, hidden_size, total_tokens, token_groups);
++                }
++            }
++
++            wgs.global = {static_cast<size_t>(seq_count), gws_y, token_groups};
+             wgs.local = {1, lws_y, 1};
+ 
+             kd.params.scalars.clear();
+@@ -110,6 +190,7 @@ protected:
+                 output_token_stride,
+                 output_hidden_stride,
+                 static_cast<int32_t>(params.get_input_layout(paged_causal_conv1d::CONV_STATE_TABLE).get_partial_shape()[0].get_length()),
++                static_cast<int32_t>(token_groups),
+             };
+ 
+             for (auto v : scalars) {
+diff --git a/src/plugins/intel_gpu/src/graph/layout_optimizer.cpp b/src/plugins/intel_gpu/src/graph/layout_optimizer.cpp
+index 766fad3be4..21b688b2bc 100644
+--- a/src/plugins/intel_gpu/src/graph/layout_optimizer.cpp
++++ b/src/plugins/intel_gpu/src/graph/layout_optimizer.cpp
+@@ -1080,6 +1080,22 @@ void layout_optimizer::set_onednn_dyn_conv_preferred_format(convolution_node& no
+     auto input_channels = get_convolution_channel_count(node, input_layout, true);
+     auto output_channels = get_convolution_channel_count(node, output_layout, false);
+ 
++    // Fully-depthwise convolutions (groups == in_ch == out_ch, e.g. the short
++    // causal conv1d found in state-space / Gated-DeltaNet layers) gain nothing
++    // from a blocked fsv16 layout: each output channel reads exactly one input
++    // channel, so there is zero channel-block reuse in the conv kernel. The only
++    // effect of choosing fsv16 here is a bfyx->blocked reorder before the conv and
++    // a blocked->bfyx reorder after. For a small-kernel depthwise conv (trivial
++    // compute) those two reorders can dominate the op's cost. Keep the planar
++    // format so no reorder is inserted around the conv; the dynamic OCL conv impl
++    // supports bfyx natively.
++    if (input_channels > 0 && static_cast<uint32_t>(input_channels) == node.get_groups() &&
++        input_channels == output_channels) {
++        node.set_preferred_input_fmt(0, format::get_default_format(rank));
++        node.set_preferred_output_fmt(0, format::get_default_format(rank));
++        return;
++    }
++
+     if (i8_u8_input) {
+         // Set default input format for i8/u8 input
+         node.set_preferred_input_fmt(0, get_fsv32_format(rank));
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/activation_opt.cl b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/activation_opt.cl
+index bea3c2c974..4da4644869 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/activation_opt.cl
++++ b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/activation_opt.cl
+@@ -5,6 +5,7 @@
+ #include "include/batch_headers/common.cl"
+ 
+ KERNEL(activation)(
++    OPTIONAL_SHAPE_INFO_ARG
+     __global INPUT0_TYPE* input,
+     __global OUTPUT_TYPE* output
+ #if HAS_FUSED_OPS_DECLS
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/activation/activation_kernel_opt.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/activation/activation_kernel_opt.cpp
+index b27174e23e..ea1e98930a 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/kernels/activation/activation_kernel_opt.cpp
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/activation/activation_kernel_opt.cpp
+@@ -25,6 +25,7 @@ ParamsKey ActivationKernelOpt::GetSupportedKey() const {
+     k.EnableAllOutputLayout();
+     k.EnableTensorOffset();
+     k.EnableBatching();
++    k.EnableDynamicShapesSupport();
+     return k;
+ }
+ 
+@@ -86,6 +87,9 @@ bool ActivationKernelOpt::Validate(const Params& p) const {
+     if (params.outputs[0].GetLayout() != params.inputs[0].GetLayout())
+         DO_NOT_USE_THIS_KERNEL(p.layerID);
+ 
++    if (params.has_dynamic_outputs() && (!params.fused_ops.empty() || !params.inputActivationParams.empty()))
++        DO_NOT_USE_THIS_KERNEL(p.layerID);
++
+     if (!params.fused_ops.empty() &&
+         (params.outputs[0].GetLayout() != DataLayout::bfyx && params.outputs[0].GetLayout() != DataLayout::bfzyx))
+         DO_NOT_USE_THIS_KERNEL(p.layerID);
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_ref.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_ref.cpp
+index 2cf85c8f71..95146bd5e1 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_ref.cpp
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_ref.cpp
+@@ -146,6 +146,37 @@ CommonDispatchData PermuteKernelRef::SetDefault(const permute_params& params) co
+                                                                         {Tensor::DataChannelName::FEATURE, Tensor::DataChannelName::BATCH}};
+         dispatchData.gws = {in.X().v, in.Y().v * in.Z().v * in.W().v * in.U().v  * in.V().v , in.Feature().v * in.Batch().v};
+         dispatchData.lws = GetOptimalLocalWorkGroupSizes(dispatchData.gws, params.engineInfo, in_layout, out_layout, dims_by_gws);
++
++        // In this (non-F_FIRST) branch gws[2] is the F*B axis, which is the
++        // inner-most axis of the OUT_IDX math (output writes are contiguous along
++        // F). For best coalescing the work-group should sit on that axis. But
++        // GetOptimalLocalWorkGroupSizes uses a bfyx priority of x->y->f and
++        // greedily puts the LWS on the Y axis first; when Y is a small or
++        // awkwardly-divisible (often dynamic) sequence length, it picks a tiny LWS
++        // on Y and leaves only 1 work-item along F, so the writes are scattered
++        // instead of coalesced. For a transpose with a large F axis and a small,
++        // poorly-divisible Y (e.g. a [1,C,S]->[1,S,C] post-conv transpose) this is
++        // substantially slower than an lws={1,1,WG} dispatch on the coalesced F
++        // axis. Force that dispatch, but only in the pathological shape (large F
++        // axis, tiny LWS landed on F) so permutes the allocator already handles
++        // well are never regressed. This is a pure local-work-group choice and
++        // changes no indexing or arithmetic, so the result is numerically identical.
++        const size_t gws_y = dispatchData.gws[1];
++        const size_t gws_f = dispatchData.gws[2];
++        const size_t cur_total_lws = dispatchData.lws[0] * dispatchData.lws[1] * dispatchData.lws[2];
++        const size_t max_wg = params.engineInfo.maxWorkGroupSize ? params.engineInfo.maxWorkGroupSize : 256;
++        if (gws_f >= gws_y && gws_f >= 256) {
++            size_t lws_f = 1;
++            for (size_t cand = std::min<size_t>(max_wg, gws_f); cand >= 1; --cand) {
++                if (gws_f % cand == 0) { lws_f = cand; break; }
++            }
++            // Only override when concentrating the work-group on the coalesced F
++            // axis yields a work-group at least as large as the allocator's pick
++            // (never shrink occupancy) and actually moves more lanes onto F.
++            if (lws_f >= cur_total_lws && lws_f > dispatchData.lws[2]) {
++                dispatchData.lws = {1, 1, lws_f};
++            }
++        }
+     }
+ 
+     return dispatchData;
+diff --git a/src/plugins/intel_gpu/src/plugin/transformations/dynamic_quantize_fully_connected.cpp b/src/plugins/intel_gpu/src/plugin/transformations/dynamic_quantize_fully_connected.cpp
+index 58ed3e3834..c28be9c40b 100644
+--- a/src/plugins/intel_gpu/src/plugin/transformations/dynamic_quantize_fully_connected.cpp
++++ b/src/plugins/intel_gpu/src/plugin/transformations/dynamic_quantize_fully_connected.cpp
+@@ -18,6 +18,31 @@
+ 
+ namespace ov::intel_gpu {
+ 
++namespace {
++bool dq_attrs_equal(const ov::op::internal::DynamicQuantize::Attributes& a,
++                    const ov::op::internal::DynamicQuantize::Attributes& b) {
++    return a.quantization_type == b.quantization_type &&
++           a.quantization_dt == b.quantization_dt &&
++           a.scale_dt == b.scale_dt &&
++           a.zp_dt == b.zp_dt &&
++           a.precomputed_reduction == b.precomputed_reduction &&
++           a.precomputed_reduction_dt == b.precomputed_reduction_dt &&
++           a.output_storage_type == b.output_storage_type &&
++           a.group_sizes == b.group_sizes;
++}
++
++std::shared_ptr<ov::op::internal::DynamicQuantize>
++find_reusable_dq(const ov::Output<ov::Node>& act,
++                 const ov::op::internal::DynamicQuantize::Attributes& cfg) {
++    for (const auto& ti : act.get_target_inputs()) {
++        auto cand = ov::as_type_ptr<ov::op::internal::DynamicQuantize>(ti.get_node()->shared_from_this());
++        if (cand && dq_attrs_equal(cand->get_attrs(), cfg))
++            return cand;
++    }
++    return nullptr;
++}
++}  // namespace
++
+ // precomputed_reduction is providing partial reduction of activation from dynamic quantization into onednn for faster computation
+ // It is used for asymmetric weight.
+ DynamicQuantizeFullyConnected::DynamicQuantizeFullyConnected(uint64_t group_size,
+@@ -116,7 +141,13 @@ DynamicQuantizeFullyConnected::DynamicQuantizeFullyConnected(uint64_t group_size
+             config.zp_dt = element::u8; // it supports u8 only now
+         }
+ 
+-        std::shared_ptr<ov::op::internal::DynamicQuantize> dyn_quan = std::make_shared<ov::op::internal::DynamicQuantize>(m_fc->input_value(0), config);
++        // Reuse a DynamicQuantize already inserted on this same activation by a sibling
++        // FullyConnectedCompressed (e.g. q/k/v/z or gate/up sharing a layernorm output)
++        // when the config is identical, instead of inserting a duplicate.
++        auto dyn_quan = find_reusable_dq(m_fc->input_value(0), config);
++        if (!dyn_quan) {
++            dyn_quan = std::make_shared<ov::op::internal::DynamicQuantize>(m_fc->input_value(0), config);
++        }
+ 
+         int dyn_quan_output_idx = 2;
+         auto optional_a_zp = config.quantization_type == QuantizationType::Symmetric ?

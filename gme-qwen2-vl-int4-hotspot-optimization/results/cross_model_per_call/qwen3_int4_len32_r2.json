@@ -1,0 +1,29 @@
+{
+  "model": "/home/chaofan/model_benchmark/benchmark/models/Qwen3-VL-Embedding-2B-INT4",
+  "precision": "INT4",
+  "device": "GPU",
+  "target_tokens": 32,
+  "tokenizer_tokens": 32,
+  "shape": [
+    1,
+    2048
+  ],
+  "warmup": 14,
+  "repeat": 10,
+  "samples_ms": [
+    28.856,
+    28.769,
+    28.805,
+    28.738,
+    28.761,
+    28.648,
+    28.827,
+    28.717,
+    28.89,
+    28.643
+  ],
+  "mean_ms": 28.765,
+  "median_ms": 28.765,
+  "p10_ms": 28.643,
+  "p90_ms": 28.89
+}
