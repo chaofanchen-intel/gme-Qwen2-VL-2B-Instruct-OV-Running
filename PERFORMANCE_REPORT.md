@@ -348,6 +348,23 @@ prompt。但下面会看到，text/query 数值差异的量级和这个 ±3 toke
   长期存活的进程里反复调用两侧实现（避免每次重新起进程/编译），要么老老实实报"多轮中位数 + p10/p90"而不是
   一次测量，本节的表格就是这么做的。原始逐轮数据见 `artifacts/benchmark_gpu_1024_interleaved_retest.json`。
 
+### 6.2.2 与 Qwen3-VL-Embedding-2B 的严格交替对照
+
+为判断 Qwen3 在 1024 token 的较高 latency 是否只是复用了 GME C++ 的慢档，本机又使用
+同一 GPU、同一进程生命周期、warmup=14、repeat=10、3 轮交替测量了 GME INT4 与
+Qwen3-VL-Embedding-2B INT4。结果显示 Qwen3 的差距仍然存在：
+
+| target tokens | GME median | Qwen3 median | Qwen3/GME |
+|---:|---:|---:|---:|
+| 32 | 32.72 ms | 28.76 ms | 0.879x |
+| 128 | 46.25 ms | 58.87 ms | 1.273x |
+| 512 | 146.11 ms | 167.31 ms | 1.145x |
+| 1024 | 280.49 ms | 356.00 ms | 1.269x |
+
+所以“Qwen3 在 32/128 都比 GME 快”的旧前提不准确：严格对齐后只有 32 token 更快，
+128 token 已经比 GME 慢。完整根因分析见
+[Qwen3 CROSS_MODEL_PERFORMANCE_ANALYSIS.md](../Qwen3-VL-Embedding-2B-Running/benchmark_results/CROSS_MODEL_PERFORMANCE_ANALYSIS.md)。
+
 ### 6.3 image / fused 尺寸扫描（N=1，int8 与 int4）
 
 单元格格式 `image / fused`。
