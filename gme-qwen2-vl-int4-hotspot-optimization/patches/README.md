@@ -74,8 +74,10 @@ cmake --install <build-dir>
 
 ## Qwen3-VL-Embedding-2B 适用性复测
 
-opt-1 / opt-2 另外在 `Qwen3-VL-Embedding-2B` 上做了 A/B（**opt-3 未在该模型上复测**）。
-结果不能直接沿用 GME 的收益结论：
+三个 patch 都在 `Qwen3-VL-Embedding-2B` 上做了适用性复核。opt-1 / opt-2 的原始
+交替 A/B，以及 opt-3 的增量测量和三项组合的视觉 smoke test，见
+[`results/qwen3_ab_text/REPORT.md`](../results/qwen3_ab_text/REPORT.md)。结果不能直接
+沿用 GME 的收益结论：
 
 | 路径 | Qwen3 结果 |
 |---|---|
@@ -83,10 +85,17 @@ opt-1 / opt-2 另外在 `Qwen3-VL-Embedding-2B` 上做了 A/B（**opt-3 未在�
 | INT8 text 1024 | 1.020x，小幅收益 |
 | INT4 text 512 | 0.991x，小幅回归 |
 | INT4 text 1024 | 1.013x，小幅收益 |
-| image/fused | optimized plugin 在 64x64 后触发 `CL_OUT_OF_RESOURCES`，出现 `FullyConnectedCompressed` 资源/实现选择失败 |
+| image/fused（opt-1 + opt-2，三项组合亦复现） | optimized plugin 在 64x64 后触发 `CL_OUT_OF_RESOURCES`，出现 `FullyConnectedCompressed` 资源/实现选择失败 |
+| opt-3 增量（INT8 text 1024） | 359.73 → 359.34 ms，1.0011x，基本无收益 |
+| opt-3 增量（INT4 text 1024） | 351.04 → 350.76 ms，1.0008x，基本无收益 |
+
+opt-3 对 Qwen3 language text 不触发：`hidden=2048`、`intermediate=6144`，
+`N/K=3 < 4`，不满足 `N >= 4K`。Qwen3 vision tower 的 `N/K=4` 虽满足宽度条件，
+但 opt-1 + opt-2 已在 224x224 起触发同样的 `FullyConnectedCompressed` /
+`CL_OUT_OF_RESOURCES`，无法单独归因 opt-3。
 
 因此 `all_gme_int4_gpu_opts.patch` **不应直接应用到 Qwen3-VL-Embedding-2B 生产环境**。
-完整 stock/optimized JSON 和复测说明见
+完整 stock/optimized JSON 和三项复测说明见
 [`results/qwen3_ab_text/REPORT.md`](../results/qwen3_ab_text/REPORT.md)。
 
 ## 上游建议

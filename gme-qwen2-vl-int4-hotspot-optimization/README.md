@@ -51,7 +51,7 @@ opt-3 的 26.4 ms **全部来自 `gate_proj`（63.00 → 49.55）和 `up_proj`�
 | [`docs/05_rejected_and_future_work.md`](docs/05_rejected_and_future_work.md) | 试过且**否掉**的 3 个方案（附实测数字）、后续 5 个方向、与既有 Qwen3.5 patch 的关系 |
 | [`docs/06_round2_onednn_investigation.md`](docs/06_round2_onednn_investigation.md) | **第二轮**：oneDNN 单独立项、INT4 GEMM 成本分解 probe、VTune 复采、opt-3 的落地与两次规则修正（§6.9） |
 | [`patches/README.md`](patches/README.md) | patch 的 base、应用方式、影响面、上游建议 |
-| [`results/qwen3_ab_text/REPORT.md`](results/qwen3_ab_text/REPORT.md) | opt-1/opt-2 对 Qwen3-VL-Embedding-2B 的适用性 A/B：text 微小变化，image/fused `CL_OUT_OF_RESOURCES` 回归 |
+| [`results/qwen3_ab_text/REPORT.md`](results/qwen3_ab_text/REPORT.md) | 三个 GME patch 对 Qwen3-VL-Embedding-2B 的适用性复测：opt-3 text 基本无收益，image/fused `CL_OUT_OF_RESOURCES` 回归 |
 
 ## 脚本
 

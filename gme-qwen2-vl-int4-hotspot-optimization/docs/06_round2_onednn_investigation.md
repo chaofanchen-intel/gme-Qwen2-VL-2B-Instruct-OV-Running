@@ -684,3 +684,26 @@ cos 0.918–0.989 / max_abs 最大 9.4e-2 —— 本改动的漂移比量化噪�
 `patches/opt3_int4_wide_fc_ncontiguous_weights.patch`（3 files, +118 −0），
 与 opt-1 / opt-2 一起在 `2026.3.0` tag 的纯净 worktree 上验证过
 单独 apply、顺序 apply、合并 apply 均通过。
+
+## 6.10 Qwen3-VL-Embedding-2B 交叉验证
+
+opt-3 没有沿用 GME 的收益假设，已在 Qwen3-VL-Embedding-2B 上补做验证。Qwen3
+language tower 的配置为 `hidden_size=2048`、`intermediate_size=6144`，因此宽投影
+比例为 `N/K=3`，低于 opt-3 的 `N >= 4K` 选择条件。它不会重排 Qwen3 language
+MLP 的 gate/up 权重，这与 1024-token text 的增量结果一致：
+
+| precision | opt-1 + opt-2 | opt-1 + opt-2 + opt-3 | opt-3 增量 |
+|---|---:|---:|---:|
+| INT8 | 359.73 ms | 359.34 ms | 1.0011x |
+| INT4 | 351.04 ms | 350.76 ms | 1.0008x |
+
+这两行是同一 build 配置下的 warm 7-sample scope check，不替代原有三轮交替
+stock-vs-opt1+opt2 A/B；完整输入、错误边界和结果说明见
+[`results/qwen3_ab_text/REPORT.md`](../results/qwen3_ab_text/REPORT.md)。
+
+Qwen3 vision tower 为 `hidden_size=1024`、`intermediate_size=4096`，宽度比例虽为
+4，但 opt-1 + opt-2 的视觉路径在 224x224 起已经复现
+`FullyConnectedCompressed` / `CL_OUT_OF_RESOURCES`。三项组合 build 的 64x64
+调用仍可完成，224x224/448x448 仍失败，因此无法把视觉错误或视觉收益单独归因
+于 opt-3。交叉验证结论是：**opt-3 对 Qwen3 text 没有实质作用；Qwen3 visual
+路径在更早的 opt-1/opt-2 组合上已经不安全，三个 patch 不应直接用于生产。**

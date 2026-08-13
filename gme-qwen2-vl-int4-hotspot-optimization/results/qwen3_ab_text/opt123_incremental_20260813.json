@@ -1,0 +1,45 @@
+{
+  "date": "2026-08-13",
+  "suite": "qwen3_opt3_incremental",
+  "model_family": "Qwen3-VL-Embedding-2B",
+  "device": "GPU",
+  "runtime": "OpenVINO 2026.3.0-22452-c2638477a62-qwen-ttft-optimizations",
+  "token_count": 1024,
+  "warmup": 3,
+  "repeat": 7,
+  "scope": "same-build sequential opt1+opt2 versus opt1+opt2+opt3 check; not a replacement for the alternating stock campaign",
+  "text": {
+    "INT8": {
+      "opt1_plus_opt2_samples_ms": [375.295, 370.366, 358.752, 358.567, 359.73, 359.028, 359.925],
+      "opt1_plus_opt2_p50_ms": 359.73,
+      "opt1_plus_opt2_plus_opt3_samples_ms": [358.355, 358.329, 358.221, 359.461, 359.337, 359.892, 360.228],
+      "opt1_plus_opt2_plus_opt3_p50_ms": 359.337,
+      "opt3_incremental_speedup": 1.0011
+    },
+    "INT4": {
+      "opt1_plus_opt2_samples_ms": [350.616, 350.942, 351.696, 351.043, 351.523, 351.831, 350.741],
+      "opt1_plus_opt2_p50_ms": 351.043,
+      "opt1_plus_opt2_plus_opt3_samples_ms": [349.76, 350.306, 350.636, 351.257, 351.187, 350.756, 352.229],
+      "opt1_plus_opt2_plus_opt3_p50_ms": 350.756,
+      "opt3_incremental_speedup": 1.0008
+    }
+  },
+  "visual_smoke": {
+    "INT8": {
+      "image_64x64_ms": 52.396,
+      "fused_64x64_ms": 57.748,
+      "image_224x224": "error: FullyConnectedCompressed could not set scales primitive attribute / CL_OUT_OF_RESOURCES",
+      "fused_224x224": "error: FullyConnectedCompressed could not set scales primitive attribute / CL_OUT_OF_RESOURCES",
+      "image_448x448": "error: FullyConnectedCompressed could not set scales primitive attribute / CL_OUT_OF_RESOURCES",
+      "fused_448x448": "error: FullyConnectedCompressed could not set scales primitive attribute / CL_OUT_OF_RESOURCES"
+    },
+    "INT4": {
+      "image_64x64_ms": 36.876,
+      "fused_64x64_ms": 42.364,
+      "image_224x224": "error: FullyConnectedCompressed could not set scales primitive attribute / CL_OUT_OF_RESOURCES",
+      "fused_224x224": "error: FullyConnectedCompressed could not set scales primitive attribute / CL_OUT_OF_RESOURCES",
+      "image_448x448": "error: FullyConnectedCompressed could not set scales primitive attribute / CL_OUT_OF_RESOURCES",
+      "fused_448x448": "error: FullyConnectedCompressed could not set scales primitive attribute / CL_OUT_OF_RESOURCES"
+    }
+  }
+}
