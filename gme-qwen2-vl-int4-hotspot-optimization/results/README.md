@@ -1,3 +1,10 @@
+# GME hotspot results
+
+`gme_visual_opt123_20260813.json` records the stock-vs-opt1+opt2+opt3 GME
+image/fused smoke and correctness comparison. The patched GME visual path remains
+runnable; image-only is bit-identical for the tested sizes, while some fused cases
+have stable small numerical drift and require deployment-level retrieval validation.
+
 # results/ 内容说明
 
 ## 性能 profiling（`profile_ops.py`，语言 IR，INT4/GPU，seq=1024）

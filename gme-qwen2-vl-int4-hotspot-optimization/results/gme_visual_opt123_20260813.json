@@ -1,0 +1,88 @@
+{
+    "date": "2026-08-13",
+    "suite": "gme_visual_opt123_stock_comparison",
+    "model": "gme-qwen2-vl-2b-instruct-openvino",
+    "precision": "INT4",
+    "device": "GPU",
+    "stock_runtime": "OpenVINO 2026.3.0-22451-8a17657b995-releases/2026/3",
+    "patched_runtime": "OpenVINO 2026.3.0-22452-c2638477a62-qwen-ttft-optimizations",
+    "warmup": 2,
+    "repeat": 3,
+    "output_shape": [
+        1,
+        1536
+    ],
+    "results": [
+        {
+            "mode": "image",
+            "size": "64x64",
+            "stock_p50_ms": 408.757,
+            "patched_p50_ms": 395.529,
+            "speedup": 1.0334,
+            "status": "ok",
+            "cosine": 1.0,
+            "max_abs": 0.0
+        },
+        {
+            "mode": "image",
+            "size": "224x224",
+            "stock_p50_ms": 411.564,
+            "patched_p50_ms": 399.102,
+            "speedup": 1.0312,
+            "status": "ok",
+            "cosine": 1.0,
+            "max_abs": 0.0
+        },
+        {
+            "mode": "image",
+            "size": "448x448",
+            "stock_p50_ms": 410.404,
+            "patched_p50_ms": 399.372,
+            "speedup": 1.0276,
+            "status": "ok",
+            "cosine": 1.0,
+            "max_abs": 0.0
+        },
+        {
+            "mode": "fused",
+            "size": "64x64",
+            "stock_p50_ms": 723.166,
+            "patched_p50_ms": 681.079,
+            "speedup": 1.0618,
+            "status": "ok",
+            "cosine": 0.996111108777,
+            "max_abs": 0.009123
+        },
+        {
+            "mode": "fused",
+            "size": "224x224",
+            "stock_p50_ms": 730.253,
+            "patched_p50_ms": 759.379,
+            "speedup": 0.9616,
+            "status": "ok",
+            "cosine": 0.994195511056,
+            "max_abs": 0.01855
+        },
+        {
+            "mode": "fused",
+            "size": "448x448",
+            "stock_p50_ms": 715.654,
+            "patched_p50_ms": 684.189,
+            "speedup": 1.0460,
+            "status": "ok",
+            "cosine": 1.0,
+            "max_abs": 0.0
+        }
+    ],
+    "repeat_determinism": {
+        "fused_224x224_patched": {
+            "cosine_between_repeats": 1.0,
+            "max_abs_between_repeats": 0.0
+        },
+        "fused_224x224_stock": {
+            "cosine_between_repeats": 1.0,
+            "max_abs_between_repeats": 0.0
+        }
+    },
+    "conclusion": "GME image/fused remains runnable with all three patches. Image-only is bit-identical in these cases. Fused 64x64 and 224x224 show stable small numerical drift versus stock; this is not a runtime failure and should be included in deployment accuracy validation."
+}

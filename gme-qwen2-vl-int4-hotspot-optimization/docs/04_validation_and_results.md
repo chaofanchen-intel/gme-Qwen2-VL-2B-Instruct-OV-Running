@@ -73,6 +73,35 @@ padding 位置的中间值会随分块顺序变化，再经过 pooling / normali
 结论：**opt-1 + opt-2 仍是严格 bit-identical；opt-3 不是**，它是一个量级远低于
 量化噪声的重排序漂移。对精度零容忍的场景可以只 apply 前两个 patch。
 
+## 4.1c GME image/fused 可运行性复核（opt-1 + opt-2 + opt-3）
+
+Qwen3-VL-Embedding-2B 在 image/fused 路径上出现 `FullyConnectedCompressed` /
+`CL_OUT_OF_RESOURCES`，不能直接推断 GME 也会失败。GME 使用独立的 Qwen2-VL
+visual IR 和 `gme_openvino.py`，因此在同一 GPU 上对官方 stock wheel 与三个 patch
+全开的本地 runtime 做了独立 image/fused 回归。每个 case 为 warmup 2、repeat 3，
+输出 shape 均为 `[1,1536]`。
+
+| 模式 | 尺寸 | stock p50 | opt1+2+3 p50 | 状态 | cosine vs stock | max abs |
+|---|---:|---:|---:|---|---:|---:|
+| image | 64x64 | 408.757 ms | 395.529 ms | OK | 1.000000000 | 0 |
+| image | 224x224 | 411.564 ms | 399.102 ms | OK | 1.000000000 | 0 |
+| image | 448x448 | 410.404 ms | 399.372 ms | OK | 1.000000000 | 0 |
+| fused | 64x64 | 723.166 ms | 681.079 ms | OK | 0.996111109 | 9.123e-3 |
+| fused | 224x224 | 730.253 ms | 759.379 ms | OK | 0.994195511 | 1.855e-2 |
+| fused | 448x448 | 715.654 ms | 684.189 ms | OK | 1.000000000 | 0 |
+
+同一 build 内重复调用的 `fused/224x224` 输出完全稳定：stock 与 patched 各自重复
+调用的 cosine 都为 1.0、max abs 都为 0。因此 fused 的小幅差异是稳定的 stock-vs-
+patched 数值差异，不是 GPU 随机噪声；但它没有造成 GME image/fused 无法运行。
+完整原始摘要见
+[`results/gme_visual_opt123_20260813.json`](../results/gme_visual_opt123_20260813.json)。
+
+**结论**：三个优化**不会导致 GME 的 image/fused 路径无法运行**。GME image-only
+在这三个尺寸上保持逐位一致；fused 仍可运行，但 64x64/224x224 存在小幅数值漂移，
+部署前应按实际检索/相似度指标做 fused 精度回归，不能沿用“所有模式
+bit-identical”的表述。Qwen3 的视觉报错属于其自身 `FullyConnectedCompressed`
+路径回归，不能外推为 GME 会同样失败。
+
 ## 4.2 生成式模型回归（KV-cache 通路）
 
 opt-1 / opt-2 都落在**共享的** SDPA 融合路径上，opt-3 落在**共享的** INT4 FC

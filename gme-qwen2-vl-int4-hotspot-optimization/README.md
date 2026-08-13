@@ -14,7 +14,7 @@ hotspot 定位、源码优化、数值验证和回归测试。
 | | |
 | --- | --- |
 | **结果** | 1024 token **1.170–1.172x**、512 token **1.180–1.184x**、128 token **1.151–1.158x**、32 token **1.017–1.018x** |
-| **正确性** | 七个用例里六个 **bit-identical**；padded batch cos 0.99950（比 INT4 自身的量化噪声底低约一个数量级） |
+| **正确性** | text/语言 IR 结果见 §4；image-only 三尺寸 bit-identical；fused 仍可运行但部分尺寸有小幅稳定漂移，见 `docs/04_validation_and_results.md` §4.1c |
 | **回归** | 有状态生成式模型 greedy 解码 token id、首步 logits SHA 与 top-8 逐位相同 |
 | **改动** | Intel GPU plugin，7 个文件，+297 −17，图结构/调度 + 权重 layout，无算术改动 |
 | **改了什么** | ① GQA `repeat_kv` 的 Broadcast 消除放开到无状态模型；② 新增 SDPA 输出 Transpose 融合 + 修复 `sdpa_gen_micro` 的 dispatch bug；③ **宽 INT4 投影（`N ≥ 4K`）的权重重排成 N 连续**，让 oneDNN `jit:gemm` 走更快的 layout |
