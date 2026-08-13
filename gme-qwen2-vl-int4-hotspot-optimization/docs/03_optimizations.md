@@ -1,8 +1,12 @@
 # 3. 代码优化
 
-两个改动都在 **Intel GPU plugin**，都是**纯图结构 / 调度**改动，不碰任何算术，
-因此输出 bit-identical（§4 验证）。patch 全部基于官方 tag `2026.3.0`
-（`8a17657b99`），见 `patches/`。
+三个改动都在 **Intel GPU plugin**。opt-1 / opt-2 是**纯图结构 / 调度**改动，
+opt-3 只改**权重的物理排布**，三者都不碰任何算术（§4 验证）。patch 全部基于官方
+tag `2026.3.0`（`8a17657b99`），见 `patches/`。
+
+opt-1 / opt-2 来自第一轮，opt-3 来自第二轮 oneDNN 立项；第二轮完整的取舍过程、
+被否掉的中间方案和逐 matmul 计时在 `06_round2_onednn_investigation.md` §6.9，
+本节只记最终形态。
 
 ---
 
@@ -155,17 +159,117 @@ inline std::pair<int64_t, int64_t> micro_get_output_batch_and_num_heads(const ke
 
 ---
 
+## opt-3：宽 INT4 投影的权重重排成 N 连续
+
+**文件**：
+- `src/plugins/intel_gpu/src/graph/impls/onednn/fully_connected_onednn.cpp`（决策 + 描述符 + 挂 reorder）
+- `src/plugins/intel_gpu/src/kernel_selector/kernels/reorder/reorder_weights_int4.cpp`（放开 `oiyx → ioyx`）
+- `src/plugins/intel_gpu/src/kernel_selector/cl_kernels/reorder_weights_int4.cl`（新增该转换的 kernel 分支）
+
+**patch**：`patches/opt3_int4_wide_fc_ncontiguous_weights.patch`（+118 / −0，纯新增）
+
+### 问题
+
+NNCF group-128 压缩出来的 INT4 权重是一个行主序 `[N, K]` 常量。plugin 把它交给
+oneDNN matmul 时，按 3D 权重维 `(1, K, N)` 描述成 **K 连续**（`acb` / `cab`）。
+`jit:gemm:any__i8` 在这种排布下对 **N 远大于 K** 的形状明显吃亏 —— GME 的
+MLP `gate_proj` / `up_proj` 正好是 `N=8960, K=1536`（N/K = 5.83），两者合计
+占 seq=1024 时 GEMM 时间的 62%（110.4 / 177.5 ms）。
+
+第二轮用 `ONEDNN_VERBOSE=2` 做了逐 matmul 定价（同一次 1024 token prefill，
+`cab → abc`）：
+
+| 权重 `[K, N]` | N/K | 计时变化 |
+| --- | ---: | --- |
+| 1536 × 8960（gate / up） | 5.83 | 2.293 → **1.798** ms；1.747 → **1.293** ms |
+| 1536 × 2048（qkv） | 1.33 | 0.474 → 1.141 ms ❌ |
+| 1536 × 1536（o_proj） | 1.00 | 0.419 → 0.486 ms ❌ |
+
+即：**这个 layout 不是普遍更好的，只在 N ≫ K 时更好**，在方阵形状上是明确的负收益。
+第二轮的第一版规则用的是 `N ≥ K`，因此把 qkv/o_proj 也卷了进来，端到端反而变慢 ——
+详见 §6.9.3。
+
+### 改动
+
+三件事：
+
+1. `use_n_contiguous_weights()`：在 `fully_connected_onednn` 里判断该权重是否值得换排布；
+2. 命中时 `get_matmul_primitive_descriptor()` 把权重描述符从 `acb`/`cab` 换成
+   `abc`（dense N 连续）；
+3. 同样命中时 `create()` 挂一个 `WeightsReorderParams(oiyx → ioyx)`，由
+   `primitive_inst::update_weights()` 在首次执行时把常量转置一次并缓存。
+
+规则本身：
+
+```cpp
+if (prim_input_size != 3 || !weights_transposed)   return false;   // 只管这条 matmul 路径
+if (dtype != i4 && dtype != u4)                    return false;   // 只管 4-bit 压缩权重
+if (weights_layout.data_padding)                   return false;
+if (pshape.size() != 2 || pshape.is_dynamic())     return false;
+if (N < 4 * K)                                     return false;   // 形状门槛
+if (input_layout.is_dynamic())                     return false;
+return input_layout.count() / K >= 128;                            // 行数门槛
+```
+
+两个常数的来源：
+
+- **`N ≥ 4K`** —— 卡在上表「最慢的正收益（5.83）」和「最快的负收益（1.33）」之间的空档里。
+- **`≥ 128 行`** —— 端到端行数扫描（同模型，规则开/关的 wall 比值）：
+
+  | 行数 | 32 | 64 | 128 | 256 | 1024 |
+  | --- | ---: | ---: | ---: | ---: | ---: |
+  | 加速比 | 0.84x | 0.85x | **1.08x** | **1.16x** | **1.11x** |
+
+  交叉点干净地落在 64 和 128 之间。行数取 `count() / K` 而不是某个固定维，是因为
+  同一个投影在图里会以 `1 × M × K` 和 `M × 1 × K` **两种 src 形态**下发（gate /
+  o_proj / down 是前者，up / qkv 是后者），两者都表示 M 行。
+
+有一点必须强调：**决策刻意不看权重当前的 format**。`get_weights_reorder()` 正是要
+去改这个 format，而 `create()` 之前和之后建的 primitive descriptor 必须一致 ——
+否则 matmul 会拿旧 stride 去读重排后的 buffer，读出的是垃圾（这是第二轮排查中一个
+真实踩到的坑，见 §6.9.2）。
+
+### 为什么安全
+
+- 走的是 plugin 已有的 `primitive_inst::update_weights()` + `_reordered_weights_cache`
+  机制 —— 这是为动态 shape 设计的、在别的 impl 上已经在用的运行时权重重排槽位，
+  不新增生命周期管理。
+- `oiyx → ioyx` 的 INT4 reorder kernel 用 host readback 逐 nibble 比对过 CPU 转置：
+  **0 / 2359296 个 nibble 不一致**。
+- scale / zero-point 不受影响：mask 7 的 group 量化参数是 **g-outer** 排列，与权重
+  的物理 layout 无关。
+- 不命中的形状（含所有 INT8 / FP16 权重、所有窄投影、所有行数不足的调用）走的
+  代码路径与 stock 完全一致，**一行也不变**，也不会多分配任何显存。
+
+### 代价
+
+命中的权重会多留一份副本。GME 上是 56 个 `8960 × 1536` u4 权重 × 6.56 MiB
+≈ **367 MiB** 常驻显存，外加首次执行时的一次性重排。行数门槛不达标时不重排、
+不分配。
+
+### 效果
+
+- `jit:gemm:any__i8` **177.51 → 151.10 ms（−26.4）**，且**全部**来自
+  `gate_proj`（63.00 → 49.55）和 `up_proj`（47.43 → 35.24），其余线性层不动；
+- 1024 token wall：264.10 → **238.21 ms**（**1.109x**）。
+
+---
+
 ## 合并效果（语言 IR，seq=1024，INT4/GPU）
 
-| exec_type | baseline (ms) | patched (ms) | Δ |
-| --- | ---: | ---: | ---: |
-| `jit:gemm:any__i8` | 177.99 | 177.57 | −0.4 |
-| `ocl::sdpa::opt__f16` | 28.03 | 26.05 | **−2.0** |
-| `dynamic_quantize_gpu_opt__f16` | 26.55 | 25.24 | −1.3 |
-| `broadcast_gpu_ref__f16` | **10.10** | **0** | **−10.1** |
-| `rms_gpu_bfyx_opt__f16` | 9.14 | 9.42 | +0.3 |
-| `permute_ref__f16` | **4.93** | **0.88** | **−4.1** |
-| `ocl::rope::opt___f16` | 4.65 | 4.64 | 0 |
-| 其它 | 2.41 | 2.40 | 0 |
-| **profiled 合计** | **263.8** | **246.2** | **−17.6** |
-| **wall** | **283.0** | **263.1** | **−19.9 (−7.0%)** |
+| exec_type | baseline (ms) | opt1+2 (ms) | opt1+2+3 (ms) | Δ 总计 |
+| --- | ---: | ---: | ---: | ---: |
+| `jit:gemm:any__i8` | 177.99 | 177.51 | **151.10** | **−26.9** |
+| `ocl::sdpa::opt__f16` | 28.03 | 26.05 | 25.90 | **−2.1** |
+| `dynamic_quantize_gpu_opt__f16` | 26.55 | 25.24 | 25.57 | −1.0 |
+| `broadcast_gpu_ref__f16` | **10.10** | **0** | **0** | **−10.1** |
+| `rms_gpu_bfyx_opt__f16` | 9.14 | 9.42 | 9.38 | +0.2 |
+| `permute_ref__f16` | **4.93** | **0.88** | **0.88** | **−4.1** |
+| `ocl::rope::opt___f16` | 4.65 | 4.64 | 4.66 | 0 |
+| 其它 | 2.41 | 2.40 | 2.40 | 0 |
+| **profiled 合计** | **263.8** | **246.2** | **219.9** | **−43.9** |
+| **wall p50** | **283.0** | **264.1** | **238.2** | **−44.8 (−15.8%)** |
+
+> 这里的 wall 是 `profile_ops.py` 在**开着 per-op profiling** 时的语言 IR 时间，
+> 比端到端 benchmark 略高（profiling 本身有开销）。端到端交替 A/B 的数字见
+> §4。

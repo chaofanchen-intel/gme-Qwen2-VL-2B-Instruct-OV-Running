@@ -1,0 +1,17 @@
+case                    gate 1x1024x1536:1536x8960  up   1024x1x1536:1536x8960  qkv  1x1024x1536:1536x2048  qkv  1024x1x1536:1536x2048
+--------------------------------------------------------------------------------------------------------------------------------------
+A_gme_cab                    1.341ms   21.0T   1.00x       1.340ms   21.0T   1.00x       0.283ms   22.8T   1.00x       0.283ms   22.8T   1.00x
+A_abc                        1.059ms   26.6T   1.27x       1.058ms   26.6T   1.27x       0.265ms   24.3T   1.07x       0.266ms   24.2T   1.07x
+A_any                        1.060ms   26.6T   1.27x       1.058ms   26.6T   1.27x       0.266ms   24.2T   1.06x       0.267ms   24.1T   1.06x
+A2_cab_swiglu                1.399ms   20.1T   0.96x       1.408ms   20.0T   0.95x       0.354ms   18.2T   0.80x       0.363ms   17.8T   0.78x
+B_cab_symmetric              1.224ms   23.0T   1.10x       1.224ms   23.0T   1.10x       0.231ms   27.9T   1.23x       0.231ms   27.8T   1.22x
+B_abc_symmetric              1.029ms   27.4T   1.30x       1.030ms   27.4T   1.30x       0.261ms   24.7T   1.09x       0.260ms   24.8T   1.09x
+C_s8wei_grouped              0.982ms   28.7T   1.37x       0.981ms   28.7T   1.37x       0.256ms   25.2T   1.11x       0.248ms   26.0T   1.14x
+D_cab_per_oc                 0.861ms   32.7T   1.56x       0.861ms   32.7T   1.56x       0.211ms   30.5T   1.34x       0.213ms   30.3T   1.33x
+D_abc_per_oc                 0.973ms   29.0T   1.38x       0.975ms   28.9T   1.38x       0.247ms   26.1T   1.15x       0.247ms   26.1T   1.15x
+D2_cab_group512              1.364ms   20.7T   0.98x       1.362ms   20.7T   0.98x       0.268ms   24.1T   1.06x       0.267ms   24.1T   1.06x
+E_f16src_u4wei                         unsupported                 unsupported                 unsupported                 unsupported
+F_f16_dense                  1.496ms   18.8T   0.90x       1.500ms   18.8T   0.89x       0.361ms   17.9T   0.78x       0.360ms   17.9T   0.79x
+G_s8_dense                   0.795ms   35.5T   1.69x       0.794ms   35.5T   1.69x       0.205ms   31.5T   1.38x       0.203ms   31.7T   1.39x
+
+(ratio is speedup vs A_gme_cab for the same shape)

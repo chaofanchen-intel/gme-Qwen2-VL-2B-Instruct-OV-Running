@@ -1,0 +1,82 @@
+vtune: Collection started. To stop the collection, either press CTRL-C or enter from another console window: vtune -r /home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/vtune-r2-gpu-hotspots -command stop.
+vtune: Error: Valid setenv symbol is not found in the binary of the analysis target /usr/sbin/ldconfig.real.
+vtune: Warning: Binary file of the analysis target does not contain symbols required for profiling. See the 'Analyzing Statically Linked Binaries' help topic for more details.
+text: tokens=1024 shape=(1, 1536) mean_ms=288.391
+query: tokens=1024 shape=(1, 1536) mean_ms=283.011
+/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/profile_run.json
+vtune: Collection stopped.
+vtune: Using result path `/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/vtune-r2-gpu-hotspots'
+vtune: Executing actions  0 %                                                  vtune: Executing actions  0 % Finalizing results                               vtune: Executing actions  0 % Finalizing the result                            vtune: Executing actions  0 % Clearing the database                            vtune: Executing actions  7 % Clearing the database                            vtune: Executing actions  7 % Loading raw data to the database                 vtune: Executing actions  7 % Loading 'systemcollector-2991234-user-M2.sc' filevtune: Executing actions 12 % Loading 'systemcollector-2991234-user-M2.sc' filevtune: Executing actions 12 % Loading 'gen_metrics0.0.2.0.0.oa.0.vtss' file    vtune: Executing actions 12 % Loading '2991234-2991239.0.trace' file           vtune: Executing actions 12 % Loading '2991239-2991272.0.trace' file           vtune: Executing actions 12 % Loading '2991239-2991280.0.trace' file           vtune: Executing actions 12 % Loading '2991239-2991280.1.trace' file           vtune: Executing actions 12 % Loading '2991239-2991280.2.trace' file           vtune: Executing actions 12 % Loading 'userapicollector-2991239-cd2e25a6.trace'vtune: Executing actions 12 % Updating precomputed scalar metrics              vtune: Executing actions 14 % Updating precomputed scalar metrics              vtune: Executing actions 14 % Processing profile metrics and debug information vtune: Executing actions 19 % Processing profile metrics and debug information vtune: Executing actions 19 % Setting data model parameters                    vtune: Executing actions 19 % Resolving module symbols                         vtune: Executing actions 19 % Resolving information for `26dfe0b812127233.zebinvtune: Executing actions 19 % Resolving information for `0edc3dfbd994951d.zebinvtune: Executing actions 19 % Resolving information for `43bd3c825e5557e1.zebinvtune: Executing actions 19 % Resolving information for `b558e5a327338922.zebinvtune: Executing actions 19 % Resolving information for `ee1b860c1180e9c6.zebinvtune: Executing actions 19 % Resolving information for `324be2e8810f0a10.zebinvtune: Executing actions 19 % Resolving information for `7237b7cb3e17f066.zebinvtune: Executing actions 19 % Resolving information for `07da73931e8b62f6.zebinvtune: Executing actions 19 % Resolving information for `259a02e1e9643c98.zebinvtune: Executing actions 19 % Resolving information for `python3.12'           vtune: Executing actions 19 % Resolving information for `97c710a41bf92717.zebinvtune: Executing actions 20 % Resolving information for `97c710a41bf92717.zebinvtune: Executing actions 20 % Resolving information for `f0ed5952304a1246.zebinvtune: Executing actions 20 % Resolving information for `57c1b0f4fd7f2074.zebinvtune: Executing actions 20 % Resolving information for `b6d25b1e4c8e352c.zebinvtune: Executing actions 20 % Resolving information for `35ad4a13cb03f4d3.zebinvtune: Executing actions 20 % Resolving information for `453ce0634a0abdec.zebinvtune: Executing actions 20 % Resolving information for `libstdc++.so.6'       vtune: Executing actions 20 % Resolving information for `754b3bcdb27cdfd7.zebin
+vtune: Warning: Cannot locate debugging information for file `/usr/bin/python3.12'.
+vtune: Executing actions 20 % Resolving information for `96927b778c07cf82.zebinvtune: Executing actions 20 % Resolving information for `2548475978a17b5e.zebin
+vtune: Warning: Cannot locate debugging information for file `/lib/x86_64-linux-gnu/libstdc++.so.6'.
+vtune: Executing actions 20 % Resolving information for `6a0245bc70992cd9.zebinvtune: Executing actions 21 % Resolving information for `6a0245bc70992cd9.zebinvtune: Executing actions 21 % Resolving information for `94e4d2a79079741d.zebinvtune: Executing actions 21 % Resolving information for `ec9bc41dd85e5bf6.zebinvtune: Executing actions 21 % Resolving information for `dash'                 vtune: Executing actions 21 % Resolving information for `8b0089e69b5fb0d5.zebin
+vtune: Warning: Cannot locate debugging information for file `/usr/bin/dash'.
+vtune: Executing actions 21 % Resolving information for `74615cfabc857cc0.zebinvtune: Executing actions 21 % Resolving information for `ed818652464149b9.zebinvtune: Executing actions 21 % Resolving information for `552a0053761c1572.zebinvtune: Executing actions 21 % Resolving information for `a36b4e13bb4256db.zebinvtune: Executing actions 21 % Resolving information for `2fde0ab14711ecc5.zebinvtune: Executing actions 22 % Resolving information for `2fde0ab14711ecc5.zebinvtune: Executing actions 22 % Resolving information for dangling locations     vtune: Executing actions 22 % Resolving information for `818df4b2115f3e31.zebinvtune: Executing actions 22 % Resolving information for `libscipy_openblas64_-3vtune: Executing actions 22 % Resolving information for `tokenizers.abi3.so'   
+vtune: Warning: Cannot locate debugging information for file `/home/chaofan/envs/qwen_env/lib/python3.12/site-packages/tokenizers/tokenizers.abi3.so'.
+vtune: Executing actions 22 % Resolving information for `libigdrcl.so'         vtune: Executing actions 22 % Resolving information for `libscipy_openblas-5f89
+vtune: Warning: Cannot locate debugging information for file `/usr/lib/x86_64-linux-gnu/intel-opencl/libigdrcl.so'.
+vtune: Executing actions 23 % Resolving information for `libscipy_openblas-5f89vtune: Executing actions 23 % Resolving bottom user stack information          vtune: Executing actions 23 % Resolving thread name information                vtune: Executing actions 24 % Resolving thread name information                vtune: Executing actions 24 % Resolving call target names for dynamic code     vtune: Executing actions 25 % Resolving call target names for dynamic code     vtune: Executing actions 25 % Resolving interrupt name information             vtune: Executing actions 26 % Resolving interrupt name information             vtune: Executing actions 26 % Processing profile metrics and debug information vtune: Executing actions 27 % Processing profile metrics and debug information vtune: Executing actions 28 % Processing profile metrics and debug information vtune: Executing actions 29 % Processing profile metrics and debug information vtune: Executing actions 30 % Processing profile metrics and debug information vtune: Executing actions 31 % Processing profile metrics and debug information vtune: Executing actions 32 % Processing profile metrics and debug information vtune: Executing actions 33 % Processing profile metrics and debug information vtune: Executing actions 34 % Processing profile metrics and debug information vtune: Executing actions 35 % Processing profile metrics and debug information vtune: Executing actions 36 % Processing profile metrics and debug information vtune: Executing actions 37 % Processing profile metrics and debug information vtune: Executing actions 37 % Preparing output tree                            vtune: Executing actions 37 % Parsing columns in input tree                    vtune: Executing actions 37 % Creating top-level columns                       vtune: Executing actions 38 % Creating top-level columns                       vtune: Executing actions 38 % Creating top-level rows                          vtune: Executing actions 39 % Creating top-level rows                          vtune: Executing actions 39 % Preparing output tree                            vtune: Executing actions 39 % Parsing columns in input tree                    vtune: Executing actions 39 % Creating top-level columns                       vtune: Executing actions 39 % Creating top-level rows                          vtune: Executing actions 40 % Creating top-level rows                          vtune: Executing actions 40 % Preparing output tree                            vtune: Executing actions 40 % Parsing columns in input tree                    vtune: Executing actions 40 % Creating top-level columns                       vtune: Executing actions 41 % Creating top-level columns                       vtune: Executing actions 41 % Creating top-level rows                          vtune: Executing actions 42 % Creating top-level rows                          vtune: Executing actions 42 % Preparing output tree                            vtune: Executing actions 42 % Parsing columns in input tree                    vtune: Executing actions 42 % Creating top-level columns                       vtune: Executing actions 43 % Creating top-level columns                       vtune: Executing actions 43 % Creating top-level rows                          vtune: Executing actions 44 % Creating top-level rows                          vtune: Executing actions 45 % Creating top-level rows                          vtune: Executing actions 46 % Creating top-level rows                          vtune: Executing actions 46 % Preparing output tree                            vtune: Executing actions 46 % Parsing columns in input tree                    vtune: Executing actions 46 % Creating top-level columns                       vtune: Executing actions 46 % Creating top-level rows                          vtune: Executing actions 47 % Creating top-level rows                          vtune: Executing actions 47 % Setting data model parameters                    vtune: Executing actions 48 % Setting data model parameters                    vtune: Executing actions 48 % Precomputing frequently used data                vtune: Executing actions 48 % Precomputing frequently used data                vtune: Executing actions 49 % Precomputing frequently used data                vtune: Executing actions 50 % Precomputing frequently used data                vtune: Executing actions 50 % Updating precomputed scalar metrics              vtune: Executing actions 50 % Discarding redundant overtime data               vtune: Executing actions 50 % Saving the result                                vtune: Executing actions 50 % Generating a report                              vtune: Executing actions 50 % Setting data model parameters                    vtune: Executing actions 75 % Setting data model parameters                    vtune: Executing actions 75 % Generating a report                              Elapsed Time: 74.929s
+    GPU Time: 24.718s
+XVE Array Stalled/Idle: 52.8% of Elapsed time with GPU busy
+ | The percentage of time when the XVEs were stalled or idle is high, which has
+ | a negative impact on compute-bound applications.
+ |
+    Occupancy: 72.6% of peak value
+     | Several factors including shared local memory, use of memory barriers,
+     | and inefficient work scheduling can cause a low value of the occupancy
+     | metric.
+     |
+
+        Hottest GPU Computing Tasks with Low Occupancy
+        Computing Task  Total Time  SIMD Width  Peak XVE Threads Occupancy(%)  Occupancy(%)  SIMD Utilization(%)
+        --------------  ----------  ----------  -----------------------------  ------------  -------------------
+        gemm_kernel         5.959s          16                          40.0%         79.8%               100.0%
+        gemm_kernel         4.554s          16                          40.0%         74.9%               100.0%
+        gemm_kernel         4.317s          16                          40.0%         78.2%               100.0%
+        [Others]            9.206s         N/A                           0.0%         68.2%                 0.0%
+    Sampler Busy: 0.0% of peak value
+
+        Hottest GPU Computing Tasks with High Sampler Usage
+        Computing Task  Total Time
+        --------------  ----------
+Collection and Platform Info
+    Application Command Line: python "profile_gme_int4_gpu.py" "--length" "1024" "--warmup" "14" "--repeat" "30" 
+    Operating System: 7.0.0-28-generic DISTRIB_ID=Ubuntu DISTRIB_RELEASE=24.04 DISTRIB_CODENAME=noble DISTRIB_DESCRIPTION="Ubuntu 24.04.4 LTS"
+    Computer Name: user-M2
+    Result Size: 457.1 MB 
+    Collection start time: 13:41:09 12/08/2026 UTC
+    Collection stop time: 13:42:24 12/08/2026 UTC
+    Collector Type: Event-based sampling driver,User-mode sampling and tracing
+    CPU
+        Name: Intel(R) microarchitecture code named Pantherlake-P
+        Frequency: 3.686 GHz
+        Logical CPU Count: 16
+    GPU
+        Name: Display controller: Intel Corporation Device 0xb0a0
+        Vendor: Intel Corporation
+        XVE Count: 32
+        Max XVE Thread Count: 10
+        Max Core Frequency: 2.450 GHz
+        GPU OpenCL Info
+            Version: OpenCL 3.0 NEO 
+            Max Compute Units: 32
+            Max Work Group Size: 1,024
+            Local Memory: 131.1 KB 
+            SVM Capabilities
+
+Recommendations:
+    GPU Time, % of Elapsed time: 33.0%
+     | GPU utilization is low. Switch to the for in-depth analysis of host
+     | activity. Poor GPU utilization can prevent the application from
+     | offloading effectively.
+    XVE Array Stalled/Idle: 52.8% of Elapsed time with GPU busy
+     | GPU metrics detect some kernel issues. Use GPU Compute/Media Hotspots
+     | (preview) to understand how well your application runs on the specified
+     | hardware.
+
+If you want to skip descriptions of detected performance issues in the report,
+enter: vtune -report summary -report-knob show-issues=false -r <my_result_dir>.
+Alternatively, you may view the report in the csv format: vtune -report
+<report_name> -format=csv.
+vtune: Executing actions 100 % Generating a report                             vtune: Executing actions 100 % done                                            

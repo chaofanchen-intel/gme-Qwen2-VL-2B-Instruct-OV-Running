@@ -4,31 +4,31 @@
   "precision": "int4",
   "batch_mode": "padded",
   "streams": "1",
-  "target_tokens": 32,
+  "target_tokens": 1024,
   "workloads": {
     "text": {
-      "effective_tokens": 32,
+      "effective_tokens": 1024,
       "shape": [
         1,
         1536
       ],
-      "mean_ms": 336.137,
-      "p50_ms": 336.137,
-      "min_ms": 336.137,
-      "max_ms": 336.137
+      "mean_ms": 271.477,
+      "p50_ms": 266.026,
+      "min_ms": 264.454,
+      "max_ms": 422.274
     },
     "query": {
-      "effective_tokens": 32,
+      "effective_tokens": 1024,
       "shape": [
         1,
         1536
       ],
-      "mean_ms": 34.086,
-      "p50_ms": 34.086,
-      "min_ms": 34.086,
-      "max_ms": 34.086
+      "mean_ms": 267.921,
+      "p50_ms": 267.847,
+      "min_ms": 266.245,
+      "max_ms": 271.159
     }
   },
-  "warmup": 0,
-  "repeat": 1
+  "warmup": 14,
+  "repeat": 30
 }

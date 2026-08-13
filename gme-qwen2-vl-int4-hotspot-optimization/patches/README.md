@@ -25,9 +25,10 @@ git diff 8a17657b99 -- src/ > "$HOTSPOT_ROOT/patches/all_gme_int4_gpu_opts.patch
 | --- | --- | --- |
 | `opt1_sdpa_gqa_broadcast_stateless.patch` | GQA `repeat_kv` 的 `Unsqueeze→Broadcast→Reshape` 融合支持无状态模型 | 1 file, +13 −5 |
 | `opt2_sdpa_output_transpose_fusion.patch` | 新增 `TransposeSDPATransposeMatcher`；修复 `sdpa_gen_micro` 对非默认 `output_transpose_order` 的 dispatch bug | 3 files, +165 −14 |
-| `all_gme_int4_gpu_opts.patch` | 以上两者合并 | 4 files, +182 −14 |
+| `opt3_int4_wide_fc_ncontiguous_weights.patch` | 宽 INT4 投影（`N ≥ 4K` 且 ≥128 行）的权重重排成 N 连续，matmul 描述符改用 `abc` | 3 files, +118 −0 |
+| `all_gme_int4_gpu_opts.patch` | 以上三者合并 | 7 files, +297 −17 |
 
-两个 patch 相互独立，可单独 apply；但 **opt-2 单独用时依赖它自带的
+三个 patch 相互独立，可单独 apply；但 **opt-2 单独用时依赖它自带的
 `sdpa_gen_micro` 修复**（否则一旦融合触发就会 GPU 挂死），该修复已包含在 opt-2 内。
 
 ## 应用
@@ -47,28 +48,34 @@ cmake --install <build-dir>
 
 | 项 | 结论 |
 | --- | --- |
-| 数值 | **bit-identical**（INT4 / INT8 / INT4-gs64，含 padded batch，max abs diff = 0） |
-| 有状态生成式模型 | 无回归（`Qwen3-1.7B-INT4` greedy 32 步，token id + 首步 logits 逐位相同） |
-| 适用范围 | 通用。opt-1 惠及任何**无状态 GQA** 模型（embedding / encoder / reranker / 不带 KV cache 编译的模型）；opt-2 惠及任何以 `SDPA → Transpose → Reshape → o_proj` 收尾的 attention 块 |
+| 数值（opt-1 + opt-2） | **bit-identical**（INT4 / INT8 / INT4-gs64，含 padded batch，max abs diff = 0） |
+| 数值（加上 opt-3） | 七个用例里六个仍 bit-identical；padded batch cos 0.99950 / max_abs 1.19e-2。opt-3 换的是权重 layout 而非算术，`layout_accuracy_probe` 证明 oneDNN 侧 `cab`/`abc` 数值中性，重排本身逐 nibble 位正确；残留漂移来自 gemm 分块顺序，比 INT4 自身的量化噪声底（cos 0.918–0.989）低约一个数量级 |
+| 有状态生成式模型 | 无回归（`Qwen3-1.7B-INT4` greedy 32 步，token id + 首步 logits SHA + top-8 逐位相同） |
+| 适用范围 | 通用。opt-1 惠及任何**无状态 GQA** 模型；opt-2 惠及任何以 `SDPA → Transpose → Reshape → o_proj` 收尾的 attention 块；opt-3 惠及任何 **group 量化 INT4、`N ≥ 4K` 的宽投影**（典型是 MLP 的 gate/up），且只在 ≥128 行的 prefill 型负载上生效 |
+| 显存 | **opt-3 会给命中的权重多留一份副本**。GME 上是 56 × 6.56 MiB ≈ **367 MiB** 常驻。行数不达标时不重排、不额外分配 |
 | 平台 | 仅 Intel GPU plugin；CPU / NPU 不受影响 |
 | 依赖 | 无。不需要 `ENABLE_DEBUG_CAPS`，不引入新的 config option 或环境变量 |
 
 ## 收益（Intel Panther Lake-P iGPU，gme-Qwen2-VL-2B-Instruct，INT4，GPU）
 
+`bench_ab.sh` 交替 A/B，stock 2026.3 wheel vs 三个 patch 全开，3 轮取中位：
+
 | tokens | text | query |
 | ---: | ---: | ---: |
-| 32 | 32.90 → 32.26 ms (1.020x) | 32.88 → 32.34 ms (1.016x) |
-| 512 | 146.16 → 139.25 ms (1.050x) | 145.84 → 138.21 ms (1.055x) |
-| 1024 | 281.10 → 264.52 ms (**1.063x**) | 281.74 → 264.07 ms (**1.067x**) |
+| 32 | 32.78 → 32.19 ms (1.018x) | 32.85 → 32.31 ms (1.017x) |
+| 128 | 46.56 → 40.20 ms (**1.158x**) | 46.24 → 40.17 ms (**1.151x**) |
+| 512 | 146.55 → 123.81 ms (**1.184x**) | 145.49 → 123.31 ms (**1.180x**) |
+| 1024 | 281.38 → 240.01 ms (**1.172x**) | 280.18 → 239.53 ms (**1.170x**) |
 
-详见 `../docs/04_validation_and_results.md`。
+32 token 上收益仍只有第一轮的 ~1.02x：opt-3 的 128 行门槛在那里不触发，
+这是**刻意的**——低于该行数时新 layout 反而更慢（docs/06 §6.9.4）。
 
-## 上游建议
+详见 `../docs/04_validation_and_results.md` 与 `../docs/06_round2_onednn_investigation.md` §6.9。
 
 ## Qwen3-VL-Embedding-2B 适用性复测
 
-这两个 patch 另外在 `Qwen3-VL-Embedding-2B` 上做了 A/B。结果不能直接沿用 GME 的
-收益结论：
+opt-1 / opt-2 另外在 `Qwen3-VL-Embedding-2B` 上做了 A/B（**opt-3 未在该模型上复测**）。
+结果不能直接沿用 GME 的收益结论：
 
 | 路径 | Qwen3 结果 |
 |---|---|
@@ -82,7 +89,9 @@ cmake --install <build-dir>
 完整 stock/optimized JSON 和复测说明见
 [`results/qwen3_ab_text/REPORT.md`](../results/qwen3_ab_text/REPORT.md)。
 
-两处都是通用缺陷，建议分别提 PR：
+## 上游建议
+
+前两处都是通用缺陷，建议分别提 PR：
 
 1. **opt-1** — `UnsqueezeBroadcastReshapeSDPAFusion` 的 pattern 把 K/V producer 限定
    为 `KVCache`，导致无状态 GQA 模型漏掉 `repeat_kv` 消除。融合的全部前提条件在
@@ -91,3 +100,11 @@ cmake --install <build-dir>
    都有）；(b) `sdpa_gen_micro` 按位置读输出 layout 的 batch/num_heads，对非默认
    `output_transpose_order` 是错的 —— 这是个**已存在但此前无人触发**的 bug，
    (a) 一旦合入就会立刻暴露它。建议 (b) 可以先独立合入。
+3. **opt-3** — 提 PR 前需要先谈清两点，不建议按现在的形态直接上游：
+   - **阈值是实测拟合的，不是推导出来的。** `N ≥ 4K` 和 `≥128 行` 两个常数来自
+     Panther Lake iGPU 上的逐 matmul 计时（docs/06 §6.9.3–§6.9.4），换 GPU 代次
+     或换 driver 后不保证还在同一位置。上游更合适的形态是把它做成
+     `jit:gemm` 侧的 layout 偏好查询，而不是 plugin 侧硬编码常数。
+   - **附带的 `oiyx → ioyx` INT4 reorder 是通用能力，可以先独立合入。**
+     `reorder_weights_int4` 此前不支持这条转换路径；补上它（kernel + selector
+     的三处）本身不改变任何现有行为，已用 host readback 验证逐 nibble 位正确。

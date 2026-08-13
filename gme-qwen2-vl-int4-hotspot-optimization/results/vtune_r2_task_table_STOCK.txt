@@ -1,0 +1,13 @@
+total GPU compute-task time = 24.04s
+kernel                              time_s     %   inst  XMX%  act% stall% idle%  occ%  top stalls
+--------------------------------------------------------------------------------------------------
+gemm_kernel                           5.96  24.8   2464  31.5  47.0   52.8   0.2  79.8  SBID 47%, Instruction Fetch 11%, Barrier 9%
+gemm_kernel                           4.55  18.9   4840  31.7  51.6   47.5   0.9  74.9  SBID 47%, Barrier 21%, Instruction Fetch 13%
+gemm_kernel                           4.32  18.0   2464  32.3  51.8   47.1   1.2  78.2  SBID 39%, Barrier 14%, Instruction Fetch 11%
+sdpa_micro__prefill_1012634729261     2.45  10.2   2464  18.7  51.9   44.5   3.6  58.4  SBID 50%, Dist or Acc 23%, Instruction Fetch 12%
+dynamic_quantize_gpu_opt_20586171     1.53   6.4   2376  18.9  37.4   62.3   0.3  78.2  SBID 60%, Barrier 34%, Dist or Acc 11%
+gemm_kernel                           1.19   5.0   2464  29.0  50.8   46.4   2.8  75.5  SBID 43%, Dist or Acc 15%, Instruction Fetch 12%
+dynamic_quantize_gpu_opt_11415120     0.89   3.7   9856  23.0  49.4   48.3   2.3  72.3  SBID 48%, Dist or Acc 18%, Barrier 16%
+broadcast_gpu_ref_623330873545750     0.89   3.7   4928  16.2  36.3   57.1   6.5  62.0  SBID 53%, Send 17%, Dist or Acc 14%
+rms_gpu_bfyx_opt_6729516681816436     0.78   3.3   5016  30.9  53.4   44.8   1.8  74.4  SBID 43%, Instruction Fetch 14%, Dist or Acc 13%
+rope_opt__2023944537023789983__sa     0.39   1.6   2464  18.4  34.4   60.5   5.1  67.7  SBID 56%, Dist or Acc 16%, Send 15%

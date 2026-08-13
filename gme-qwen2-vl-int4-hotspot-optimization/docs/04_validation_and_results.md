@@ -1,6 +1,10 @@
 # 4. 测试与结果
 
-## 4.1 数值正确性：bit-identical
+> 本节含两轮结果。**§4.1 / §4.2 的 bit-identical 结论对应 opt-1 + opt-2**；
+> 加上第二轮的 opt-3 之后精度结论有一处变化，记在 **§4.1b**，性能数字统一按
+> 第二轮重测（**§4.3**）。
+
+## 4.1 数值正确性（opt-1 + opt-2）：bit-identical
 
 对照组用 **pip 安装的官方 OpenVINO 2026.3.0 wheel**
 （`2026.3.0-22451-8a17657b995-releases/2026/3`，正是 patch 的 base commit），
@@ -30,11 +34,49 @@ INT4：
 INT8 和 INT4-gs64 同样全部 **bit-identical**（`worst cosine 1.000000000`，
 max abs diff 0）。
 
-> 这是预期的：两个改动都只改数据布局和 kernel 调度，没有任何一处改变算术顺序。
+> 这是预期的：opt-1 / opt-2 都只改图结构和 kernel 调度，没有任何一处改变算术顺序。
+
+## 4.1b 加上 opt-3 之后的数值（`results/acc_int4_round2.npz`）
+
+```bash
+python compare_outputs.py results/acc_int4_stock.npz results/acc_int4_round2.npz
+```
+
+| case | cosine | max_abs_diff | rel_l2 |
+| --- | ---: | ---: | ---: |
+| seq1 | 1.000000000 | 0.000e+00 | 0.000e+00 |
+| seq7 | 1.000000000 | 0.000e+00 | 0.000e+00 |
+| seq32 | 1.000000000 | 0.000e+00 | 0.000e+00 |
+| seq129 | 1.000000000 | 0.000e+00 | 0.000e+00 |
+| seq512 | 1.000000000 | 0.000e+00 | 0.000e+00 |
+| seq1024 | 1.000000000 | 0.000e+00 | 0.000e+00 |
+| batch2_padded | **0.999497041** | **1.192e-02** | 2.242e-02 |
+
+**七个用例里六个仍然 bit-identical，只有 `batch2_padded` 动了。**
+
+三件事让这个结果可以被解释，而不是被当成"某处算错了"：
+
+1. **不是"新路径根本没跑"。** 精度这一跑用 `ONEDNN_VERBOSE=2` 复核过，确实有
+   **408 个 `abc` matmul** 执行 —— 六个 bit-exact 的用例是在新 layout 真的生效的
+   前提下 bit-exact 的。
+2. **重排本身不是嫌疑。** `oiyx → ioyx` 的 INT4 reorder 做过 host readback 逐 nibble
+   比对，**0 / 2359296 个 nibble 不一致**；另外 `layout_accuracy_probe` 在 oneDNN
+   层面单独验过 `cab` 与 `abc` 数值等价。
+3. **量级对得上。** 换 layout 会换 `jit:gemm` 的分块与累加顺序，f16 累加下这必然有
+   末位漂移。参照系：同一批用例上 **INT4 相对 INT8 本身**的量化误差是
+   cosine 0.918–0.989、max_abs 最高 9.4e-2 —— 也就是说 opt-3 引入的漂移比模型自身
+   的量化噪声底**低约一个数量级**。
+
+`batch2_padded` 单独跳出来也符合预期：它是唯一一个第二行带右 padding 的用例，
+padding 位置的中间值会随分块顺序变化，再经过 pooling / normalize 放大。
+
+结论：**opt-1 + opt-2 仍是严格 bit-identical；opt-3 不是**，它是一个量级远低于
+量化噪声的重排序漂移。对精度零容忍的场景可以只 apply 前两个 patch。
 
 ## 4.2 生成式模型回归（KV-cache 通路）
 
-两个 patch 都落在**共享的** SDPA 融合路径上，所以有状态 LLM 必须同样不变。
+opt-1 / opt-2 都落在**共享的** SDPA 融合路径上，opt-3 落在**共享的** INT4 FC
+路径上，所以有状态 LLM 必须同样不变。
 
 **先说一个坑**：直接用 `openvino_genai` 做 greedy 对比会得到"输出不一致"的假阳性
 —— 本地 `benchmark/openvino.genai` 的构建是 `0c38b54d7e7-qwen-ttft-llm-bench`，
@@ -52,23 +94,58 @@ IR 做 greedy 解码（`Qwen3-1.7B-INT4`，GPU，2 个 prompt × 32 步）：
 首步 logits 的平方和与 top-8 值**逐位相同**，32 步 token id 完全相同 →
 **KV-cache 通路无回归**。
 
+第二轮加上 opt-3 后重跑（`results/r2_regress_stateful_patched.json`），
+与同一份 stock 基线逐字段比较，`prompt_ids` / `generated_ids` /
+`first_step_logits_sha` / `first_step_logits_top8` **四项全部相同**，
+结论不变。opt-3 在这个负载上不触发也是预料之中：prompt 只有 ~20 token，
+远低于 128 行门槛。
+
+### 更正一条第一轮的表述
+
+第一轮曾把这条写成"生成式模型输出 bit-identical"。第二轮复核时发现：走
+`openvino_genai` 的 `regress_generative.py`（`Qwen3-1.7B-INT4`，greedy）在
+patched 下续写文本与 stock **并不相同**。补充测量之后可以定性：
+
+- 第一轮 patched 的输出与第二轮 patched 的输出**逐字节相同** →
+  差异不是 opt-3 引入的；
+- opt-3 的 128 行门槛在这些 ~20 token 的 prompt 上根本不可能触发 → 也不可能是它；
+- 因此这是 **opt-1 / opt-2 就已经存在**的差异，且如 §4.2 开头所述，本地 GenAI
+  构建与 pip wheel 本来就不是同一个库，这个对比同时变了两个变量。
+
+**权威结论以 `regress_stateful.py` 为准**（它只用 plain OpenVINO 驱动同一份 IR，
+单变量），即 KV-cache 通路的 token id 与首步 logits 逐位相同。
+`regress_generative.py` 的结果只作参考，不作为判据。
+
 ## 4.3 端到端性能（交替 A/B）
 
 这台机器的 GPU 有明显的双档频率状态（见 `PERFORMANCE_REPORT.md` §6.2.1 记录的
 boost / non-boost 双峰），所以不能"先跑完 stock 再跑 patched"。`bench_ab.sh`
 按轮次交替，每轮 warmup 14 + repeat 20，共 3 轮，取 p50 的中位数：
 
-| tokens | workload | stock p50 (ms) | patched p50 (ms) | delta | speedup | stock best | patched best |
-| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 32 | text | 32.90 | 32.26 | −0.65 | **1.020x** | 32.85 | 32.17 |
-| 32 | query | 32.88 | 32.34 | −0.53 | **1.016x** | 32.76 | 32.21 |
-| 512 | text | 146.16 | 139.25 | −6.90 | **1.050x** | 145.69 | 138.77 |
-| 512 | query | 145.84 | 138.21 | −7.64 | **1.055x** | 145.38 | 138.00 |
-| 1024 | text | 281.10 | 264.52 | −16.57 | **1.063x** | 280.78 | 263.98 |
-| 1024 | query | 281.74 | 264.07 | −17.67 | **1.067x** | 281.56 | 262.81 |
+下表是**第二轮重测**的结果，patched = opt-1 + opt-2 + opt-3 全开
+（原始数据 `results/ab/`，每格 3 轮）：
 
-三轮之间离散度很小（1024 token 上 stock 280.8–283.1、patched 262.8–265.3），
-提速随序列长度单调上升，符合"省掉的是 O(S) 的显存搬运"这一机理。
+| tokens | workload | stock p50 (ms) | patched p50 (ms) | delta | speedup | stock min | patched min |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 32 | text | 32.78 | 32.19 | −0.59 | **1.018x** | 32.42 | 31.90 |
+| 32 | query | 32.85 | 32.31 | −0.55 | **1.017x** | 32.51 | 31.93 |
+| 128 | text | 46.56 | 40.20 | −6.36 | **1.158x** | 46.05 | 39.80 |
+| 128 | query | 46.24 | 40.17 | −6.08 | **1.151x** | 45.79 | 39.77 |
+| 512 | text | 146.55 | 123.81 | −22.73 | **1.184x** | 144.99 | 123.27 |
+| 512 | query | 145.49 | 123.31 | −22.18 | **1.180x** | 145.12 | 122.60 |
+| 1024 | text | 281.38 | 240.01 | −41.38 | **1.172x** | 279.13 | 239.18 |
+| 1024 | query | 280.18 | 239.53 | −40.66 | **1.170x** | 279.41 | 238.49 |
+
+三轮之间离散度很小（1024 token 上 stock 279.8–281.6、patched 239.6–241.2）。
+
+曲线的形状值得单独说一句：**32 token 上收益仍然只有第一轮的 ~1.02x，从 128 token
+起跳到 1.15x 以上**。这不是噪声，是 opt-3 的 128 行门槛：低于该行数时新权重
+layout 反而更慢（0.84–0.85x，见 docs/06 §6.9.4），所以规则刻意不触发，收益退回
+opt-1 + opt-2 的水平。
+
+第一轮（仅 opt-1 + opt-2）的对照数字，供分解收益用：
+32 token 1.016–1.020x、512 token 1.050–1.055x、1024 token 1.063–1.067x。
+即 **1024 token 上 1.17x 里，opt-1+opt-2 贡献 ~1.065x，opt-3 再叠 ~1.10x**。
 
 ## 4.4 VTune 复核（patched）
 
@@ -90,17 +167,29 @@ vtune -collect gpu-hotspots -result-dir results/vtune-gpu-hotspots-int4-1024-pat
 > `GPU Time` 的绝对值也受 VTune 自身开销影响。因此这一节只作**定性**复核，
 > 定量结论以 §4.3 和 §3 的 plugin profiling 为准。
 
+> 这是第一轮（opt-1 + opt-2）采集的。第二轮的 VTune 复采见
+> `06_round2_onednn_investigation.md`。
+
 ## 4.5 结论
 
 1. **确认了两处 OpenVINO GPU plugin 的图优化缺口**，均为通用问题（不是 GME 特例）：
    - GQA `repeat_kv` 消除只对有状态模型生效，无状态 encoder/embedding 模型漏掉；
    - SDPA 缺少输出 transpose 融合，且 micro 实现对非默认输出 order 的 dispatch 是坏的。
-2. 修复后 **1024 token 的 text/query 提速 6.3–6.7%，512 token 5.0–5.5%，
-   32 token 1.6–2.0%**，输出 **bit-identical**，生成式模型 **无回归**。
-3. **剩余 68% 的时间在 oneDNN `jit:gemm` 里**，实测饱和在 ~15 TFLOPS（int8），
-   而同一 kernel 的 f16 路径就有 12.5 TFLOPS —— int8 只快 1.2×，远低于 XMX
-   int8 相对 f16 的 2× 理论比。这部分不在 OpenVINO 源码可控范围内，需要单独立项
-   （见 §5.1）。
-4. 因此对"int4 text/query 明显过慢"的回答是：**慢的主体不是 OpenVINO 的图或
-   kernel 选择，而是这颗 iGPU 上 oneDNN 权重压缩 GEMM 的实际吞吐**；OpenVINO 侧
-   能拿到的干净收益本轮已经拿到 ~7%，进一步要么动 oneDNN，要么动模型导出（§5.2）。
+2. **第二轮又确认了一处 GEMM 侧的空档**：`jit:gemm:any__i8` 对 4-bit 压缩权重
+   固定按 K 连续描述，而在 **N ≫ K** 的宽投影上 N 连续明显更快 —— GME 的
+   `gate_proj` / `up_proj`（N/K = 5.83）合计占 GEMM 时间 62%，换排布后
+   GEMM 从 177.5 降到 151.1 ms。
+3. 三个改动合起来：**1024 token 提速 17.0–17.2%，512 token 18.0–18.4%，
+   128 token 15.1–15.8%，32 token 1.7–1.8%**。
+   精度上 **opt-1 + opt-2 严格 bit-identical**；opt-3 在七个用例里六个 bit-identical，
+   剩下一个的漂移比 INT4 自身的量化噪声底低约一个数量级（§4.1b）。
+   KV-cache 通路 **无回归**（§4.2）。
+4. **剩余时间仍以 oneDNN `jit:gemm` 为主（~63%）**。opt-3 只吃掉了"排布选错"这
+   一块，kernel 自身的吞吐问题还在：实测饱和在 ~15 TFLOPS（int8），而同一 kernel
+   的 f16 路径就有 12.5 TFLOPS —— int8 只快 1.2×，远低于 XMX int8 相对 f16 的
+   2× 理论比。已经定价过的剩余杠杆只剩 per-OC 量化（1.55x，**有精度代价**），
+   见 docs/06 §6.3。
+5. 因此对"int4 text/query 明显过慢"的回答是：**慢的主体是这颗 iGPU 上 oneDNN
+   权重压缩 GEMM 的实际吞吐**，但其中有一部分（宽投影的权重排布）是 OpenVINO
+   侧就能修的，两轮合计已拿到 **~17%** 的干净收益；再往前要么动 oneDNN kernel
+   本身，要么动模型导出（§5.2）。

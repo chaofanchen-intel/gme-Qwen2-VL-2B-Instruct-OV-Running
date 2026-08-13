@@ -13,42 +13,45 @@ hotspot 定位、源码优化、数值验证和回归测试。
 
 | | |
 | --- | --- |
-| **结果** | 1024 token **1.063–1.067x**、512 token **1.050–1.055x**、32 token **1.016–1.020x** |
-| **正确性** | 输出 **bit-identical**（INT4/INT8/INT4-gs64，含 padded batch，max abs diff = 0） |
-| **回归** | 有状态生成式模型 greedy 解码 token id 与首步 logits 逐位相同 |
-| **改动** | Intel GPU plugin，4 个文件，+182 −14，纯图结构/调度，无算术改动 |
-| **改了什么** | ① GQA `repeat_kv` 的 Broadcast 消除此前只对有状态模型生效，放开到无状态模型；② 新增 SDPA 输出 Transpose 融合，并修复 `sdpa_gen_micro` 对非默认输出 order 的 dispatch bug |
-| **剩下的大头** | oneDNN `jit:gemm` 占 GPU 时间 68%，实测饱和在 ~15 TFLOPS（int8 只比 f16 快 1.2×，理论应 2×）—— 不在 OpenVINO 源码可控范围，需单独立项 |
+| **结果** | 1024 token **1.170–1.172x**、512 token **1.180–1.184x**、128 token **1.151–1.158x**、32 token **1.017–1.018x** |
+| **正确性** | 七个用例里六个 **bit-identical**；padded batch cos 0.99950（比 INT4 自身的量化噪声底低约一个数量级） |
+| **回归** | 有状态生成式模型 greedy 解码 token id、首步 logits SHA 与 top-8 逐位相同 |
+| **改动** | Intel GPU plugin，7 个文件，+297 −17，图结构/调度 + 权重 layout，无算术改动 |
+| **改了什么** | ① GQA `repeat_kv` 的 Broadcast 消除放开到无状态模型；② 新增 SDPA 输出 Transpose 融合 + 修复 `sdpa_gen_micro` 的 dispatch bug；③ **宽 INT4 投影（`N ≥ 4K`）的权重重排成 N 连续**，让 oneDNN `jit:gemm` 走更快的 layout |
+| **剩下的大头** | GEMM 仍占 GPU 时间 ~63%。已定价的剩余杠杆只有 per-OC 量化（1.55x，**有精度代价**），见 docs/06 §6.3 |
 
 ## 优化前后的 GPU 时间构成（语言 IR，seq=1024，INT4/GPU）
 
-| exec_type | baseline (ms) | patched (ms) | Δ |
-| --- | ---: | ---: | ---: |
-| `jit:gemm:any__i8`（oneDNN，所有线性层） | 177.99 | 177.57 | −0.4 |
-| `ocl::sdpa::opt__f16` | 28.03 | 26.05 | −2.0 |
-| `dynamic_quantize_gpu_opt__f16` | 26.55 | 25.24 | −1.3 |
-| `broadcast_gpu_ref__f16`（GQA repeat_kv） | **10.10** | **0** | **−10.1** |
-| `rms_gpu_bfyx_opt__f16` | 9.14 | 9.42 | +0.3 |
-| `permute_ref__f16`（attention transpose） | **4.93** | **0.88** | **−4.1** |
-| `ocl::rope::opt___f16` | 4.65 | 4.64 | 0 |
-| 其它 | 2.41 | 2.40 | 0 |
-| **profiled 合计** | **263.8** | **246.2** | **−17.6** |
-| **wall** | **283.0** | **263.1** | **−19.9 (−7.0%)** |
+| exec_type | baseline (ms) | opt1+2 (ms) | opt1+2+3 (ms) | Δ 总计 |
+| --- | ---: | ---: | ---: | ---: |
+| `jit:gemm:any__i8`（oneDNN，所有线性层） | 177.99 | 177.51 | **151.10** | **−26.9** |
+| `ocl::sdpa::opt__f16` | 28.03 | 26.05 | 25.90 | −2.1 |
+| `dynamic_quantize_gpu_opt__f16` | 26.55 | 25.24 | 25.57 | −1.0 |
+| `broadcast_gpu_ref__f16`（GQA repeat_kv） | **10.10** | **0** | **0** | **−10.1** |
+| `rms_gpu_bfyx_opt__f16` | 9.14 | 9.42 | 9.38 | +0.2 |
+| `permute_ref__f16`（attention transpose） | **4.93** | **0.88** | **0.88** | **−4.1** |
+| `ocl::rope::opt___f16` | 4.65 | 4.64 | 4.66 | 0 |
+| 其它 | 2.41 | 2.40 | 2.40 | 0 |
+| **profiled 合计** | **263.8** | **246.2** | **219.9** | **−43.9** |
+| **wall p50** | **283.0** | **264.1** | **238.2** | **−44.8 (−15.8%)** |
+
+opt-3 的 26.4 ms **全部来自 `gate_proj`（63.00 → 49.55）和 `up_proj`（47.43 → 35.24）**，
+其余线性层和其余算子不动 —— 这正是该优化的适用范围（见 docs/06 §6.9）。
 
 ---
 
 ## 文档
 
-| [`results/qwen3_ab_text/REPORT.md`](results/qwen3_ab_text/REPORT.md) | GME opt1/opt2 对 Qwen3-VL-Embedding-2B 的适用性 A/B：text 微小变化，image/fused `CL_OUT_OF_RESOURCES` 回归 |
-
 | 文档 | 内容 |
 | --- | --- |
 | [`docs/01_methodology_and_baseline.md`](docs/01_methodology_and_baseline.md) | 被测对象、为什么必须重建干净基线、三套测量工具、理论算力标尺 |
 | [`docs/02_hotspot_analysis.md`](docs/02_hotspot_analysis.md) | VTune GPU hotspots、算子级归因、GEMM 为什么只有 15 TFLOPS、两处图融合缺口 |
-| [`docs/03_optimizations.md`](docs/03_optimizations.md) | 两个 patch 的问题、改法、为什么安全、逐项收益 |
-| [`docs/04_validation_and_results.md`](docs/04_validation_and_results.md) | 数值 bit-identical 验证、生成式回归、交替 A/B 性能、VTune 复核 |
+| [`docs/03_optimizations.md`](docs/03_optimizations.md) | 三个 patch 的问题、改法、为什么安全、逐项收益 |
+| [`docs/04_validation_and_results.md`](docs/04_validation_and_results.md) | 数值验证（opt1+2 bit-identical / opt3 的漂移量级）、生成式回归、交替 A/B 性能、VTune 复核 |
 | [`docs/05_rejected_and_future_work.md`](docs/05_rejected_and_future_work.md) | 试过且**否掉**的 3 个方案（附实测数字）、后续 5 个方向、与既有 Qwen3.5 patch 的关系 |
+| [`docs/06_round2_onednn_investigation.md`](docs/06_round2_onednn_investigation.md) | **第二轮**：oneDNN 单独立项、INT4 GEMM 成本分解 probe、VTune 复采、opt-3 的落地与两次规则修正（§6.9） |
 | [`patches/README.md`](patches/README.md) | patch 的 base、应用方式、影响面、上游建议 |
+| [`results/qwen3_ab_text/REPORT.md`](results/qwen3_ab_text/REPORT.md) | opt-1/opt-2 对 Qwen3-VL-Embedding-2B 的适用性 A/B：text 微小变化，image/fused `CL_OUT_OF_RESOURCES` 回归 |
 
 ## 脚本
 
@@ -86,12 +89,12 @@ cmake --build build --target openvino_intel_gpu_plugin -j && cmake --install bui
 # --- patched ---
 source "$OPENVINO_ROOT/install/setupvars.sh"
 python profile_ops.py --precision int4 --length 1024 --warmup 12 --repeat 8
-python dump_outputs.py --precision int4 --output results/acc_int4_patched.npz
-python compare_outputs.py results/acc_int4_stock.npz results/acc_int4_patched.npz
+python dump_outputs.py --precision int4 --output results/acc_int4_round2.npz
+python compare_outputs.py results/acc_int4_stock.npz results/acc_int4_round2.npz
 
 # --- 端到端交替 A/B + 回归 ---
-./bench_ab.sh
-python regress_stateful.py --output results/regress_stateful_patched.json
+./bench_ab.sh                     # 默认 1024 / 512 / 128 / 32
+python regress_stateful.py --output results/r2_regress_stateful_patched.json
 
 # --- VTune ---
 vtune -collect gpu-hotspots -result-dir results/vtune-gpu-hotspots-int4-1024-patched \
@@ -107,6 +110,10 @@ vtune -collect gpu-hotspots -result-dir results/vtune-gpu-hotspots-int4-1024-pat
 ├── README.md                        本文件
 ├── docs/                            分析过程 / hotspot / 优化 / 测试结论
 ├── patches/                         基于官方 2026.3.0 的可交付 patch
+├── onednn/                          第二轮的独立 oneDNN probe（脱离 OpenVINO 直接定价 GEMM）
+│   ├── *_probe.cpp                  GEMM 成本分解 / u4 重排 / scale 排布 / layout 精度
+│   ├── build_probe.sh               链接 oneDNN-ov2026.3 (babb7375ff)
+│   └── results/                     probe 输出
 ├── results/                         profiling 输出、A/B 原始数据、精度对比、VTune 导出
 │   ├── README.md                    每个结果文件的口径说明（务必先看这个）
 │   └── ab/                          交替 A/B 的逐轮 JSON

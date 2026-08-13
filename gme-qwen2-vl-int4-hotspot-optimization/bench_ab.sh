@@ -11,7 +11,10 @@ MODEL_BENCH_ROOT="${MODEL_BENCH_ROOT:-$(cd "$GME_ROOT/.." && pwd)}"
 OPENVINO_ROOT="${OPENVINO_ROOT:-$MODEL_BENCH_ROOT/benchmark/openvino}"
 QWEN_ENV="${QWEN_ENV:-/home/chaofan/envs/qwen_env}"
 ROUNDS="${ROUNDS:-3}"
-LENGTHS="${LENGTHS:-1024 512 32}"
+# 128 is here because opt-3's row threshold sits between 64 and 128 rows (docs/06 S6.9.4);
+# without a point just above it the speedup curve looks like it jumps from 1.02x to 1.18x
+# for no reason.
+LENGTHS="${LENGTHS:-1024 512 128 32}"
 WARMUP="${WARMUP:-14}"
 REPEAT="${REPEAT:-20}"
 OUT="$HERE/results/ab"

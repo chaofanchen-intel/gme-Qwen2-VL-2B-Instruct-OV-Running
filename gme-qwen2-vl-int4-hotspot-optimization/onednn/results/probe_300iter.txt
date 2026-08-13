@@ -1,0 +1,13 @@
+case                    gate_up  M1024 K1536 N8960  down     M1024 K8960 N1536  qkv      M1024 K1536 N2048
+----------------------------------------------------------------------------------------------------------
+A_gme_actual                 1.033ms   27.3T   1.00x       0.999ms   28.2T   1.00x       0.235ms   27.4T   1.00x
+A2_gme_swiglu                1.153ms   24.4T   0.90x       1.001ms   28.2T   1.00x       0.265ms   24.4T   0.89x
+B_u4_symmetric               1.003ms   28.1T   1.03x       0.941ms   30.0T   1.06x       0.220ms   29.3T   1.07x
+C_s8wei_grouped              5.881ms    4.8T   0.18x       5.348ms    5.3T   0.19x       1.292ms    5.0T   0.18x
+D_u4_per_oc                  0.950ms   29.7T   1.09x       0.970ms   29.0T   1.03x       0.213ms   30.3T   1.10x
+D2_u4_group512               0.932ms   30.2T   1.11x                 unsupported       0.218ms   29.5T   1.08x
+E_f16src_u4wei                         unsupported                 unsupported                 unsupported
+F_f16_dense                  1.494ms   18.9T   0.69x       1.449ms   19.5T   0.69x       0.348ms   18.5T   0.67x
+G_s8_dense                   0.777ms   36.3T   1.33x       0.731ms   38.5T   1.37x       0.186ms   34.6T   1.26x
+
+(ratio is speedup vs A_gme_actual for the same shape)

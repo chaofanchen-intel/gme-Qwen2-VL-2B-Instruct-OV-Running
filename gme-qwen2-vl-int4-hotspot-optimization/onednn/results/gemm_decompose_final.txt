@@ -1,0 +1,19 @@
+case                    gate 1x1024x1536:1536x8960  up   1024x1x1536:1536x8960  qkv  1x1024x1536:1536x2048  qkv  1024x1x1536:1536x2048
+--------------------------------------------------------------------------------------------------------------------------------------
+A_gme_cab                    1.291ms   21.8T   1.00x       1.298ms   21.7T   1.00x       0.240ms   26.9T   1.00x       0.236ms   27.3T   1.00x
+A_abc                        1.033ms   27.3T   1.25x       1.033ms   27.3T   1.26x       0.235ms   27.5T   1.02x       0.234ms   27.5T   1.01x
+A_any                        1.033ms   27.3T   1.25x       1.032ms   27.3T   1.26x       0.234ms   27.6T   1.03x       0.233ms   27.6T   1.01x
+A_cab_scK                    1.289ms   21.9T   1.00x       1.288ms   21.9T   1.01x       0.239ms   26.9T   1.00x       0.239ms   26.9T   0.99x
+A_abc_scK                    1.034ms   27.3T   1.25x       1.034ms   27.3T   1.25x       0.236ms   27.2T   1.01x       0.236ms   27.2T   1.00x
+A2_cab_swiglu                1.344ms   21.0T   0.96x       1.344ms   21.0T   0.97x       0.293ms   22.0T   0.82x       0.308ms   20.9T   0.77x
+B_cab_symmetric              1.180ms   23.9T   1.09x       1.184ms   23.8T   1.10x       0.198ms   32.6T   1.21x       0.198ms   32.6T   1.19x
+B_abc_symmetric              1.008ms   28.0T   1.28x       1.011ms   27.9T   1.28x       0.227ms   28.4T   1.06x       0.225ms   28.7T   1.05x
+C_s8wei_grouped              0.963ms   29.3T   1.34x       0.965ms   29.2T   1.34x       0.213ms   30.2T   1.12x       0.212ms   30.4T   1.12x
+D_cab_per_oc                 0.832ms   33.9T   1.55x       0.832ms   33.9T   1.56x       0.190ms   33.8T   1.26x       0.191ms   33.8T   1.24x
+D_abc_per_oc                 0.948ms   29.7T   1.36x       0.945ms   29.8T   1.37x       0.220ms   29.2T   1.09x       0.220ms   29.2T   1.07x
+D2_cab_group512              1.307ms   21.6T   0.99x       1.315ms   21.4T   0.99x       0.250ms   25.8T   0.96x       0.237ms   27.2T   1.00x
+E_f16src_u4wei                         unsupported                 unsupported                 unsupported                 unsupported
+F_f16_dense                  1.494ms   18.9T   0.86x       1.494ms   18.9T   0.87x       0.349ms   18.5T   0.69x       0.348ms   18.5T   0.68x
+G_s8_dense                   0.777ms   36.3T   1.66x       0.776ms   36.3T   1.67x       0.186ms   34.6T   1.29x       0.186ms   34.5T   1.27x
+
+(ratio is speedup vs A_gme_cab for the same shape)

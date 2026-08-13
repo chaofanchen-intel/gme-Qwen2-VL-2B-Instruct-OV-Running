@@ -69,9 +69,29 @@ const bool disable_gated_mlp_fusion = GPU_DEBUG_VALUE_OR(config.get_disable_gate
 且 `qwen3.5_patch/opt3_dynamic_quantize_reuse.patch` 已经有一份现成实现，
 本轮不重复做。
 
+### 5.1.5 第二轮否掉的方案
+
+完整过程在 `06_round2_onednn_investigation.md`，这里只列结论，避免重复踩坑：
+
+| 候选 | 结果 | 结论 |
+| --- | ---: | --- |
+| 权重描述符交给 oneDNN 自己选（`weights_fmt = any`） | 251.4 ms | ❌ 否。oneDNN 的启发式对**每个**形状都挑了 padded 的 N 连续 stride，比直接强制 `abc`（246.1 ms）还慢 |
+| 只按 `N ≥ K` 决定是否换排布 | 端到端**变慢** | ❌ 否。逐 matmul 定价显示 qkv（N/K=1.33）0.474 → 1.141 ms、o_proj（N/K=1.00）0.419 → 0.486 ms 都是负收益。门槛必须抬到 `N ≥ 4K`（§6.9.3） |
+| 不看行数、一律换排布 | 32/64 token 上 0.84–0.85x | ❌ 否。必须叠加 ≥128 行的门槛（§6.9.4） |
+| per-OC（per-output-channel）量化替代 group-128 | **1.55x** | ⚠️ 挂起。收益是所有候选里最大的，但**要重新导出模型且有精度代价**，不属于"plugin 侧无损优化"这个范畴（§6.3） |
+
+顺带更正一条第一轮的排查结论：第一轮曾把一次"描述符换成 `abc` 后 qkv/o_proj
+也变快"的实验当成证据。第二轮复现失败 —— 那次实验只换了描述符、没有真的重排
+buffer，kernel 是拿新 stride 读旧数据，**计时不可信**。§5.1 上面几条不受影响
+（它们都是 wall 级别的 A/B），但那一条已作废。
+
 ---
 
 ## 5.2 后续方向（按预估收益排序）
+
+> 第二轮已经把 (1) 里"权重排布选错"这一块吃掉了（opt-3，GEMM 177.5 → 151.1 ms）。
+> 下面 (1) 的证据链是第一轮采集的，**结论仍然成立**：kernel 自身的吞吐问题和
+> 排布问题是两回事，换完排布后 GEMM 仍占 GPU 时间 ~63%。
 
 ### (1) oneDNN `jit:gemm` 的 int8 权重压缩 GEMM —— 预估空间 ~2×，约 80 ms
 
@@ -114,11 +134,12 @@ oneDNN 省掉 zero-point 补偿。`benchmark/models/` 下已经有
 DQ 立刻读回来。融合掉这一来一回，56 次共省 ~347 MB，按实测 ~50 GB/s ≈ 7 ms。
 需要新增一个融合 primitive 或把 DQ 做成 RMS 的 post-op，工作量中等。
 
-### (5) host 侧提交开销 —— ~17 ms（6.5%）
+### (5) host 侧提交开销 —— ~18 ms（7.7%）
 
-wall 263.1 ms vs plugin profiled 246.2 ms，差 17 ms，全图约 590 个 primitive。
-减少 primitive 数量（上面每一条融合都在做这件事）或降低 per-primitive 提交成本
-都能吃到一部分。
+wall 238.2 ms vs plugin profiled 219.9 ms，差 18.3 ms，全图约 590 个 primitive。
+这一项是**绝对值几乎不变、占比随 GPU 时间下降而上升**的固定开销：第一轮是
+263.1 vs 246.2（17 ms / 6.5%）。减少 primitive 数量（上面每一条融合都在做这件事）
+或降低 per-primitive 提交成本都能吃到一部分。
 
 ---
 
@@ -131,8 +152,8 @@ wall 263.1 ms vs plugin profiled 246.2 ms，差 17 ms，全图约 590 个 primit
 既有工作，已备份在 `preexisting-worktree-backup/genai-worktree-before-gme-work.diff`，
 本轮未触碰。
 
-如果后续要走 GenAI 的 `TextEmbeddingPipeline`，两个 patch 一样生效 ——
-它们在 GPU plugin 层，对上层 API 透明。
+如果后续要走 GenAI 的 `TextEmbeddingPipeline`，三个 patch 一样生效 ——
+它们都在 GPU plugin 层，对上层 API 透明。
 
 ## 5.4 关于既有 Qwen3.5 patch 的关系
 
@@ -142,5 +163,5 @@ wall 263.1 ms vs plugin profiled 246.2 ms，差 17 ms，全图约 590 个 primit
 | Qwen3.5 patch | 与本轮的关系 |
 | --- | --- |
 | `opt2_permute_lws_f_axis` | 改 `permute_kernel_ref` 的 LWS。本轮 opt-2 是把 permute **整个消除**，两者叠加时 opt-2 先生效，opt2 的收益变得可忽略。实测在 GME 上 Qwen3.5-opt2 反而让 permute 从 4.93 变 6.23 ms，GME 场景下建议不要叠加 |
-| `opt3_dynamic_quantize_reuse` | 做的正是 §5.1.4 的 DQ 去重，与本轮正交，可叠加，值 ~1.3 ms |
+| `opt3_dynamic_quantize_reuse` | 做的正是 §5.1.4 的 DQ 去重，与本轮正交，可叠加，值 ~1.3 ms。**注意与本轮的 opt-3 同名但完全无关**，本轮 opt-3 是权重排布 |
 | `opt1` / `opt4` / `opt5` | 针对 SSM / conv1d / 动态 activation，GME 图里没有这些算子，不生效也无害 |

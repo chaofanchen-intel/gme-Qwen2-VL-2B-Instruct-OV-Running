@@ -1,0 +1,23 @@
+case                    gate_up  M1024 K1536 N8960  down     M1024 K8960 N1536  qkv      M1024 K1536 N2048
+----------------------------------------------------------------------------------------------------------
+A_gme_cab                    1.290ms   21.8T   1.00x       1.207ms   23.4T   1.00x       0.235ms   27.5T   1.00x
+A_abc                        1.034ms   27.3T   1.25x       1.005ms   28.0T   1.20x       0.236ms   27.3T   1.00x
+A_any                        1.041ms   27.1T   1.24x       1.006ms   28.0T   1.20x       0.236ms   27.3T   0.99x
+A2_cab_swiglu                1.348ms   20.9T   0.96x       1.203ms   23.4T   1.00x       0.307ms   21.0T   0.76x
+B_cab_symmetric              1.184ms   23.8T   1.09x       1.113ms   25.3T   1.08x       0.199ms   32.3T   1.18x
+B_abc_symmetric              1.012ms   27.8T   1.27x       0.948ms   29.7T   1.27x       0.226ms   28.5T   1.04x
+C_s8wei_grouped              0.966ms   29.2T   1.34x       0.920ms   30.6T   1.31x       0.214ms   30.1T   1.10x
+D_cab_per_oc                 0.833ms   33.8T   1.55x       0.733ms   38.4T   1.65x       0.191ms   33.8T   1.23x
+D_abc_per_oc                 0.948ms   29.7T   1.36x       0.973ms   29.0T   1.24x       0.220ms   29.3T   1.07x
+D2_cab_group512              1.309ms   21.5T   0.99x               n/a (K%group)       0.264ms   24.4T   0.89x
+E_f16src_u4wei                         unsupported
+  E_f16src_u4wei: could not create a primitive descriptor for the matmul primitive. Run workload with environment variable ONEDNN_VERBOSE=all to get additional diagnostic information.
+                 unsupported
+  E_f16src_u4wei: could not create a primitive descriptor for the matmul primitive. Run workload with environment variable ONEDNN_VERBOSE=all to get additional diagnostic information.
+                 unsupported
+  E_f16src_u4wei: could not create a primitive descriptor for the matmul primitive. Run workload with environment variable ONEDNN_VERBOSE=all to get additional diagnostic information.
+
+F_f16_dense                  1.492ms   18.9T   0.86x       1.450ms   19.4T   0.83x       0.348ms   18.5T   0.67x
+G_s8_dense                   0.776ms   36.3T   1.66x       0.731ms   38.5T   1.65x       0.187ms   34.5T   1.26x
+
+(ratio is speedup vs A_gme_cab for the same shape)

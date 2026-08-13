@@ -1,0 +1,17 @@
+oneDNN babb7375ff500dd8ad77d26cbd2b044122b7a8b4 -- does the cab->abc weight layout change gemm numerics?
+group=128, asymmetric u4 weights, s8 src with per-token scales, g-outer scale/zp
+error is measured against an f64 host reference over the first 64 rows
+
+shape                  layout        max_rel       rel_l2  kernel
+o_proj  K1536 N1536    cab         0.0004876    0.0002081  jit:gemm:any
+o_proj  K1536 N1536    abc         0.0004876    0.0002081  jit:gemm:any
+qkv     K1536 N2048    cab         0.0004876     0.000208  jit:gemm:any
+qkv     K1536 N2048    abc         0.0004876     0.000208  jit:gemm:any
+gate/up K1536 N8960    cab         0.0004876    0.0002081  jit:gemm:any
+gate/up K1536 N8960    abc         0.0004876    0.0002081  jit:gemm:any
+down    K8960 N1536    cab         0.0004871    0.0002047  jit:gemm:any
+down    K8960 N1536    abc         0.0004871    0.0002047  jit:gemm:any
+
+Read: comparable error for both layouts => the layout swap is numerically neutral
+and any end-to-end difference is kernel-dispatch noise.  A much larger error for
+`abc` => the weights or the scale/zero-point indexing is being misinterpreted.
