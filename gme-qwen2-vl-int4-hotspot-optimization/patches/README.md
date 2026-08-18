@@ -24,12 +24,16 @@ git diff 8a17657b99 -- src/ > "$HOTSPOT_ROOT/patches/all_gme_int4_gpu_opts.patch
 | 文件 | 内容 | 改动量 |
 | --- | --- | --- |
 | `opt1_sdpa_gqa_broadcast_stateless.patch` | GQA `repeat_kv` 的 `Unsqueeze→Broadcast→Reshape` 融合支持无状态模型 | 1 file, +13 −5 |
-| `opt2_sdpa_output_transpose_fusion.patch` | 新增 `TransposeSDPATransposeMatcher`；修复 `sdpa_gen_micro` 对非默认 `output_transpose_order` 的 dispatch bug | 3 files, +165 −14 |
-| `opt3_int4_wide_fc_ncontiguous_weights.patch` | 宽 INT4 投影（`N ≥ 4K` 且 ≥128 行）的权重重排成 N 连续，matmul 描述符改用 `abc` | 3 files, +118 −0 |
-| `all_gme_int4_gpu_opts.patch` | 以上三者合并 | 7 files, +297 −17 |
+| `opt2_sdpa_output_transpose_fusion.patch` | 新增 `TransposeSDPATransposeMatcher`；修复 `sdpa_gen_micro` 的 dispatch 与 canonicalization；修复 `calc_output_layout()` 漏用 `output_transpose_order` | 4 files, +257 −11 |
+| `opt3_int4_wide_fc_ncontiguous_weights.patch` | 宽 INT4 投影（`N ≥ 4K` 且 ≥128 行）的权重重排成 N 连续，matmul 描述符改用 `abc` | 3 files, +115 −3 |
+| `all_gme_int4_gpu_opts.patch` | 以上三者合并 | 8 files, +385 −19 |
 
-三个 patch 相互独立，可单独 apply；但 **opt-2 单独用时依赖它自带的
-`sdpa_gen_micro` 修复**（否则一旦融合触发就会 GPU 挂死），该修复已包含在 opt-2 内。
+三个 patch 相互独立，可单独 apply；但 **opt-2 单独用时依赖它自带的运行时修复**
+（否则一旦融合触发就会 GPU 挂死），这些修复已包含在 opt-2 内。
+
+`superseded/` 下是 2026-08-13 版本的 opt-2 / 合并 patch，它们在 Qwen3-VL-Embedding-2B
+的 vision 路径上会导致 `CL_OUT_OF_RESOURCES`，**不要再使用**；根因和修复见
+[`../docs/07_qwen3vl_regression_rootcause.md`](../docs/07_qwen3vl_regression_rootcause.md)。
 
 ## 应用
 
@@ -51,7 +55,8 @@ cmake --install <build-dir>
 | 数值（opt-1 + opt-2） | **bit-identical**（INT4 / INT8 / INT4-gs64，含 padded batch，max abs diff = 0） |
 | 数值（加上 opt-3） | 七个用例里六个仍 bit-identical；padded batch cos 0.99950 / max_abs 1.19e-2。opt-3 换的是权重 layout 而非算术，`layout_accuracy_probe` 证明 oneDNN 侧 `cab`/`abc` 数值中性，重排本身逐 nibble 位正确；残留漂移来自 gemm 分块顺序，比 INT4 自身的量化噪声底（cos 0.918–0.989）低约一个数量级 |
 | 有状态生成式模型 | 无回归（`Qwen3-1.7B-INT4` greedy 32 步，token id + 首步 logits SHA + top-8 逐位相同） |
-| 适用范围 | 通用。opt-1 惠及任何**无状态 GQA** 模型；opt-2 惠及任何以 `SDPA → Transpose → Reshape → o_proj` 收尾的 attention 块；opt-3 惠及任何 **group 量化 INT4、`N ≥ 4K` 的宽投影**（典型是 MLP 的 gate/up），且只在 ≥128 行的 prefill 型负载上生效 |
+| 其他模型（`Qwen3-VL-Embedding-2B`） | 无影响。text / image / fused 共 28 个 workload（INT8 + INT4）与 stock **逐位相同**，见 [`../docs/07_qwen3vl_regression_rootcause.md`](../docs/07_qwen3vl_regression_rootcause.md) |
+| 适用范围 | opt-1 惠及任何**无状态 GQA** 模型；opt-2 惠及以 `SDPA → Transpose → Reshape → o_proj` 收尾、且 **SDPA 输出为 rank-4** 的 attention 块（rank-3 的 headless attention——Qwen-VL 系列 vision tower——被 `supports_micro_sdpa()` 强制走 `sdpa_opt`，该 kernel 不认 `output_transpose_order`，故 matcher 主动跳过）；opt-3 惠及任何 **group 量化 INT4、`N ≥ 4K` 的宽投影**（典型是 MLP 的 gate/up），且只在 ≥128 行的 prefill 型负载上生效 |
 | 显存 | **opt-3 会给命中的权重多留一份副本**。GME 上是 56 × 6.56 MiB ≈ **367 MiB** 常驻。行数不达标时不重排、不额外分配 |
 | 平台 | 仅 Intel GPU plugin；CPU / NPU 不受影响 |
 | 依赖 | 无。不需要 `ENABLE_DEBUG_CAPS`，不引入新的 config option 或环境变量 |
@@ -70,6 +75,9 @@ cmake --install <build-dir>
 32 token 上收益仍只有第一轮的 ~1.02x：opt-3 的 128 行门槛在那里不触发，
 这是**刻意的**——低于该行数时新 layout 反而更慢（docs/06 §6.9.4）。
 
+2026-08-17 的 Qwen3-VL 修复（docs/07）之后复测，收益在噪声范围内不变：
+128 → 1.164x / 1.156x，512 → 1.186x / 1.182x，1024 → 1.170x / 1.167x。
+
 详见 `../docs/04_validation_and_results.md` 与 `../docs/06_round2_onednn_investigation.md` §6.9。
 
 ## Qwen3-VL-Embedding-2B 适用性复测
@@ -85,16 +93,21 @@ cmake --install <build-dir>
 | INT8 text 1024 | 1.020x，小幅收益 |
 | INT4 text 512 | 0.991x，小幅回归 |
 | INT4 text 1024 | 1.013x，小幅收益 |
-| image/fused（opt-1 + opt-2，三项组合亦复现） | optimized plugin 在 64x64 后触发 `CL_OUT_OF_RESOURCES`，出现 `FullyConnectedCompressed` 资源/实现选择失败 |
+| image/fused（2026-08-13 版 opt-2） | optimized plugin 在 64x64 后触发 `CL_OUT_OF_RESOURCES` / `FullyConnectedCompressed` 实现选择失败 |
 | opt-3 增量（INT8 text 1024） | 359.73 → 359.34 ms，1.0011x，基本无收益 |
 | opt-3 增量（INT4 text 1024） | 351.04 → 350.76 ms，1.0008x，基本无收益 |
 
 opt-3 对 Qwen3 language text 不触发：`hidden=2048`、`intermediate=6144`，
-`N/K=3 < 4`，不满足 `N >= 4K`。Qwen3 vision tower 的 `N/K=4` 虽满足宽度条件，
-但 opt-1 + opt-2 已在 224x224 起触发同样的 `FullyConnectedCompressed` /
-`CL_OUT_OF_RESOURCES`，无法单独归因 opt-3。
+`N/K=3 < 4`，不满足 `N >= 4K`。
 
-因此 `all_gme_int4_gpu_opts.patch` **不应直接应用到 Qwen3-VL-Embedding-2B 生产环境**。
+**2026-08-17 更新**：上表 image/fused 那一行的崩溃已定位并修复，根因是 opt-2 的
+matcher 会覆盖已融合的输入 transpose order，加上三处 rank-3 / 静态 shape 路径的
+既有缺陷；详见 [`../docs/07_qwen3vl_regression_rootcause.md`](../docs/07_qwen3vl_regression_rootcause.md)。
+修复后 `Qwen3-VL-Embedding-2B` 的 text / image / fused 共 28 个 workload
+（INT8 + INT4）与 stock **逐位相同**——vision tower 是 rank-3 SDPA，matcher 现在会
+主动跳过它。也就是说这三个 patch 现在对 Qwen3-VL **既不损害也不加速**（text 侧的
+±2% 属于测量噪声），可以安全共存于同一个 plugin 里。
+
 完整 stock/optimized JSON 和三项复测说明见
 [`results/qwen3_ab_text/REPORT.md`](../results/qwen3_ab_text/REPORT.md)。
 

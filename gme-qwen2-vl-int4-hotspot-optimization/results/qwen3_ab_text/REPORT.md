@@ -2,6 +2,14 @@
 
 Date: 2026-08-11
 
+> **Superseded in part, 2026-08-17.** The image/fused `CL_OUT_OF_RESOURCES` failure recorded
+> below has since been root-caused and fixed in opt-2. With the current patches the whole
+> Qwen3-VL-Embedding-2B surface (text + image + fused, INT8 + INT4) is **bit-identical to
+> stock**, so the "should not be applied to Qwen3-VL" conclusion at the end of this report no
+> longer holds — the patches are now inert on this model rather than harmful. The text-only
+> A/B numbers and the opt-3 scope analysis are unaffected and still stand. See
+> [`../../docs/07_qwen3vl_regression_rootcause.md`](../../docs/07_qwen3vl_regression_rootcause.md).
+
 ## Scope
 
 This report tests the three GME GPU plugin optimizations:
