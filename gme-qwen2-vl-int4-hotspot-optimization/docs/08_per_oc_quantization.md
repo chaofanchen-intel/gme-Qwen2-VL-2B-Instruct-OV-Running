@@ -199,6 +199,14 @@ opt-1/2/3 补丁本身在这两种新量化方案下没有引入任何额外数�
    性能代价可忽略，docs/04 §4.1），在精度敏感场景应继续用它而不是 gs128 或
    per-OC。
 
+**补充**：在 `document_embedding_eval_int8_int4_gpu/`（14 页工程 PDF、8 条人工
+query 的检索质量 probe）上复测了同样的两个精度，性能结论方向一致（batch 8
+文本再快 7.6%\~10.8%），但**检索 Recall/MRR 没有表现出这里测到的绝对精度下降
+**——这是意料之中的（Recall/MRR 测的是同一量化方案内部的相对排序，cosine-vs-
+FP32-golden 测的是绝对误差，两者不矛盾，样本量也差两个数量级），详见
+[`../document_embedding_eval_int8_int4_gpu/REPORT_per_oc.md`](../document_embedding_eval_int8_int4_gpu/REPORT_per_oc.md)
+§3。**不改变本节"不建议采纳"的结论**，只是记录一个值得注意的现象。
+
 ## 8.7 产物
 
 ```

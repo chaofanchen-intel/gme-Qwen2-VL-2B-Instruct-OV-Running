@@ -77,6 +77,22 @@ python -u run_eval.py
 
 本次实测结论见 [REPORT.md](REPORT.md)。
 
+## 扩展评测：per-OC INT4（`int4_per_oc` / `int4_per_oc_sym`）
+
+`run_eval.py` 支持用 `PRECISIONS` 环境变量（逗号分隔的 package precision key）
+和 `OUTPUT` 覆盖默认的 `int8,int4` 范围和 `results/benchmark.json` 输出路径，
+默认行为不变：
+
+```bash
+PRECISIONS=int4_per_oc,int4_per_oc_sym python -u run_eval.py
+# -> results/benchmark_int4_per_oc_int4_per_oc_sym.json（不覆盖 benchmark.json）
+```
+
+这是为对比
+[`../gme-qwen2-vl-int4-hotspot-optimization/docs/08_per_oc_quantization.md`](../gme-qwen2-vl-int4-hotspot-optimization/docs/08_per_oc_quantization.md)
+里新增的两个语言塔量化方案而做的扩展，结果和结论见
+[REPORT_per_oc.md](REPORT_per_oc.md)，不改变本目录默认评测范围（GPU int8/int4）。
+
 ## 注意事项
 
 - 文本 token 数使用 GME package tokenizer，并记录每个页面/chunk 的 token 统计。

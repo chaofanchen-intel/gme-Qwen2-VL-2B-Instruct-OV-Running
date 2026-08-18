@@ -253,6 +253,15 @@ def main() -> None:
     sys.path.insert(0, str(RUNNING))
     from gme_openvino import GmeOpenVINO
 
+    # Default scope is GPU int8/int4 only (see README.md). PRECISIONS lets a caller
+    # extend this to any other package precision (e.g. int4_per_oc, int4_per_oc_sym)
+    # without touching the default int8/int4 code path or its output file.
+    precisions_env = os.environ.get("PRECISIONS")
+    precisions = tuple(p.strip() for p in precisions_env.split(",")) if precisions_env else ("int8", "int4")
+    default_output = precisions == ("int8", "int4")
+    output_path = Path(os.environ.get("OUTPUT", RESULTS / "benchmark.json")) if default_output else \
+        Path(os.environ.get("OUTPUT", RESULTS / f"benchmark_{'_'.join(precisions)}.json"))
+
     RESULTS.mkdir(parents=True, exist_ok=True)
     text_start = time.perf_counter()
     page_texts, pdf_stats = extract_pdf()
@@ -260,7 +269,7 @@ def main() -> None:
     parse_ms = (time.perf_counter() - text_start) * 1000
     all_results: dict[str, Any] = {"pdf": pdf_stats, "render": render_stats, "parse_and_render_ms": parse_ms, "precisions": {}}
 
-    for precision in ("int8", "int4"):
+    for precision in precisions:
         print(f"Loading {precision} on GPU", flush=True)
         t0 = time.perf_counter()
         encoder = GmeOpenVINO(PACKAGE, device="GPU", precision=precision, batch_mode="auto")
@@ -285,9 +294,8 @@ def main() -> None:
         }
         del encoder
         gc.collect()
-    output = RESULTS / "benchmark.json"
-    output.write_text(json.dumps(all_results, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Wrote {output}", flush=True)
+    output_path.write_text(json.dumps(all_results, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"Wrote {output_path}", flush=True)
 
 
 if __name__ == "__main__":
