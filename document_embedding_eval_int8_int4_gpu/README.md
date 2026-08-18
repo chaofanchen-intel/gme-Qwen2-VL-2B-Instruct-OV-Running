@@ -62,16 +62,18 @@
 ## 运行
 
 ```bash
-source /home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/env-opt/bin/activate
+source /home/chaofan/envs/qwen_env/bin/activate
+source /home/chaofan/model_benchmark/benchmark/openvino/install/setupvars.sh
 cd /home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/document_embedding_eval_int8_int4_gpu
-python run_eval.py
+python -u run_eval.py
 ```
 
 结果写入 `results/`：
 
 - `benchmark.json`: 全部性能和质量结果
+- `document_embedding_benchmark_before_optimized.json`: 优化前基线结果，用于 A/B 对比
 - `pages/`: 150 DPI 中间页面图像
-- `REPORT.md`: 自动生成的结果报告
+- `REPORT.md`: 结果报告
 
 本次实测结论见 [REPORT.md](REPORT.md)。
 
