@@ -1,0 +1,32 @@
+{
+  "GPU": {
+    "int4": {
+      "text_cos_min": 0.944538,
+      "query_cos": 0.955146,
+      "image_cos": 0.941821,
+      "fused_cos": 0.954111,
+      "fused_norm": 0.99959
+    },
+    "int4_gs64": {
+      "text_cos_min": 0.949893,
+      "query_cos": 0.957442,
+      "image_cos": 0.943357,
+      "fused_cos": 0.95997,
+      "fused_norm": 1.00009
+    },
+    "int4_per_oc": {
+      "text_cos_min": 0.82653,
+      "query_cos": 0.832787,
+      "image_cos": 0.891442,
+      "fused_cos": 0.923546,
+      "fused_norm": 1.00028
+    },
+    "int4_per_oc_sym": {
+      "text_cos_min": 0.83657,
+      "query_cos": 0.882145,
+      "image_cos": 0.907891,
+      "fused_cos": 0.930688,
+      "fused_norm": 0.99965
+    }
+  }
+}

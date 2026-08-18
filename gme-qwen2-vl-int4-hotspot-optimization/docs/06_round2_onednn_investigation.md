@@ -435,7 +435,7 @@ static const std::vector<std::shared_ptr<ImplementationManager>> impls = {
 | `cab` → `abc` 落地 | **已落地**，见 §6.9。实测收益与 §6.4 预估的 1.12x 吻合，但**适用范围比预估窄得多**（只有 gate/up，且只在 ≥128 行时） |
 | 模型内比单算子慢 1.3–1.5x | 五个假设已排除，**仍未解释**；`gate_proj` vs `up_proj` 同形状差 33% 是最好的线索 |
 | DQ 去重（gate/up 共享激活） | 每层 5 次 DQ 里有 1 次冗余，但冗余的是窄的那个（1536），估算只值 ~1% wall。`qwen3.5_patch/opt3_dynamic_quantize_reuse.patch` 已实现，**计划是测量而非重写**（交付物不能掺入自有改动） |
-| per-OC 量化（1.55x） | 需重新量化 → **有精度代价**，只能作为带精度评估的备选 |
+| per-OC 量化（1.55x） | **已评估并否决**：见 [`08_per_oc_quantization.md`](08_per_oc_quantization.md)。端到端确实能再叠加 ~1.1–1.28x（且与 opt-3 正交），但 text/query cosine 从 ~0.945 掉到 0.83–0.88，精度不达标 |
 | GatedMLP dynamic-shape impl | 工程量大、收益未知，不在本轮 |
 | `E_f16src_u4wei` | oneDNN 在所有形状都 unsupported，无路可走 |
 

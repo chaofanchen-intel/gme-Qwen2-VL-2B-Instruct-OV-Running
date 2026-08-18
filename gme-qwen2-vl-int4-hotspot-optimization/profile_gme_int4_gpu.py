@@ -62,6 +62,8 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=HERE / "results" / "profile_run.json")
     parser.add_argument("--batch-mode", choices=("padded", "per_sample"), default="padded")
     parser.add_argument("--streams", default="1")
+    parser.add_argument("--precision", default="int4",
+                        help="package precision key (default: int4)")
     args = parser.parse_args()
 
     sys.path.insert(0, str(GME_ROOT))
@@ -71,7 +73,7 @@ def main() -> None:
     encoder = GmeOpenVINO(
         PACKAGE,
         device="GPU",
-        precision="int4",
+        precision=args.precision,
         streams=streams,
         batch_mode=args.batch_mode,
     )
@@ -81,7 +83,7 @@ def main() -> None:
     output = {
         "package": str(PACKAGE),
         "device": "GPU",
-        "precision": "int4",
+        "precision": args.precision,
         "batch_mode": encoder.batch_mode,
         "streams": args.streams,
         "target_tokens": args.length,

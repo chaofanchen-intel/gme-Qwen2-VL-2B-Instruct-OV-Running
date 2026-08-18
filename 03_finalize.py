@@ -359,6 +359,25 @@ def main() -> None:
              mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=64, ratio=1.0,
              dataset=lang_calibration, awq=True, scale_estimation=True,
              subset_size=len(_CALIBRATION_TEXTS))
+    # Per-output-channel language INT4: group_size=-1 means one scale (and, for the
+    # ASYM variant, one zero-point) per output channel instead of one per 128-element
+    # group along K. This is the requantized counterpart of the oneDNN GEMM-probe
+    # candidates in gme-qwen2-vl-int4-hotspot-optimization/onednn/gemm_probe.cpp
+    # (docs/06_round2_onednn_investigation.md SS6.3/6.6): D_cab_per_oc measured 1.55x
+    # on the GEMM alone, but that case is ALSO symmetric (wei_zp=false) -- group_size
+    # and symmetry are two separate knobs there. Two variants isolate them:
+    #   int4_per_oc      ASYM + group_size=-1  (only removes the K-grouping; the probe
+    #                     never priced this exact combination on its own, since its
+    #                     per-OC case also went symmetric)
+    #   int4_per_oc_sym  SYM  + group_size=-1  (matches D_cab_per_oc exactly)
+    compress(lang_fp32, package / "gme_language_int4_per_oc.xml", fingerprints_path, args.force,
+             mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=-1, ratio=1.0,
+             dataset=lang_calibration, awq=True, scale_estimation=True,
+             subset_size=len(_CALIBRATION_TEXTS))
+    compress(lang_fp32, package / "gme_language_int4_per_oc_sym.xml", fingerprints_path, args.force,
+             mode=nncf.CompressWeightsMode.INT4_SYM, group_size=-1, ratio=1.0,
+             dataset=lang_calibration, awq=True, scale_estimation=True,
+             subset_size=len(_CALIBRATION_TEXTS))
     # INT4 vision (rotary excluded), so a fully-INT4 package exists. Left data-free:
     # measured accuracy shows the vision tower does not have the text tower's INT4
     # degradation (see _calibration_dataset), so there is nothing here to recover.
@@ -376,6 +395,10 @@ def main() -> None:
         "int4": {"language": "gme_language_int4.xml", "visual": "gme_visual_int4.xml"},
         # accuracy-recovered language INT4 (gs64) + INT4 vision
         "int4_gs64": {"language": "gme_language_int4_gs64.xml", "visual": "gme_visual_int4.xml"},
+        # per-output-channel language INT4 (group_size=-1), asymmetric vs symmetric --
+        # see docs/08_per_oc_quantization.md
+        "int4_per_oc": {"language": "gme_language_int4_per_oc.xml", "visual": "gme_visual_int4.xml"},
+        "int4_per_oc_sym": {"language": "gme_language_int4_per_oc_sym.xml", "visual": "gme_visual_int4.xml"},
         # mixed: INT4 language + INT8 vision (keeps the quant-sensitive vision tower safer)
         "int4_visint8": {"language": "gme_language_int4.xml", "visual": "gme_visual_int8.xml"},
     }

@@ -1,0 +1,6732 @@
+{
+  "precision": "int4_per_oc_sym",
+  "device": "GPU",
+  "length": 1024,
+  "config": [],
+  "wall_mean_ms": 232.96,
+  "wall_p50_ms": 232.81,
+  "profiled_sum_ms": 214.76,
+  "by_exec_type": [
+    {
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 129.761,
+      "calls": 140.0
+    },
+    {
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 27.668,
+      "calls": 28.0
+    },
+    {
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 25.764,
+      "calls": 140.0
+    },
+    {
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 10.117,
+      "calls": 59.0
+    },
+    {
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 9.262,
+      "calls": 57.0
+    },
+    {
+      "exec_type": "permute_ref__f16",
+      "ms": 4.886,
+      "calls": 56.0
+    },
+    {
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 4.677,
+      "calls": 56.0
+    },
+    {
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.75,
+      "calls": 99.0
+    },
+    {
+      "exec_type": "generic_eltwise_ref__i32",
+      "ms": 0.299,
+      "calls": 5.0
+    },
+    {
+      "exec_type": "select_gpu_ref__u8",
+      "ms": 0.298,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "count_nonzero_ref__u8",
+      "ms": 0.265,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "ocl::scatter_nd_update___f16",
+      "ms": 0.246,
+      "calls": 2.0
+    },
+    {
+      "exec_type": "generic_eltwise_ref__u8",
+      "ms": 0.232,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "gather_ref__u8",
+      "ms": 0.152,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "concatenation_gpu_simple_ref__f16",
+      "ms": 0.102,
+      "calls": 3.0
+    },
+    {
+      "exec_type": "broadcast_gpu_ref__u8",
+      "ms": 0.101,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "activation_ref__f16",
+      "ms": 0.076,
+      "calls": 2.0
+    },
+    {
+      "exec_type": "gather_ref__f16",
+      "ms": 0.044,
+      "calls": 13.0
+    },
+    {
+      "exec_type": "reduce_ref__i32",
+      "ms": 0.022,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "jit:gemm:any__f16",
+      "ms": 0.015,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "reduce_ref__f16",
+      "ms": 0.015,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "reorder_data__i64",
+      "ms": 0.005,
+      "calls": 3.0
+    },
+    {
+      "exec_type": "generic_eltwise_ref__f32",
+      "ms": 0.003,
+      "calls": 2.0
+    },
+    {
+      "exec_type": "reorder_data__i32",
+      "ms": 0.001,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 363.0
+    },
+    {
+      "exec_type": "concatenation_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 6.0
+    },
+    {
+      "exec_type": "shape_of_cpu_impl__f16",
+      "ms": 0.0,
+      "calls": 5.0
+    },
+    {
+      "exec_type": "gather_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 5.0
+    },
+    {
+      "exec_type": "shape_of_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 4.0
+    },
+    {
+      "exec_type": "reorder_data__f32",
+      "ms": 0.0,
+      "calls": 4.0
+    },
+    {
+      "exec_type": "range_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 4.0
+    },
+    {
+      "exec_type": "strided_slice_ref__f16",
+      "ms": 0.0,
+      "calls": 3.0
+    },
+    {
+      "exec_type": "eltwise_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 3.0
+    },
+    {
+      "exec_type": "wait_for_events__i64",
+      "ms": 0.0,
+      "calls": 2.0
+    },
+    {
+      "exec_type": "scatter_update_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 2.0
+    },
+    {
+      "exec_type": "reduce_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 2.0
+    },
+    {
+      "exec_type": "wait_for_events__f32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "strided_slice_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "reorder_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "permute_ref__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "gather_nonzero_group__u8",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "broadcast_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "exec_type": "broadcast_cpu_impl__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    }
+  ],
+  "by_node": [
+    {
+      "node": "__module.base.model.layers.27.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 2.644,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.908,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.878,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.655,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.645,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.643,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.641,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.637,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.636,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.633,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.629,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.615,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.613,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.61,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.606,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.601,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.595,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.593,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.586,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.585,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.584,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.583,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.583,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.582,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.58,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.579,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.577,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.569,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.mlp.gate_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.56,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.377,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.366,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.355,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.341,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.327,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.315,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.312,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.31,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.29,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.29,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.278,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.27,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.26,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.251,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.249,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.224,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.21,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.207,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.19,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.19,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.189,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.181,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.17,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.168,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.167,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.165,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.165,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.157,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.157,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.155,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.155,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.155,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.155,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.153,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.153,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.151,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.151,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.15,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.149,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.149,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.147,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.145,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.145,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.142,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.141,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.141,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.14,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.mlp.up_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.139,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.088,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 1.071,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.066,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 1.05,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 1.03,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 1.017,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.987,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.985,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.985,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.984,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.984,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.984,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.983,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.983,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.983,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.983,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.982,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.982,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.982,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.982,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.982,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.982,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.982,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.981,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.981,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.981,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.98,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.98,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.98,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.98,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.979,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention",
+      "exec_type": "ocl::sdpa::opt__f16",
+      "ms": 0.978,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.939,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.932,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.mlp.down_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.92,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_65046",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.723,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64767",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.675,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64802",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.674,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64697",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.672,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64732",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.67,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64592",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.66,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64557",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.66,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64837",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.656,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64522",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.653,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64102",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.629,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64312",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.625,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64277",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.623,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64662",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.622,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64417",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.621,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64942",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.62,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64907",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.62,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64452",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.619,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64872",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.618,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64487",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.618,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64627",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.609,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64137",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.603,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64242",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.569,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64977",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.563,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64347",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.558,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64172",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.533,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64207",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.52,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_65012",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.516,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64382",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.515,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.352,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.345,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.345,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.342,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.34,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.339,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.339,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.338,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.338,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.336,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.335,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.334,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.333,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::add/Add_1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.333,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.333,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.332,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.331,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.327,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.327,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.327,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.327,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.326,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.326,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.326,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.325,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.325,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.325,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.323,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn.o_proj/aten::linear/MatMul",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.321,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::masked_fill/Select",
+      "exec_type": "select_gpu_ref__u8",
+      "ms": 0.298,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.285,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.283,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.273,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.269,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.269,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.267,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.265,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::masked_scatter/NonZero_count",
+      "exec_type": "count_nonzero_ref__u8",
+      "ms": 0.265,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.264,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.264,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.264,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.263,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.263,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.263,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.262,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.262,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.261,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.26,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.259,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.259,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.259,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.258,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.258,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.257,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.257,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.257,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.255,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.255,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn.q_proj/aten::linear/MatMul_with_bias_fused_3FCs",
+      "exec_type": "jit:gemm:any__i8",
+      "ms": 0.255,
+      "calls": 1.0
+    },
+    {
+      "node": "SliceAssign_480/ScatterNDUpdate",
+      "exec_type": "ocl::scatter_nd_update___f16",
+      "ms": 0.246,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::eq/Equal",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.241,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::bitwise_or_/BitwiseOr",
+      "exec_type": "generic_eltwise_ref__u8",
+      "ms": 0.232,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.222,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.195,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.194,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.19,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.189,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.185,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.185,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.184,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.184,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.184,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.184,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.184,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.184,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.184,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.184,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.184,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.184,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.184,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.183,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.183,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.183,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.183,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.183,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.183,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.183,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.183,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.183,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.183,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.182,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.182,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.182,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::expand/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.182,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.177,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.177,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "Multiply_91723",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.176,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.175,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.175,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.175,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.175,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.175,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.174,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.171,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.17,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.166,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.164,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.norm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.164,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.164,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.164,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.163,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.162,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.162,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.162,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.162,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.162,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.162,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.162,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.162,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.input_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.162,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.159,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.158,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.158,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.158,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.158,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.158,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.158,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.158,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.158,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.158,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.post_attention_layernorm/aten::mul/Multiply_1",
+      "exec_type": "rms_gpu_bfyx_opt__f16",
+      "ms": 0.158,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::gt/Greater",
+      "exec_type": "generic_eltwise_ref__i32",
+      "ms": 0.156,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.153,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.embed_tokens/aten::embedding/Gather",
+      "exec_type": "gather_ref__u8",
+      "ms": 0.152,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.148,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.147,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.144,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.144,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.144,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.143,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.143,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.143,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.143,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.143,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.143,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.143,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.142,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.142,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.142,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.142,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.142,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.142,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.142,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.142,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.142,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.142,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.142,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.141,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.141,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.141,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.141,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::transpose/Transpose_3",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.141,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.14,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.14,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.139,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.139,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.139,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.139,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.139,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::le/LessEqual",
+      "exec_type": "generic_eltwise_ref__i32",
+      "ms": 0.139,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.138,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.137,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.137,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.137,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::add/Add",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.136,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64074",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.133,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64095",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.108,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64130",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.106,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64165",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.104,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64200",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.104,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64445",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.103,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_65040",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.103,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64900",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.103,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64865",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.103,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64830",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.103,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64795",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.103,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64725",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.103,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64480",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.103,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64410",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.103,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64270",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.103,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64620",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.103,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64935",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.102,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64760",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.102,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_65005",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.102,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64970",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.102,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64690",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.102,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64585",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.102,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64550",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.102,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64515",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.102,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64375",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.102,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64340",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.102,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64305",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.102,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64235",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.102,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64655",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.102,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::masked_scatter/Broadcast",
+      "exec_type": "broadcast_gpu_ref__u8",
+      "ms": 0.101,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64088",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.09,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64123",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.089,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_65033",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.073,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64081",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.073,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64116",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.069,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64718",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.069,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64186",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.069,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64151",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.069,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64823",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.069,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64788",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.069,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64158",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.068,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64781",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.068,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_65026",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.068,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64921",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.068,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64753",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.068,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64683",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.068,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64641",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.068,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64606",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.068,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64501",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.068,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64361",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.068,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64291",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.068,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64221",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.068,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64746",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.068,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64851",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64193",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64998",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64991",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64963",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64956",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64893",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64886",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64816",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64711",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64676",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64648",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64571",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64536",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64508",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64466",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64431",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64403",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64396",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64368",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64326",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64263",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64256",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64228",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.067,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64928",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.066,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64858",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.066,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64613",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.066,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64578",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.066,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64543",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.066,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64473",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.066,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64438",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.066,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64333",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.066,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64298",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.066,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64109",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.065,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64144",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.064,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64319",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.063,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64179",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.063,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64249",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.063,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64774",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64284",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64984",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64949",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64914",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64844",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64809",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64739",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64704",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64669",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64634",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64599",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64564",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64494",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64459",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_65019",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64529",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.062,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64389",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.061,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64214",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.061,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64354",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.061,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64879",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.061,
+      "calls": 1.0
+    },
+    {
+      "node": "DynamicQuantize_64424",
+      "exec_type": "dynamic_quantize_gpu_opt__f16",
+      "ms": 0.061,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.rotary_emb/aten::cat/Concat",
+      "exec_type": "concatenation_gpu_simple_ref__f16",
+      "ms": 0.042,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.rotary_emb/aten::cos/Cos",
+      "exec_type": "activation_ref__f16",
+      "ms": 0.038,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.rotary_emb/aten::sin/Sin",
+      "exec_type": "activation_ref__f16",
+      "ms": 0.038,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.037,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.036,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.033,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.033,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::cat/Concat",
+      "exec_type": "concatenation_gpu_simple_ref__f16",
+      "ms": 0.032,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.032,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::transpose/Transpose_2",
+      "exec_type": "permute_ref__f16",
+      "ms": 0.031,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.029,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.029,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.029,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.029,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.029,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.029,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.029,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.029,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.029,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.029,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.029,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.029,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::add/Add_1",
+      "exec_type": "ocl::rope::opt___f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::cat/Concat_2",
+      "exec_type": "concatenation_gpu_simple_ref__f16",
+      "ms": 0.028,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::sum/ReduceSum",
+      "exec_type": "reduce_ref__i32",
+      "ms": 0.022,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.rotary_emb/aten::transpose/Transpose",
+      "exec_type": "jit:gemm:any__f16",
+      "ms": 0.015,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::linalg_vector_norm/ReduceL2",
+      "exec_type": "reduce_ref__f16",
+      "ms": 0.015,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::select/Gather_10",
+      "exec_type": "gather_ref__f16",
+      "ms": 0.005,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::select/Gather_8",
+      "exec_type": "gather_ref__f16",
+      "ms": 0.005,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::select/Gather_2",
+      "exec_type": "gather_ref__f16",
+      "ms": 0.004,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.embed_tokens/aten::embedding/Convert",
+      "exec_type": "reorder_data__i64",
+      "ms": 0.004,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::select/Gather_7",
+      "exec_type": "gather_ref__f16",
+      "ms": 0.004,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::select/Gather_5",
+      "exec_type": "gather_ref__f16",
+      "ms": 0.004,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::select/Gather_4",
+      "exec_type": "gather_ref__f16",
+      "ms": 0.004,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::select/Gather_11",
+      "exec_type": "gather_ref__f16",
+      "ms": 0.004,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::select/Gather_1",
+      "exec_type": "gather_ref__f16",
+      "ms": 0.004,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::clamp_min/Maximum",
+      "exec_type": "generic_eltwise_ref__f32",
+      "ms": 0.002,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::select/Gather_9",
+      "exec_type": "gather_ref__f16",
+      "ms": 0.002,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::select/Gather_6",
+      "exec_type": "gather_ref__f16",
+      "ms": 0.002,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::select/Gather_3",
+      "exec_type": "gather_ref__f16",
+      "ms": 0.002,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::select/Gather",
+      "exec_type": "gather_ref__f16",
+      "ms": 0.002,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::index/Add",
+      "exec_type": "generic_eltwise_ref__i32",
+      "ms": 0.002,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::sub/Subtract",
+      "exec_type": "generic_eltwise_ref__i32",
+      "ms": 0.001,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::index/Gather",
+      "exec_type": "gather_ref__f16",
+      "ms": 0.001,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::eq/Equal",
+      "exec_type": "generic_eltwise_ref__i32",
+      "ms": 0.001,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::div/Divide",
+      "exec_type": "generic_eltwise_ref__f32",
+      "ms": 0.001,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::add/Convert",
+      "exec_type": "reorder_data__i32",
+      "ms": 0.001,
+      "calls": 1.0
+    },
+    {
+      "node": "Convert_51171",
+      "exec_type": "reorder_data__i64",
+      "ms": 0.001,
+      "calls": 1.0
+    },
+    {
+      "node": "input_ids",
+      "exec_type": "wait_for_events__i64",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "image_embeds",
+      "exec_type": "wait_for_events__f32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "attention_mask",
+      "exec_type": "wait_for_events__i64",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::unsqueeze/Unsqueeze",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::reshape_as/ShapeOf",
+      "exec_type": "concatenation_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::reshape_as/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::reshape/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::masked_scatter/Transpose",
+      "exec_type": "permute_ref__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::masked_scatter/Slice",
+      "exec_type": "strided_slice_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::masked_scatter/ShapeOf",
+      "exec_type": "shape_of_cpu_impl__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::masked_scatter/ScatterNDUpdate",
+      "exec_type": "ocl::scatter_nd_update___f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::masked_scatter/NonZero",
+      "exec_type": "gather_nonzero_group__u8",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::linalg_vector_norm/ReduceL2_decompressed_to_f32",
+      "exec_type": "reorder_data__f32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::index/Reshape_8_compressed_to_f16",
+      "exec_type": "reorder_data__f32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::index/Reshape_8",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::index/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::index/ReduceProd",
+      "exec_type": "reduce_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::index/Multiply",
+      "exec_type": "eltwise_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::index/Gather_decompressed_to_f32",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::index/Concat",
+      "exec_type": "concatenation_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::div/Divide_compressed_to_f16.0",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::div/Divide_compressed_to_f16",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "aten::arange/Range",
+      "exec_type": "range_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/prim::ListConstruct/SequenceMark_2",
+      "exec_type": "concatenation_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/prim::ListConstruct/SequenceMark",
+      "exec_type": "concatenation_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::unsqueeze/Unsqueeze_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::sub/Subtract",
+      "exec_type": "eltwise_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::slice/Slice_5",
+      "exec_type": "strided_slice_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::mul_/Multiply",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::mul_/ConvertLike",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::expand/Broadcast_1",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::expand/Broadcast",
+      "exec_type": "broadcast_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::copy_/ShapeOf",
+      "exec_type": "shape_of_cpu_impl__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::copy_/Broadcast",
+      "exec_type": "broadcast_gpu_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::arange/Range_1",
+      "exec_type": "range_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model/aten::arange/Range",
+      "exec_type": "range_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.rotary_emb/prim::ListConstruct/SequenceMark",
+      "exec_type": "concatenation_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.rotary_emb/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.rotary_emb/aten::to/Convert_2",
+      "exec_type": "reorder_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.rotary_emb/aten::expand/Broadcast",
+      "exec_type": "broadcast_cpu_impl__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.9.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.8.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.7.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.6.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.5.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.4.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.3.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.27.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.26.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.25.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.24.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.23.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.22.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.21.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.20.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.2.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.19.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.18.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.17.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.16.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.15.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.14.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.13.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.12.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.11.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.10.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.1.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0/aten::add/Add_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0/aten::add/Add",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/prim::ListConstruct/SequenceMark_2",
+      "exec_type": "concatenation_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::view/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::view/Reshape_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::view/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::view/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::unsqueeze/Unsqueeze_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::unsqueeze/Unsqueeze_2",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::unsqueeze/Unsqueeze_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::unsqueeze/Unsqueeze",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::split_with_sizes/VariadicSplit_1.out5",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::split_with_sizes/VariadicSplit_1.out4",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::split_with_sizes/VariadicSplit_1.out3",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::split_with_sizes/VariadicSplit_1.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::split_with_sizes/VariadicSplit_1.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::split_with_sizes/VariadicSplit_1.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::split_with_sizes/VariadicSplit.out5",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::split_with_sizes/VariadicSplit.out4",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::split_with_sizes/VariadicSplit.out3",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::split_with_sizes/VariadicSplit.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::split_with_sizes/VariadicSplit.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::split_with_sizes/VariadicSplit.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::slice/Slice_15",
+      "exec_type": "strided_slice_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::size/ShapeOf_2",
+      "exec_type": "shape_of_cpu_impl__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::reshape/Reshape_1",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn/aten::reshape/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out2",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out1",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.self_attn.q_proj/aten::linear/MatMul_with_bias_split.out0",
+      "exec_type": "generic_eltwise_ref__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.mlp/aten::mul/Multiply",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "__module.base.model.layers.0.mlp.act_fn/aten::silu/Swish",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "Squeeze_44953",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "SliceAssign_480/Slice_2",
+      "exec_type": "strided_slice_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "SliceAssign_480/ShapeOf",
+      "exec_type": "shape_of_cpu_impl__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "SliceAssign_480/Reshape_6",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "SliceAssign_480/Reshape_5",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "SliceAssign_480/Reshape_4",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "SliceAssign_480/Reshape_3",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "SliceAssign_480/Reshape",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "SliceAssign_480/ReduceProd",
+      "exec_type": "reduce_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "SliceAssign_480/Range",
+      "exec_type": "range_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "ShapeOf_91724",
+      "exec_type": "shape_of_cpu_impl__f16",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "ShapeOf_88033",
+      "exec_type": "shape_of_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "ShapeOf_44923",
+      "exec_type": "shape_of_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "ShapeOf_44913",
+      "exec_type": "shape_of_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "ShapeOf_44900",
+      "exec_type": "shape_of_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "ScatterUpdate_31890",
+      "exec_type": "scatter_update_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "ScatterUpdate_31868",
+      "exec_type": "scatter_update_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "Result_33011",
+      "exec_type": "reorder_data__f32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "Reshape_44948",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "Reshape_44932",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "Power_46037",
+      "exec_type": "undef",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "Maximum_91725",
+      "exec_type": "eltwise_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "Gather_83813",
+      "exec_type": "gather_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "Gather_44926",
+      "exec_type": "gather_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "Gather_44920",
+      "exec_type": "gather_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "Gather_44916",
+      "exec_type": "gather_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "Gather_44903",
+      "exec_type": "gather_cpu_impl__i32",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "Convert_51170",
+      "exec_type": "reorder_data__i64",
+      "ms": 0.0,
+      "calls": 1.0
+    },
+    {
+      "node": "Convert_30041",
+      "exec_type": "reorder_data__f32",
+      "ms": 0.0,
+      "calls": 1.0
+    }
+  ]
+}

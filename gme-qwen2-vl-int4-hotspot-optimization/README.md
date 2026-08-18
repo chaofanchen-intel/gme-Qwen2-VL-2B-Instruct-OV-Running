@@ -18,7 +18,7 @@ hotspot 定位、源码优化、数值验证和回归测试。
 | **回归** | 有状态生成式模型 greedy 解码 token id、首步 logits SHA 与 top-8 逐位相同 |
 | **改动** | Intel GPU plugin，7 个文件，+297 −17，图结构/调度 + 权重 layout，无算术改动 |
 | **改了什么** | ① GQA `repeat_kv` 的 Broadcast 消除放开到无状态模型；② 新增 SDPA 输出 Transpose 融合 + 修复 `sdpa_gen_micro` 的 dispatch bug；③ **宽 INT4 投影（`N ≥ 4K`）的权重重排成 N 连续**，让 oneDNN `jit:gemm` 走更快的 layout |
-| **剩下的大头** | GEMM 仍占 GPU 时间 ~63%。已定价的剩余杠杆只有 per-OC 量化（1.55x，**有精度代价**），见 docs/06 §6.3 |
+| **剩下的大头** | GEMM 仍占 GPU 时间 ~63%。per-OC 量化已实测：端到端最多能再叠加 ~1.1–1.28x，但 text/query cosine 从 ~0.945 掉到 0.83–0.88，**精度不达标，不建议采纳**，见 docs/08 |
 
 ## 优化前后的 GPU 时间构成（语言 IR，seq=1024，INT4/GPU）
 
@@ -50,6 +50,7 @@ opt-3 的 26.4 ms **全部来自 `gate_proj`（63.00 → 49.55）和 `up_proj`�
 | [`docs/04_validation_and_results.md`](docs/04_validation_and_results.md) | 数值验证（opt1+2 bit-identical / opt3 的漂移量级）、生成式回归、交替 A/B 性能、VTune 复核 |
 | [`docs/05_rejected_and_future_work.md`](docs/05_rejected_and_future_work.md) | 试过且**否掉**的 3 个方案（附实测数字）、后续 5 个方向、与既有 Qwen3.5 patch 的关系 |
 | [`docs/06_round2_onednn_investigation.md`](docs/06_round2_onednn_investigation.md) | **第二轮**：oneDNN 单独立项、INT4 GEMM 成本分解 probe、VTune 复采、opt-3 的落地与两次规则修正（§6.9） |
+| [`docs/08_per_oc_quantization.md`](docs/08_per_oc_quantization.md) | per-OC INT4 量化方案（docs/06 §6.3 挂起项落地）：两个新精度、性能基线、精度评估——**收益大但精度不达标，不建议采纳** |
 | [`patches/README.md`](patches/README.md) | patch 的 base、应用方式、影响面、上游建议 |
 | [`results/qwen3_ab_text/REPORT.md`](results/qwen3_ab_text/REPORT.md) | 三个 GME patch 对 Qwen3-VL-Embedding-2B 的适用性复测：opt-3 text 基本无收益，image/fused `CL_OUT_OF_RESOURCES` 回归 |
 

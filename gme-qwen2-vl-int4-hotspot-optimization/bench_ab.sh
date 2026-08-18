@@ -17,6 +17,7 @@ ROUNDS="${ROUNDS:-3}"
 LENGTHS="${LENGTHS:-1024 512 128 32}"
 WARMUP="${WARMUP:-14}"
 REPEAT="${REPEAT:-20}"
+PRECISION="${PRECISION:-int4}"
 OUT="$HERE/results/ab"
 mkdir -p "$OUT"
 
@@ -25,7 +26,7 @@ source "$QWEN_ENV/bin/activate"
 
 run_one() {   # $1=build  $2=length  $3=round
   local build="$1" length="$2" round="$3"
-  local out="$OUT/${build}_len${length}_r${round}.json"
+  local out="$OUT/${build}_${PRECISION}_len${length}_r${round}.json"
   if [[ "$build" == "patched" ]]; then
     # setupvars.sh is not written for `set -u`, so relax strict mode around it.
     # shellcheck disable=SC1091
@@ -33,10 +34,10 @@ run_one() {   # $1=build  $2=length  $3=round
       source "$OPENVINO_ROOT/install/setupvars.sh" >/dev/null 2>&1
       set -u
       python "$HERE/profile_gme_int4_gpu.py" --length "$length" --warmup "$WARMUP" \
-             --repeat "$REPEAT" --output "$out" >/dev/null )
+             --repeat "$REPEAT" --precision "$PRECISION" --output "$out" >/dev/null )
   else
     python "$HERE/profile_gme_int4_gpu.py" --length "$length" --warmup "$WARMUP" \
-           --repeat "$REPEAT" --output "$out" >/dev/null
+           --repeat "$REPEAT" --precision "$PRECISION" --output "$out" >/dev/null
   fi
   echo "  $build len=$length round=$round -> $(python -c "
 import json;d=json.load(open('$out'))['workloads']
@@ -51,17 +52,25 @@ for length in $LENGTHS; do
   done
 done
 
-python - "$OUT" <<'PY'
+python - "$OUT" "$PRECISION" <<'PY'
 import json, sys, statistics, collections, pathlib
-out = pathlib.Path(sys.argv[1])
+out, want_precision = pathlib.Path(sys.argv[1]), sys.argv[2]
 agg = collections.defaultdict(list)
 for f in sorted(out.glob("*.json")):
-    build, length, _ = f.stem.split("_")
+    # Old files (pre-multi-precision): build_lenNNN_rN (3 tokens, implicitly int4).
+    # New files: build_<precision>_lenNNN_rN -- precision itself may contain "_"
+    # (e.g. int4_per_oc_sym), so only the first/last-two tokens are fixed.
+    tokens = f.stem.split("_")
+    build, length_tok, round_tok = tokens[0], tokens[-2], tokens[-1]
+    precision = "_".join(tokens[1:-2]) if len(tokens) > 3 else "int4"
+    if precision != want_precision:
+        continue
     d = json.load(f.open())
     for name, w in d["workloads"].items():
-        agg[(int(length.removeprefix("len")), name, build)].append(w["p50_ms"])
+        agg[(int(length_tok.removeprefix("len")), name, build)].append(w["p50_ms"])
 
-print(f"\n{'tokens':>7} {'workload':>8} {'stock p50':>11} {'patched p50':>12} {'delta':>9} {'speedup':>8}")
+print(f"\nprecision={want_precision}")
+print(f"{'tokens':>7} {'workload':>8} {'stock p50':>11} {'patched p50':>12} {'delta':>9} {'speedup':>8}")
 for tokens in sorted({k[0] for k in agg}):
     for name in ("text", "query"):
         s = agg.get((tokens, name, "stock"))

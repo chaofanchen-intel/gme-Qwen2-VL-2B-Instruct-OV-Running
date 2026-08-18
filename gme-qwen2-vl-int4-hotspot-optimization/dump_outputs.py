@@ -19,6 +19,8 @@ PACKAGE = GME_PACKAGE
 IR = {
     "int4": "gme_language_int4.xml",
     "int4_gs64": "gme_language_int4_gs64.xml",
+    "int4_per_oc": "gme_language_int4_per_oc.xml",
+    "int4_per_oc_sym": "gme_language_int4_per_oc_sym.xml",
     "int8": "gme_language_int8.xml",
 }
 LENGTHS = (1, 7, 32, 129, 512, 1024)
