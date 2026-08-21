@@ -89,6 +89,19 @@ buffer，kernel 是拿新 stride 读旧数据，**计时不可信**。§5.1 上�
 
 ## 5.2 后续方向（按预估收益排序）
 
+> **第三轮状态更新**（见 [`09_round3_further_latency_optimization.md`](09_round3_further_latency_optimization.md)）：
+>
+> | 本节的方向 | 第三轮结论 |
+> | --- | --- |
+> | (1) oneDNN `jit:gemm` 的 int8 压缩 GEMM（~2×） | **仍然开放，且现在是唯一的大头**（causal 之后 GEMM 占比 63% → 69%）。probe 已把它收窄到「u4 反量化本身」：layout 的 1.25x 已由 opt-3 吃掉，zero-point 只值 1.09x 且精度不划算（§9.4），`C_s8wei_grouped` 1.33x vs 稠密 int8 1.68x 就是剩下的空间 |
+> | (2) SDPA 用 `causal=true` 而不是显式 mask（~13 ms / 5%） | **已落地，实测比预估更好：SDPA 25.99 → 11.62 ms（2.24x），端到端 −16.2 ms（1.073x）**，且 FP32 逐位相同。见 §9.2。落地时踩到两个 plugin 限制（BOOL mask、rank-5 enable_gqa），处理方式见 §9.2.4 |
+> | (3) 对称 INT4 量化 | **已测：不采纳。** 保持 K 分组的对称量化（本节说的正是这个）实测 −8.45 ms（1.039x），但 query cosine −0.014，是噪声底的 20 倍。见 §9.4。另 per-OC 对称见 docs/08 |
+> | (4) RMSNorm + DynamicQuantize 融合（~7 ms） | **方向成立但现成实现拿不到。** `qwen3.5_patch/opt7` 在 GME 上**零次融合**（rms 57 → 57 calls），因为 GME 的 per-token DQ 是 Asymmetric、而强制 group=128 又会打开 `precomputed_reduction`，两道 guard 各挡一次。需给 `DynamicQuantizeKernelOpt` 的 FUSE_RMS 分支补 per-token/非对称形态。见 §9.4b。**这是下一轮的首选** |
+> | (5) host 侧提交开销（~18 ms） | causal 之后从 18.0 降到 **16.4 ms**，确认它随 primitive 数下降而不是固定开销。128 token 上 causal 的收益几乎全部来自这一项 |
+>
+> §5.1.4 的 DQ 去重也已实测：`qwen3.5_patch/opt3` 确实生效（DQ 140 → 112 calls，−2.1 ms），
+> 量级与本节 ~1.3 ms 的估计一致，**结论同样是收益太小**，本轮不重写。
+
 > 第二轮已经把 (1) 里"权重排布选错"这一块吃掉了（opt-3，GEMM 177.5 → 151.1 ms）。
 > 下面 (1) 的证据链是第一轮采集的，**结论仍然成立**：kernel 自身的吞吐问题和
 > 排布问题是两回事，换完排布后 GEMM 仍占 GPU 时间 ~63%。

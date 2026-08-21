@@ -1,0 +1,23 @@
+precision=int4_gs64_v5ctrl device=GPU seq=1024 compile=4.0s wall_mean=309.5ms wall_p50=309.6ms profiled_sum=287.1ms
+
+ ms/infer      %   calls  exec_type
+   166.24   57.9     140  jit:gemm:any__i8
+    32.99   11.5      57  jit:gemm:any__f16
+    25.97    9.0     140  dynamic_quantize_gpu_opt__f16
+    22.71    7.9      28  softmax_gpu_bf__f16
+    10.12    3.5      56  broadcast_gpu_ref__f16
+     9.80    3.4      56  permute_ref__f16
+     9.20    3.2      57  rms_gpu_bfyx_opt__f16
+     4.64    1.6      56  ocl::rope::opt___f16
+
+ ms/infer      %   calls  node (top 8)
+     2.64    0.9       1  __module.base.model.language_model.layers.27.mlp.down_proj/aten::linear/MatMul  [jit:gemm:any__i8]
+     2.18    0.8       1  __module.base.model.language_model.layers.1.mlp.gate_proj/aten::linear/MatMul  [jit:gemm:any__i8]
+     2.17    0.8       1  __module.base.model.language_model.layers.0.mlp.gate_proj/aten::linear/MatMul  [jit:gemm:any__i8]
+     2.06    0.7       1  __module.base.model.language_model.layers.27.mlp.gate_proj/aten::linear/MatMul  [jit:gemm:any__i8]
+     2.00    0.7       1  __module.base.model.language_model.layers.17.mlp.gate_proj/aten::linear/MatMul  [jit:gemm:any__i8]
+     1.99    0.7       1  __module.base.model.language_model.layers.21.mlp.gate_proj/aten::linear/MatMul  [jit:gemm:any__i8]
+     1.99    0.7       1  __module.base.model.language_model.layers.18.mlp.gate_proj/aten::linear/MatMul  [jit:gemm:any__i8]
+     1.99    0.7       1  __module.base.model.language_model.layers.22.mlp.gate_proj/aten::linear/MatMul  [jit:gemm:any__i8]
+
+gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/r3_unified_20260821/int4_gs64_v5ctrl.json

@@ -9,7 +9,14 @@ Adds, into the exported package directory:
     plus an accuracy-recovered INT4 (smaller group size).
   * an updated gme_openvino_config.json describing every precision.
 
-Run after 02_export.py has produced the FP32 IRs.
+Run after 02_export.py has produced the FP32 IRs. A default run produces every *shipped*
+precision, including the round-3 causal-SDPA ones (int4_causal / int4_gs64_causal, the
+recommended defaults -- see docs/09_round3_further_latency_optimization.md), so
+01 -> 02 -> 03 reproduces the current optimized package with no extra steps.
+
+--round3-extras additionally builds the two analysis-only variants that back docs/09's
+argument but are not products: the _v5ctrl control group (S9.2.5) and the grouped-symmetric
+IRs (S9.4, a real 1.039x but query cosine -0.014, hence documented and not defaulted).
 
 compress() now fingerprints each call's actual config (nncf_fingerprints.json next
 to the package) and only skips an existing output when the fingerprint matches, so
@@ -260,6 +267,14 @@ def _write_fingerprint(path: Path, name: str, fingerprint: str) -> None:
 
 def compress(src_xml: Path, dst_xml: Path, fingerprints_path: Path, force: bool = False, **kw) -> float:
     fingerprint = _fingerprint(src_xml, kw)
+    # _fingerprint() hashes src_xml's NAME, not its contents, so re-exporting a source IR
+    # under the same filename leaves an already-compressed output looking fresh. That cost a
+    # full measurement round once (a stale INT4 built from a superseded FP32 IR), so treat a
+    # source newer than its output as changed. Note this never fires for the shipped
+    # artifacts, whose sources are older than they are.
+    if dst_xml.exists() and src_xml.stat().st_mtime > dst_xml.stat().st_mtime:
+        print(f"[nncf] {src_xml.name} is newer than {dst_xml.name} -- recompressing")
+        force = True
     if dst_xml.exists():
         binary = dst_xml.with_suffix(".bin")
         size = binary.stat().st_size / 1e6 if binary.exists() else 0
@@ -297,6 +312,11 @@ def main() -> None:
                         help="directory containing golden_meta.json")
     parser.add_argument("--max-length", type=int,
                         help="tokenizer truncation limit (default: value in package config)")
+    parser.add_argument("--round3-extras", action="store_true",
+                        help="also build the docs/09 analysis-only language IRs: the _v5ctrl "
+                             "control group (S9.2.5) and the grouped-symmetric variants "
+                             "(S9.4, measured 1.039x but query cosine -0.014, so not a "
+                             "default). Adds ~3.7 GB and ~20 min.")
     parser.add_argument("--force", action="store_true",
                         help="recompress existing artifacts even when their fingerprint matches")
     args = parser.parse_args()
@@ -359,6 +379,41 @@ def main() -> None:
              mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=64, ratio=1.0,
              dataset=lang_calibration, awq=True, scale_estimation=True,
              subset_size=len(_CALIBRATION_TEXTS))
+
+    # Round-3 causal-SDPA IRs (docs/09 §9.2).  Same quantization recipe as the two above --
+    # only the *source* IR differs, so any measured delta is attributable to the export
+    # change and not to the compression config.
+    #
+    #   _v5ctrl : exported by the current transformers with the explicit mask kept.  This is
+    #             the control: the shipped gme_language_fp32.xml predates transformers 5 and
+    #             the upgrade alone perturbs the graph, so comparing causal against the
+    #             shipped IR would conflate two changes.
+    #   _causal : SDPA carries causal=True and takes no mask input.
+    #
+    # Both are skipped when their source IR is absent (`_causal` comes from
+    # `02_export.py --stage all`, which exports the language IR twice; `_v5ctrl` needs an
+    # explicit `--stage language --language-suffix _v5ctrl`).
+    #
+    # --round3-extras adds the two variants that exist only to support docs/09's argument
+    # rather than to be shipped, because together they cost ~3.7 GB and ~20 minutes:
+    #   _v5ctrl        the control group for S9.2.5
+    #   *_sym_causal   grouped symmetric INT4 (S9.4): a real 1.039x, but query cosine -0.014,
+    #                  so it is documented as an option and NOT made a default
+    asym, sym = nncf.CompressWeightsMode.INT4_ASYM, nncf.CompressWeightsMode.INT4_SYM
+    round3_variants: list[tuple[str, object, str]] = [("_causal", asym, "")]
+    if args.round3_extras:
+        round3_variants += [("_v5ctrl", asym, ""), ("_causal", sym, "_sym")]
+    for suffix, mode, mode_tail in round3_variants:
+        src = package / f"gme_language_fp32{suffix}.xml"
+        if not src.exists():
+            print(f"[nncf] {src.name} not present, skipping its INT4 variants")
+            continue
+        for group_size, tag in ((128, ""), (64, "_gs64")):
+            compress(src, package / f"gme_language_int4{tag}{mode_tail}{suffix}.xml",
+                     fingerprints_path, args.force,
+                     mode=mode, group_size=group_size, ratio=1.0,
+                     dataset=lang_calibration, awq=True, scale_estimation=True,
+                     subset_size=len(_CALIBRATION_TEXTS))
     # Per-output-channel language INT4: group_size=-1 means one scale (and, for the
     # ASYM variant, one zero-point) per output channel instead of one per 128-element
     # group along K. This is the requantized counterpart of the oneDNN GEMM-probe
@@ -395,6 +450,15 @@ def main() -> None:
         "int4": {"language": "gme_language_int4.xml", "visual": "gme_visual_int4.xml"},
         # accuracy-recovered language INT4 (gs64) + INT4 vision
         "int4_gs64": {"language": "gme_language_int4_gs64.xml", "visual": "gme_visual_int4.xml"},
+        # round-3 causal-SDPA variants and their matched control (docs/09 §9.2); only
+        # registered when 02_export.py actually produced the corresponding source IR
+        **{f"int4{tag}{mode_tail}{suffix}": {
+               "language": f"gme_language_int4{tag}{mode_tail}{suffix}.xml",
+               "visual": "gme_visual_int4.xml"}
+           for suffix in ("_v5ctrl", "_causal")
+           for mode_tail in ("", "_sym")
+           for tag in ("", "_gs64")
+           if (package / f"gme_language_int4{tag}{mode_tail}{suffix}.xml").exists()},
         # per-output-channel language INT4 (group_size=-1), asymmetric vs symmetric --
         # see docs/08_per_oc_quantization.md
         "int4_per_oc": {"language": "gme_language_int4_per_oc.xml", "visual": "gme_visual_int4.xml"},

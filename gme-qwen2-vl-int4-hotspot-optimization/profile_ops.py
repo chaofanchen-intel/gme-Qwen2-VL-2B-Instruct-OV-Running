@@ -33,6 +33,22 @@ IR = {
 }
 
 
+def _config_precisions() -> dict[str, str]:
+    """Language IRs declared in the package config, so new precisions need no edit here."""
+    cfg_path = PACKAGE / "gme_openvino_config.json"
+    if not cfg_path.exists():
+        return {}
+    cfg = __import__("json").loads(cfg_path.read_text())
+    return {key: entry["language"]
+            for key, entry in (cfg.get("precisions") or {}).items()
+            if (PACKAGE / entry["language"]).exists()}
+
+
+# Config-declared precisions extend the table above; the hard-coded entries win on conflict
+# so the historical keys keep their exact meaning.
+IR = {**_config_precisions(), **IR}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--precision", default="int4", choices=sorted(IR))

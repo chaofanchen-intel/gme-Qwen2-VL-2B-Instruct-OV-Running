@@ -23,6 +23,22 @@ IR = {
     "int4_per_oc_sym": "gme_language_int4_per_oc_sym.xml",
     "int8": "gme_language_int8.xml",
 }
+
+
+def _config_precisions() -> dict[str, str]:
+    """Language IRs declared in the package config, so new precisions need no edit here."""
+    cfg_path = PACKAGE / "gme_openvino_config.json"
+    if not cfg_path.exists():
+        return {}
+    cfg = __import__("json").loads(cfg_path.read_text())
+    return {key: entry["language"]
+            for key, entry in (cfg.get("precisions") or {}).items()
+            if (PACKAGE / entry["language"]).exists()}
+
+
+# Config-declared precisions extend the table above; the hard-coded entries win on conflict
+# so the historical keys keep their exact meaning.
+IR = {**_config_precisions(), **IR}
 LENGTHS = (1, 7, 32, 129, 512, 1024)
 
 

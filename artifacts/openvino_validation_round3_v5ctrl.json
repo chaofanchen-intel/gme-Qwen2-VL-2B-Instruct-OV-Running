@@ -1,0 +1,18 @@
+{
+  "GPU": {
+    "int4_v5ctrl": {
+      "text_cos_min": 0.950983,
+      "query_cos": 0.955428,
+      "image_cos": 0.941987,
+      "fused_cos": 0.95091,
+      "fused_norm": 1.00006
+    },
+    "int4_gs64_v5ctrl": {
+      "text_cos_min": 0.937888,
+      "query_cos": 0.956787,
+      "image_cos": 0.941846,
+      "fused_cos": 0.953098,
+      "fused_norm": 1.00025
+    }
+  }
+}

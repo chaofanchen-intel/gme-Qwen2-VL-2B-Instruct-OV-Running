@@ -17,6 +17,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from gme_compat import patch_transformers
 from gme_openvino import GmeOpenVINO
 
 HERE = Path(__file__).resolve().parent
@@ -41,6 +42,7 @@ def ensure_fused_golden(meta: dict, artifacts: Path, model_dir: Path) -> np.ndar
             f"source model directory not found while creating {path.name}: {model_dir}"
         )
     sys.path.insert(0, str(model_dir))
+    patch_transformers()  # the checkpoint's gme_inference.py needs transformers 4.x names
     GmeQwen2VL = importlib.import_module("gme_inference").GmeQwen2VL
     gme = GmeQwen2VL(model_path=str(model_dir), device="cpu")
     gme.base = gme.base.float().eval()

@@ -93,6 +93,30 @@ embedding 输出，stock = 官方 2026.3.0 wheel。
 | `qwen3_ab_text/`、`qwen3_{stock,optimized}_{text,detailed}/` | opt-1 / opt-2 在 `Qwen3-VL-Embedding-2B` 上的适用性 A/B，结论见 `qwen3_ab_text/REPORT.md`（**opt-3 未在该模型上复测**） |
 | `cross_model_per_call/` | 跨模型的 per-call 延迟采样 |
 
+## 第三轮（docs/09）
+
+所有 `r3_*` 文件都产自**同一个交付构建**（`2026.3.0-22454-09c4cc4117e`，只 apply
+`patches/all_gme_int4_gpu_opts.patch`），且该构建已用 `compare_outputs.py` 证明与第二轮
+交付构建逐位相同（`acc_int4_round2.npz` vs `r3_acc_int4_patched.npz` 全 1.000000000）。
+
+| 路径 | 口径 |
+| --- | --- |
+| `r3_base_ops_int4_1024.json` | gs128 基线复现（wall 239.68 / GEMM 151.90），对应 docs/09 §9.0.2 |
+| `r3_base_ops_int4_gs64_1024.json` | **gs64 patched，本项目首次算子级基线**（wall 254.19 / GEMM 166.09），§9.0.3 |
+| `r3_STOCK_ops_int4_gs64_1024.json` | gs64 **stock wheel**（无任何 GME patch，wall 284.76）。⚠️ 这份是「忘记 source setupvars.sh」意外采到的，但口径干净、可用作 gs64 的 stock 对照，§9.0.3 |
+| `r3_acc_int4_patched.npz`、`r3_acc_int4_gs64_patched.npz` | 两个精度的自洽性参考 npz（后续任何改动都对这两个比） |
+| `r3_causal_equivalence_fp32.json` | **causal 改造的 FP32 逐位等价性**：6 个用例（含 `[1024,300]`、`[512,129,7]` 两个不等长右 padding 批）全部 `max_abs_diff = 0`，§9.2.5 |
+| `r3_final_int4_r*.json`、`r3_final_int4_causal_r*.json`、`r3_final_int4_gs64_causal_r*.json` | 回退所有实验代码后在交付构建上的最终复核（239.03 / 222.72 / 236.80），§9.6 |
+| `../onednn/results/r3_pricing.txt` | oneDNN 定价主表 round-3（新增 prB / gs64 / 分组对称 / bias 共 9 个 case），§9.1 |
+| `../../artifacts/openvino_validation_round3_{causal,v5ctrl,sym}.json` | 三组精度评估（vs PyTorch FP32 golden）。**必须三份一起读**：`v5ctrl` 是同源对照组，用来证明 `text_cos_min` 的 ±0.01 抖动来自重量化而非 causal 改造，§9.2.5 |
+
+> ⚠️ 第三轮学到的两条口径教训：
+> 1. **`text_cos_min` 分辨不了千分级差异**（同源重量化之间抖 ±0.01）。精度对比应以
+>    **query cosine** 为主（同族极差仅 0.0007），或提高样本量。
+> 2. **`nncf_fingerprints.json` 只哈希源 IR 的文件名、不含内容**，重新导出同名 FP32 IR
+>    后已有 INT4 产物会被误判为「未变化」。`03_finalize.py::compress()` 已加「源比产物新就强制
+>    重压」的防护（对已交付产物永不触发）。
+
 ## 其它（本轮之前留下的）
 
 `profile_run.json`、`tuning_{padded,per_sample}_{1,auto}.json`、`gpu-dump-int4-32/`

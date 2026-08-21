@@ -1,0 +1,64 @@
+{
+  "reference": "gme_language_fp32_v5ctrl.xml",
+  "candidate": "gme_language_fp32_causal.xml",
+  "device": "CPU",
+  "cases": [
+    {
+      "case": "seq1",
+      "lengths": [
+        1
+      ],
+      "cosine": 1.0,
+      "worst_row_cosine": 1.0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "case": "seq32",
+      "lengths": [
+        32
+      ],
+      "cosine": 1.0,
+      "worst_row_cosine": 1.0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "case": "seq512",
+      "lengths": [
+        512
+      ],
+      "cosine": 1.0000000000000002,
+      "worst_row_cosine": 1.0000000000000002,
+      "max_abs_diff": 0.0
+    },
+    {
+      "case": "seq1024",
+      "lengths": [
+        1024
+      ],
+      "cosine": 1.0,
+      "worst_row_cosine": 1.0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "case": "batch2_padded",
+      "lengths": [
+        1024,
+        300
+      ],
+      "cosine": 1.0,
+      "worst_row_cosine": 1.0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "case": "batch3_padded",
+      "lengths": [
+        512,
+        129,
+        7
+      ],
+      "cosine": 0.9999999999999999,
+      "worst_row_cosine": 1.0,
+      "max_abs_diff": 0.0
+    }
+  ]
+}

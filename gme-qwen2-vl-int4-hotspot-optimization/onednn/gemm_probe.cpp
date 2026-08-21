@@ -39,6 +39,16 @@ struct Case {
     // wtag: comparing a cab-weight case against an abc-weight case while holding the
     // scales N-contiguous would credit the weight layout for a scale-layout effect.
     tag sctag = tag::abc;
+    // Hand oneDNN the per-K-group s32 partial sums of the (already quantized) src
+    // instead of letting the GEMM reduce src itself for the grouped weight-zp
+    // compensation.  Same arithmetic -- the sum just moves out of the kernel.  See
+    // oneDNN doc/programming_model/attributes_quantization.md, "Precomputed
+    // Reductions", and the has_prB gate in src/gpu/intel/gemm/jit/pd.cpp.
+    bool src_pr = false;
+    // qkv is the one projection the model dispatches as a bias-carrying fused 3-FC,
+    // and it is also the one with the largest unexplained model-vs-probe gap
+    // (0.460 vs 0.236 ms/call).  This prices the bias.
+    bool bias = false;
 };
 
 struct Shape {
@@ -116,6 +126,12 @@ int main(int argc, char **argv) {
                 shapes.push_back({"M" + std::to_string(m) + " 1xMxK", m, 1536, 8960, false});
                 shapes.push_back({"M" + std::to_string(m) + " Mx1xK", m, 1536, 8960, true});
             }
+        } else if (std::string(sel) == "gme") {
+            // Only the five projections the model actually runs.  The crossover sweep
+            // above exists to derive opt-3's N>=4K threshold and does not need to be
+            // re-run for every new case, and dropping it cuts a full-matrix run from
+            // 12 columns to 5 -- which matters now that the case list is 25 long.
+            shapes.resize(5);
         }
     }
 
@@ -146,6 +162,33 @@ int main(int argc, char **argv) {
         // Dense references: the f16 and int8 ceilings.
         {"F_f16_dense",       dt::f16, dt::f16, false, 0,  false, false, false, tag::any},
         {"G_s8_dense",        dt::s8,  dt::s8,  false, 0,  false, false, false, tag::any},
+
+        // ---- round 3 ----
+        // P: precomputed reductions.  B_cab_symmetric (1.09x) is the upper bound --
+        // that case deletes the zero-point compensation outright, while these keep it
+        // and only move the src reduction out of the kernel.  So P is only interesting
+        // if it lands close to that 1.09x; anything under ~1.04x is not worth wiring a
+        // second DynamicQuantize output through the plugin for.
+        {"P_prB_cab",         dt::s8,  dt::u4,  true, 128, true,  true,  false, tag::cab, tag::abc, true},
+        {"P_prB_abc",         dt::s8,  dt::u4,  true, 128, true,  true,  false, tag::abc, tag::abc, true},
+        // Q: gs64, the accuracy-preferred precision.  It has never been priced --
+        // round 2 only ever measured gs128 and a coarser group (D2_cab_group512, 0.99x),
+        // so the cost of going FINER than 128 is unknown.  Both layouts, because opt-3's
+        // N>=4K rule was derived on gs128 and has to be re-checked here.
+        {"Q_gs64_cab",        dt::s8,  dt::u4,  true, 64,  true,  true,  false, tag::cab},
+        {"Q_gs64_abc",        dt::s8,  dt::u4,  true, 64,  true,  true,  false, tag::abc},
+        {"Q_gs64_prB_cab",    dt::s8,  dt::u4,  true, 64,  true,  true,  false, tag::cab, tag::abc, true},
+        // R: symmetric weights while KEEPING the K grouping.  docs/08 measured per-OC
+        // symmetric (group_size=-1) and found the accuracy unacceptable, but it never
+        // separated the two factors it changed at once: the accuracy collapse there
+        // comes from the grouping getting coarser, not from dropping the zero-point.
+        // gs128-sym is B_*_symmetric above; these add gs64-sym.
+        {"R_sym_gs64_cab",    dt::s8,  dt::u4,  true, 64,  false, true,  false, tag::cab},
+        {"R_sym_gs64_abc",    dt::s8,  dt::u4,  true, 64,  false, true,  false, tag::abc},
+        // U: the qkv bias.  A_gme_cab has no bias, so if the model's qkv really pays
+        // for it, this case should reproduce part of that 1.95x gap.
+        {"U_cab_bias",        dt::s8,  dt::u4,  true, 128, true,  true,  false, tag::cab, tag::abc, false, true},
+        {"U_abc_bias",        dt::s8,  dt::u4,  true, 128, true,  true,  false, tag::abc, tag::abc, false, true},
     };
 
     printf("%-22s", "case");
@@ -198,6 +241,12 @@ int main(int argc, char **argv) {
             if (c.wei_zp)
                 attr.set_zero_points(DNNL_ARG_WEIGHTS, WEI_MASK_KN,
                                      {c.wei_scale_group, 1}, dt::u8);
+            // Groups are {G0, G1} over the last two src dims (M, K): no sub-blocking
+            // on M, and the same K group the weight zero-points use -- the reduction
+            // has to line up with the zp it compensates.
+            if (c.src_pr)
+                attr.set_precomputed_reductions(DNNL_ARG_SRC, SRC_MASK_MK,
+                                                {1, c.wei_scale_group}, dt::s32);
             if (c.swiglu) {
                 post_ops po;
                 po.append_eltwise(algorithm::eltwise_swish, 1.0f, 0.0f);
@@ -205,9 +254,12 @@ int main(int argc, char **argv) {
                 attr.set_post_ops(po);
             }
 
+            auto bias_md = memory::desc({1, 1, s.n}, dt::f16, tag::abc);
+
             matmul::primitive_desc pd;
             try {
-                pd = matmul::primitive_desc(eng, src_md, wei_md, dst_md, attr);
+                pd = c.bias ? matmul::primitive_desc(eng, src_md, wei_md, bias_md, dst_md, attr)
+                            : matmul::primitive_desc(eng, src_md, wei_md, dst_md, attr);
             } catch (const dnnl::error &e) {
                 printf("%28s", "unsupported");
                 fflush(stdout);
@@ -226,7 +278,20 @@ int main(int argc, char **argv) {
                 {DNNL_ARG_SRC, src}, {DNNL_ARG_WEIGHTS, wei},
                 {DNNL_ARG_DST, dst}, {DNNL_ARG_SCRATCHPAD, scratch}};
 
-            memory src_sc, wei_sc, wei_zp, mul_src;
+            memory src_sc, wei_sc, wei_zp, mul_src, src_prs, bias_mem;
+            if (c.bias) {
+                bias_mem = memory(bias_md, eng);
+                args[DNNL_ARG_BIAS] = bias_mem;
+            }
+            if (c.src_pr) {
+                // One s32 reduction per (row, K-group), laid out like src with K
+                // collapsed to K/group.
+                memory::dims pr_dims = s.batched_m1
+                        ? memory::dims{s.m, 1, s.k / c.wei_scale_group}
+                        : memory::dims{1, s.m, s.k / c.wei_scale_group};
+                src_prs = memory({pr_dims, dt::s32, tag::abc}, eng);
+                args[DNNL_ARG_ATTR_PRECOMPUTED_REDUCTIONS | DNNL_ARG_SRC] = src_prs;
+            }
             if (c.src_scales) {
                 memory::dims sc_dims = s.batched_m1 ? memory::dims{s.m, 1, 1}
                                                     : memory::dims{1, s.m, 1};

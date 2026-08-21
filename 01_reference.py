@@ -16,6 +16,8 @@ import sys
 from pathlib import Path
 
 import numpy as np
+
+from gme_compat import patch_transformers
 import torch
 
 HERE = Path(__file__).resolve().parent
@@ -63,6 +65,11 @@ def parse_args() -> argparse.Namespace:
         help="directory containing the GME checkpoint and gme_inference.py",
     )
     parser.add_argument(
+        "--force",
+        action="store_true",
+        help="regenerate the goldens even if they exist (invalidates published cosines)",
+    )
+    parser.add_argument(
         "--artifacts",
         type=Path,
         default=DEFAULT_ARTIFACTS,
@@ -91,10 +98,23 @@ def main():
         raise SystemExit("--max-length must be positive")
     artifacts.mkdir(parents=True, exist_ok=True)
 
+    # Every published cosine in docs/04, docs/08 and docs/09 is measured against these exact
+    # arrays, so silently regenerating them would make all historical numbers incomparable --
+    # especially now that the pipeline runs on a different transformers major than the one
+    # that produced them. Refuse unless asked.
+    existing = [name for name in ("golden_text.npy", "golden_query.npy", "golden_image.npy",
+                                  "golden_meta.json") if (artifacts / name).exists()]
+    if existing and not args.force:
+        print(f"[ref] goldens already present in {artifacts} ({len(existing)} files), skipping.")
+        print("[ref] pass --force to regenerate -- this invalidates every published cosine.")
+        return
+
     print(f"[ref] model dir: {model_dir}")
     print(f"[ref] torch {torch.__version__}  threads={torch.get_num_threads()}")
 
     sys.path.insert(0, str(model_dir))
+    # The checkpoint's gme_inference.py still imports transformers 4.x names.
+    patch_transformers()
     gme_inference = importlib.import_module("gme_inference")
 
     gme = gme_inference.GmeQwen2VL(model_path=str(model_dir), device=args.device)

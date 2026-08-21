@@ -13,12 +13,14 @@ hotspot 定位、源码优化、数值验证和回归测试。
 
 | | |
 | --- | --- |
-| **结果** | 1024 token **1.170–1.172x**、512 token **1.180–1.184x**、128 token **1.151–1.158x**、32 token **1.017–1.018x** |
-| **正确性** | text/语言 IR 结果见 §4；image-only 三尺寸 bit-identical；fused 仍可运行但部分尺寸有小幅稳定漂移，见 `docs/04_validation_and_results.md` §4.1c |
+| **结果（plugin patch，第一/二轮）** | 1024 token **1.170–1.172x**、512 token **1.180–1.184x**、128 token **1.151–1.158x**、32 token **1.017–1.018x** |
+| **结果（第三轮，导出侧 SDPA causal，可叠加）** | 1024 token 再 **1.073x**（gs128 238.5 → **222.3 ms**）/ **1.072x**（gs64 252.9 → **236.0 ms**）；SDPA 单项 **2.24x**。累计相对最初 stock gs128 **1.273x**。见 [`docs/09`](docs/09_round3_further_latency_optimization.md) |
+| **正确性** | text/语言 IR 结果见 §4；image-only 三尺寸 bit-identical；fused 仍可运行但部分尺寸有小幅稳定漂移，见 `docs/04_validation_and_results.md` §4.1c。第三轮 causal 改造在 FP32 上**逐位相同**（含不等长右 padding 批），docs/09 §9.2.5 |
 | **回归** | 有状态生成式模型 greedy 解码 token id、首步 logits SHA 与 top-8 逐位相同 |
-| **改动** | Intel GPU plugin，7 个文件，+297 −17，图结构/调度 + 权重 layout，无算术改动 |
-| **改了什么** | ① GQA `repeat_kv` 的 Broadcast 消除放开到无状态模型；② 新增 SDPA 输出 Transpose 融合 + 修复 `sdpa_gen_micro` 的 dispatch bug；③ **宽 INT4 投影（`N ≥ 4K`）的权重重排成 N 连续**，让 oneDNN `jit:gemm` 走更快的 layout |
-| **剩下的大头** | GEMM 仍占 GPU 时间 ~63%。per-OC 量化已实测：端到端最多能再叠加 ~1.1–1.28x，但 text/query cosine 从 ~0.945 掉到 0.83–0.88，**精度不达标，不建议采纳**，见 docs/08 |
+| **改动** | Intel GPU plugin，8 个文件，+390 −19，图结构/调度 + 权重 layout，无算术改动。**第三轮没有新增 plugin 改动**，全部在导出侧 |
+| **改了什么** | ① GQA `repeat_kv` 的 Broadcast 消除放开到无状态模型；② 新增 SDPA 输出 Transpose 融合 + 修复 `sdpa_gen_micro` 的 dispatch bug；③ **宽 INT4 投影（`N ≥ 4K`）的权重重排成 N 连续**，让 oneDNN `jit:gemm` 走更快的 layout；④（第三轮，导出侧）**SDPA 改成 `causal=true` 且不带 mask**，kernel 直接跳过上三角 |
+| **推荐精度** | 默认/均衡 **`int4_causal`**（222.3 ms，query cos 0.9552）；精度优先 **`int4_gs64_causal`**（236.0 ms，query cos 0.9576） |
+| **剩下的大头** | GEMM 占 GPU 时间 ~69%（causal 之后占比上升）。per-OC 量化精度不达标（docs/08）；**分组对称量化**第三轮实测 −8.45 ms 但 query cosine −0.014，同样不设默认（docs/09 §9.4）；下一轮首选是 **RMS→DQ 融合**（~7 ms，现成实现不生效，需补 per-token 形态，docs/09 §9.4b） |
 
 ## 优化前后的 GPU 时间构成（语言 IR，seq=1024，INT4/GPU）
 
@@ -38,6 +40,21 @@ hotspot 定位、源码优化、数值验证和回归测试。
 opt-3 的 26.4 ms **全部来自 `gate_proj`（63.00 → 49.55）和 `up_proj`（47.43 → 35.24）**，
 其余线性层和其余算子不动 —— 这正是该优化的适用范围（见 docs/06 §6.9）。
 
+### 第三轮叠加导出侧 SDPA causal 之后（语言 IR，seq=1024，INT4/GPU，gs128）
+
+| exec_type | opt1+2+3 | + causal 导出 | Δ |
+| --- | ---: | ---: | ---: |
+| `jit:gemm:any__i8` | 152.45 | 152.81 | +0.4 |
+| **`ocl::sdpa::opt__f16`** | **25.99** | **11.62** | **−14.4** |
+| `dynamic_quantize_gpu_opt__f16` | 27.04 | 25.49 | −1.6 |
+| `rms_gpu_bfyx_opt__f16` | 9.34 | 9.39 | 0 |
+| `permute_ref__f16` | 0.88 | 0.88 | 0 |
+| host（wall − profiled） | 18.03 | 16.50 | −1.5 |
+| **wall p50** | **238.48** | **222.33** | **−16.2 (1.073x)** |
+
+SDPA 之外的收益来自被删掉的 mask 构造算子（`Select` 等）和随之下降的 primitive 数。
+GEMM 完全不动——这一笔与 GEMM 侧的任何后续优化正交。详见 docs/09 §9.2。
+
 ---
 
 ## 文档
@@ -51,6 +68,8 @@ opt-3 的 26.4 ms **全部来自 `gate_proj`（63.00 → 49.55）和 `up_proj`�
 | [`docs/05_rejected_and_future_work.md`](docs/05_rejected_and_future_work.md) | 试过且**否掉**的 3 个方案（附实测数字）、后续 5 个方向、与既有 Qwen3.5 patch 的关系 |
 | [`docs/06_round2_onednn_investigation.md`](docs/06_round2_onednn_investigation.md) | **第二轮**：oneDNN 单独立项、INT4 GEMM 成本分解 probe、VTune 复采、opt-3 的落地与两次规则修正（§6.9） |
 | [`docs/08_per_oc_quantization.md`](docs/08_per_oc_quantization.md) | per-OC INT4 量化方案（docs/06 §6.3 挂起项落地）：两个新精度、性能基线、精度评估——**收益大但精度不达标，不建议采纳** |
+| [`docs/09_round3_further_latency_optimization.md`](docs/09_round3_further_latency_optimization.md) | **第三轮**：gs64 首次算子级基线、oneDNN 定价表 round-3、**导出侧 SDPA causal（采纳，1.073x）**、分组对称量化（可选）、以及 4 个带实测数字的否决项 |
+| [`docs/10_round3_gme_causal_performance_report.md`](docs/10_round3_gme_causal_performance_report.md) | **第三轮统一性能报告**：普通/causal、gs128/gs64、per-OC/对称量化的 1024-token wall、GEMM、SDPA、plugin 阶段和数据缺口 |
 | [`patches/README.md`](patches/README.md) | patch 的 base、应用方式、影响面、上游建议 |
 | [`results/qwen3_ab_text/REPORT.md`](results/qwen3_ab_text/REPORT.md) | 三个 GME patch 对 Qwen3-VL-Embedding-2B 的适用性复测：opt-3 text 基本无收益，image/fused `CL_OUT_OF_RESOURCES` 回归 |
 

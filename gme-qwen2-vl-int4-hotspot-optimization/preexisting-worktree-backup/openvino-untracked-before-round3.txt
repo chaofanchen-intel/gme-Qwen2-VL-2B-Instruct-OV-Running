@@ -1,0 +1,19 @@
+ M src/plugins/intel_gpu/include/intel_gpu/primitives/dynamic_quantize.hpp
+ M src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp
+ M src/plugins/intel_gpu/src/graph/graph_optimizer/prepare_primitive_fusing.cpp
+ M src/plugins/intel_gpu/src/graph/impls/ocl/dynamic_quantize.cpp
+ M src/plugins/intel_gpu/src/graph/impls/ocl_v2/paged_causal_conv1d_ref.cl
+ M src/plugins/intel_gpu/src/graph/impls/ocl_v2/paged_causal_conv1d_ref.cpp
+ M src/plugins/intel_gpu/src/graph/include/pass_manager.h
+ M src/plugins/intel_gpu/src/graph/primitive_inst.cpp
+ M src/plugins/intel_gpu/src/kernel_selector/cl_kernels/activation_opt.cl
+ M src/plugins/intel_gpu/src/kernel_selector/cl_kernels/dynamic_quantize_gpu_opt.cl
+ M src/plugins/intel_gpu/src/kernel_selector/kernels/activation/activation_kernel_opt.cpp
+ M src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt.cpp
+ M src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt_kv_cache.cpp
+ M src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.cpp
+ M src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.h
+ M src/plugins/intel_gpu/src/plugin/transformations/dynamic_quantize_fully_connected.cpp
+ M src/plugins/intel_gpu/src/plugin/transformations_pipeline.cpp
+?? src/plugins/intel_gpu/src/plugin/transformations/move_swish_up_through_reshape.cpp
+?? src/plugins/intel_gpu/src/plugin/transformations/move_swish_up_through_reshape.hpp

@@ -17,6 +17,7 @@ parity.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib
 import json
 import os
@@ -30,10 +31,18 @@ import numpy as np
 import openvino as ov
 import torch
 import torch.nn.functional as functional
-from transformers import AutoConfig, AutoModelForVision2Seq, AutoProcessor
+from transformers import AutoConfig, AutoProcessor
+
 from transformers.models.qwen2_vl.modeling_qwen2_vl import Qwen2VisionTransformerPretrainedModel
 from safetensors import safe_open
 from openvino.properties import hint
+
+from gme_compat import auto_vlm_class
+
+# Resolving the class also installs the transformers 4.x aliases that the checkpoint's own
+# gme_inference.py needs (imported lazily in make_example for fetch_image).
+# See gme_compat and docs/09 S9.3.
+_AutoVLM = auto_vlm_class()
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_SOURCE_MODEL = HERE.parent / "benchmark" / "models" / "gme-Qwen2-VL-2B-Instruct"
@@ -46,12 +55,35 @@ MAX_LENGTH = 1800
 
 
 class GmeLanguageEmbed(torch.nn.Module):
-    """Decoder path for text, image, and fused embeddings."""
+    """Decoder path for text, image, and fused embeddings.
 
-    def __init__(self, base: torch.nn.Module) -> None:
+    ``causal_attention`` drops the explicit ``[B, 1, S, S]`` attention mask and lets the
+    exported SDPA carry ``causal=True`` instead.  For GME this is an identity, not an
+    approximation, and it is worth ~10 ms of the 1024-token GPU latency:
+
+    * The kernel really does skip the upper triangle -- ``sdpa_micro.cl`` clamps its K-loop
+      bound to ``causal_k = min(k, wg_j0 + wg_tile_n)`` under ``IS_CAUSAL``, rather than
+      computing the full S x S and masking afterwards.
+    * The padding half of the mask is redundant here.  The package is right-padded
+      (``gme_openvino.py`` rejects anything else) and pooling reads the *last valid* token,
+      so every padding position sits at a strictly larger index than any token whose output
+      is read -- causal masking already excludes them.
+    * ``position_ids`` are supplied explicitly as ``arange(S)`` instead of letting
+      ``get_rope_index()`` derive them from ``attention_mask.cumsum(-1) - 1``.  Under right
+      padding those agree on the whole valid prefix, and passing them keeps the cumsum out
+      of the graph.
+
+    The mask input stays on the signature either way: it still selects the pooling index.
+    """
+
+    def __init__(self, base: torch.nn.Module, causal_attention: bool = False) -> None:
         super().__init__()
         self.base = base
         self.image_token_id = base.config.image_token_id
+        self.causal_attention = causal_attention
+        # transformers < 5 hangs the embedding off Qwen2VLModel directly; >= 5 moved it
+        # down to Qwen2VLModel.language_model.  get_input_embeddings() is stable on both.
+        self.embed_tokens = base.model.get_input_embeddings()
 
     def forward(
         self,
@@ -59,20 +91,36 @@ class GmeLanguageEmbed(torch.nn.Module):
         attention_mask: torch.Tensor,
         image_embeds: torch.Tensor,
     ) -> torch.Tensor:
-        inputs_embeds = self.base.model.embed_tokens(input_ids)
+        inputs_embeds = self.embed_tokens(input_ids)
         image_mask = (input_ids.reshape(-1) == self.image_token_id).unsqueeze(1)
         flat_embeds = inputs_embeds.reshape(-1, inputs_embeds.shape[-1])
         flat_embeds = flat_embeds.masked_scatter(
             image_mask, image_embeds.to(dtype=flat_embeds.dtype).reshape(-1)
         )
         inputs_embeds = flat_embeds.reshape_as(inputs_embeds)
-        outputs = self.base.model(
-            input_ids=None,
-            attention_mask=attention_mask,
-            position_ids=None,
-            inputs_embeds=inputs_embeds,
-            use_cache=False,
-        )
+        if self.causal_attention:
+            batch, seq_len = inputs_embeds.shape[0], inputs_embeds.shape[1]
+            # Qwen2-VL's mrope wants [3, batch, seq].
+            position_ids = (
+                torch.arange(seq_len, device=inputs_embeds.device)
+                .view(1, 1, -1)
+                .expand(3, batch, -1)
+            )
+            outputs = self.base.model(
+                input_ids=None,
+                attention_mask=None,
+                position_ids=position_ids,
+                inputs_embeds=inputs_embeds,
+                use_cache=False,
+            )
+        else:
+            outputs = self.base.model(
+                input_ids=None,
+                attention_mask=attention_mask,
+                position_ids=None,
+                inputs_embeds=inputs_embeds,
+                use_cache=False,
+            )
         sequence_lengths = attention_mask.sum(dim=1) - 1
         embedding = outputs.last_hidden_state[
             torch.arange(outputs.last_hidden_state.shape[0]), sequence_lengths
@@ -165,16 +213,63 @@ def label_ports(model: ov.Model, names: list[str]) -> None:
     model.outputs[0].get_tensor().set_names({"embedding"})
 
 
+@contextlib.contextmanager
+def suppress_causal_mask_materialization():
+    """Make HF hand SDPA ``attn_mask=None, is_causal=True`` while tracing.
+
+    ``masking_utils._ignore_causal_mask_sdpa()`` short-circuits on ``not is_tracing(...)``,
+    so under ``torch.jit.trace`` (which ``ov.convert_model`` uses) transformers *always*
+    materializes an explicit S x S mask -- even when ``attention_mask is None``.  That is a
+    deliberate guard against baking ``is_causal`` into an exported graph
+    (pytorch/pytorch#108108), and it is the reason the shipped IR has 28 SDPA nodes with
+    ``causal="false"`` plus a mask built from Select/masked_fill.
+
+    Here baking it in is exactly what we want, so ``create_causal_mask`` is stubbed to
+    ``None`` for the duration of the trace.  HF's own ``sdpa_attention_forward`` then
+    computes ``is_causal = q_len > 1 and attention_mask is None``, so the flag comes from
+    upstream logic rather than from us hand-editing the graph.
+
+    Only ``create_causal_mask`` is patched for the mask itself: this checkpoint's 28 layers
+    are all ``full_attention`` (no ``sliding_attention``), so the sliding-window builder
+    never runs.
+
+    ``use_gqa_in_sdpa`` is pinned to False for a second, GPU-plugin-specific reason.  It
+    returns True as soon as ``attention_mask is None``, which makes transformers skip
+    ``repeat_kv`` and pass ``enable_gqa=True`` instead -- and that exports a **rank-5** SDPA
+    (Q ``[B,2,6,S,128]``, K/V ``[B,2,1,S,128]``).  The Intel GPU plugin does not lower a
+    rank-5 generic ScaledDotProductAttention: it decomposes it into explicit MatMul +
+    Softmax, measured at 428 ms vs 240 ms for the shipped IR.  Keeping ``repeat_kv`` holds
+    SDPA at rank 4, where it lowers to ``ocl::sdpa::opt``, and the resulting
+    Unsqueeze/Broadcast/Reshape is precisely what opt-1 already eliminates in the plugin.
+    """
+    from transformers.integrations import sdpa_attention
+    from transformers.models.qwen2_vl import modeling_qwen2_vl as qwen2_vl
+
+    saved_mask = qwen2_vl.create_causal_mask
+    saved_gqa = sdpa_attention.use_gqa_in_sdpa
+    qwen2_vl.create_causal_mask = lambda **_kwargs: None
+    sdpa_attention.use_gqa_in_sdpa = lambda *_args, **_kwargs: False
+    try:
+        yield
+    finally:
+        qwen2_vl.create_causal_mask = saved_mask
+        sdpa_attention.use_gqa_in_sdpa = saved_gqa
+
+
 def export_model(
     module: torch.nn.Module,
     example_inputs: tuple[torch.Tensor, ...],
     output_path: Path,
     input_names: list[str],
     shapes: list[ov.PartialShape],
+    causal_attention: bool = False,
 ) -> None:
     print(f"[export] converting {output_path.name} ...")
     start = time.monotonic()
-    model = ov.convert_model(module, example_input=example_inputs)
+    with contextlib.ExitStack() as stack:
+        if causal_attention:
+            stack.enter_context(suppress_causal_mask_materialization())
+        model = ov.convert_model(module, example_input=example_inputs)
     label_ports(model, input_names)
     model.reshape(dict(enumerate(shapes)))
     ov.save_model(model, str(output_path), compress_to_fp16=False)
@@ -290,6 +385,20 @@ def main() -> None:
         default="all",
         help="all runs the isolated stages in separate processes to limit peak memory",
     )
+    parser.add_argument(
+        "--language-suffix",
+        default=None,
+        help="suffix for the language IR filename, e.g. --language-suffix _v5ctrl writes "
+             "gme_language_fp32_v5ctrl.xml; defaults to _causal with --causal-sdpa and "
+             "empty otherwise. Lets a control and an experiment IR coexist for A/B.",
+    )
+    parser.add_argument(
+        "--causal-sdpa",
+        action="store_true",
+        help="export the language IR with causal=True SDPA and no explicit attention mask, "
+             "into gme_language_fp32_causal.xml (an identity for this right-padded, "
+             "last-valid-token-pooled package -- see GmeLanguageEmbed)",
+    )
     args = parser.parse_args()
 
     source_model = args.source_model.expanduser().resolve()
@@ -306,7 +415,17 @@ def main() -> None:
     package_processor_assets(source_model, output, runtime_module)
 
     if args.stage == "all":
-        for stage in ("language", "visual", "validate"):
+        # "language" runs twice: once for the mask-carrying IR that every earlier round was
+        # measured on, once for the causal IR that docs/09 adopts. Both are products -- the
+        # first keeps the historical baseline reproducible, the second is the recommended
+        # default -- so an in-order 01..05 run has to produce both.
+        stages: list[tuple[str, list[str]]] = [
+            ("language", []),
+            ("language", ["--causal-sdpa"]),
+            ("visual", []),
+            ("validate", []),
+        ]
+        for stage, extra in stages:
             command = [
                 sys.executable,
                 str(Path(__file__).resolve()),
@@ -322,39 +441,52 @@ def main() -> None:
                 args.device,
                 "--stage",
                 stage,
+                *extra,
             ]
             if args.force and stage != "validate":
                 command.append("--force")
-            print(f"[export] starting isolated {stage} stage")
+            label = f"{stage}{' (causal)' if extra else ''}"
+            print(f"[export] starting isolated {label} stage")
             subprocess.run(command, check=True)
         return
 
     export_processor = processor_for(source_model, MIN_IMAGE_TOKENS, MIN_IMAGE_TOKENS)
     vision_inputs = make_example(export_processor, source_model, example_image)
 
-    language_path = output / "gme_language_fp32.xml"
+    # The causal variant is written to its own file so both IRs coexist and can be A/B'd
+    # inside one build/session, the way every other measurement in this project is done.
+    suffix = args.language_suffix if args.language_suffix is not None else (
+        "_causal" if args.causal_sdpa else "")
+    language_path = output / f"gme_language_fp32{suffix}.xml"
+    if args.stage == "language" and not args.force and language_path.exists():
+        print(f"[export] {language_path.name} exists, skipping (--force to re-export)")
     if args.stage == "language" and (args.force or not language_path.exists()):
         print(f"[export] loading language checkpoint from {source_model}")
-        base = AutoModelForVision2Seq.from_pretrained(str(source_model), torch_dtype=torch.float32)
+        base = _AutoVLM.from_pretrained(str(source_model), torch_dtype=torch.float32)
         base.eval()
-        language_module = GmeLanguageEmbed(base).eval()
+        # transformers >= 5 moved the text dims onto config.text_config.
+        hidden_size = getattr(base.config, "hidden_size", None) or base.config.get_text_config().hidden_size
+        language_module = GmeLanguageEmbed(base, causal_attention=args.causal_sdpa).eval()
         export_model(
             language_module,
             (
                 vision_inputs["input_ids"],
                 vision_inputs["attention_mask"],
-                torch.empty((1260, base.config.hidden_size), dtype=torch.float32),
+                torch.empty((1260, hidden_size), dtype=torch.float32),
             ),
             language_path,
             ["input_ids", "attention_mask", "image_embeds"],
             [
                 ov.PartialShape([-1, -1]),
                 ov.PartialShape([-1, -1]),
-                ov.PartialShape([-1, base.config.hidden_size]),
+                ov.PartialShape([-1, hidden_size]),
             ],
+            causal_attention=args.causal_sdpa,
         )
 
     visual_path = output / "gme_visual_fp32.xml"
+    if args.stage == "visual" and not args.force and visual_path.exists():
+        print(f"[export] {visual_path.name} exists, skipping (--force to re-export)")
     if args.stage == "visual" and (args.force or not visual_path.exists()):
         print(f"[export] loading visual-only checkpoint from {source_model}")
         visual_module = GmeVisualEncoder(load_visual_encoder(source_model)).eval()
@@ -371,10 +503,11 @@ def main() -> None:
     if not language_path.exists() or not visual_path.exists():
         raise RuntimeError("both language and visual IRs must exist before validation")
     print(f"[validate] loading reference checkpoint from {source_model}")
-    base = AutoModelForVision2Seq.from_pretrained(str(source_model), torch_dtype=torch.float32)
+    base = _AutoVLM.from_pretrained(str(source_model), torch_dtype=torch.float32)
     base.eval()
     language_module = GmeLanguageEmbed(base).eval()
-    visual_module = GmeVisualEncoder(base.visual).eval()
+    # >= 5 moved the visual tower under Qwen2VLModel.
+    visual_module = GmeVisualEncoder(getattr(base, "visual", None) or base.model.visual).eval()
     validation_inputs = make_example(processor_for(source_model), source_model, example_image)
     config_path = output / "gme_openvino_config.json"
     report = json.loads(config_path.read_text()) if config_path.exists() else {}

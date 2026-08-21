@@ -1,0 +1,18 @@
+{
+  "GPU": {
+    "int4_sym_causal": {
+      "text_cos_min": 0.926687,
+      "query_cos": 0.941559,
+      "image_cos": 0.935076,
+      "fused_cos": 0.944311,
+      "fused_norm": 1.00036
+    },
+    "int4_gs64_sym_causal": {
+      "text_cos_min": 0.93798,
+      "query_cos": 0.943423,
+      "image_cos": 0.935988,
+      "fused_cos": 0.966638,
+      "fused_norm": 0.99971
+    }
+  }
+}
