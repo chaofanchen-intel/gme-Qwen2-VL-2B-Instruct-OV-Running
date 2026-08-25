@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark GME PDF embeddings on GPU with INT8 and INT4 only."""
+"""Benchmark GME PDF embeddings on GPU with INT8 and causal INT4."""
 from __future__ import annotations
 
 import gc
@@ -253,12 +253,12 @@ def main() -> None:
     sys.path.insert(0, str(RUNNING))
     from gme_openvino import GmeOpenVINO
 
-    # Default scope is GPU int8/int4 only (see README.md). PRECISIONS lets a caller
-    # extend this to any other package precision (e.g. int4_per_oc, int4_per_oc_sym)
-    # without touching the default int8/int4 code path or its output file.
+    # Default scope is GPU int8/int4_causal (see README.md). PRECISIONS lets a caller
+    # extend this to any other package precision (e.g. int4, int4_per_oc)
+    # without touching the default code path or its output file.
     precisions_env = os.environ.get("PRECISIONS")
-    precisions = tuple(p.strip() for p in precisions_env.split(",")) if precisions_env else ("int8", "int4")
-    default_output = precisions == ("int8", "int4")
+    precisions = tuple(p.strip() for p in precisions_env.split(",")) if precisions_env else ("int8", "int4_causal")
+    default_output = precisions == ("int8", "int4_causal")
     output_path = Path(os.environ.get("OUTPUT", RESULTS / "benchmark.json")) if default_output else \
         Path(os.environ.get("OUTPUT", RESULTS / f"benchmark_{'_'.join(precisions)}.json"))
 

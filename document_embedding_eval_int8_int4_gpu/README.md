@@ -1,11 +1,11 @@
-# GME 文档 Embedding 评测：GPU INT8 / INT4
+# GME 文档 Embedding 评测：GPU INT8 / causal INT4
 
 本目录专门评测 GME-Qwen2-VL-2B-Instruct 对 PDF 文档做 embedding 的性能和表征质量。
 
 本评测不实现 RAG，也不测 CPU、FP32 或其他精度。只测：
 
 - device: `GPU`
-- precision: `int8`, `int4`
+- precision: `int8`, `int4_causal`
 - document: `../060_OT_Downlook_PR_Error.pdf`
 
 ## 文档特征
@@ -62,15 +62,25 @@
 ## 运行
 
 ```bash
-source /home/chaofan/envs/qwen_env/bin/activate
-source /home/chaofan/model_benchmark/benchmark/openvino/install/setupvars.sh
-cd /home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/document_embedding_eval_int8_int4_gpu
-python -u run_eval.py
+ROOT=/home/chaofan/model_benchmark
+OV=$ROOT/benchmark/openvino
+GME=$ROOT/gme-Qwen2-VL-2B-Instruct-Running
+cd $GME/document_embedding_eval_int8_int4_gpu
+env PYTHONPATH="$OV/bin/intel64/Release/python:$GME" \
+	LD_LIBRARY_PATH="$OV/bin/intel64/Release:$OV/temp/Linux_x86_64/tbb/lib" \
+	OPENVINO_LIB_PATHS="$OV/bin/intel64/Release" \
+	OPENVINO_PLUGIN_PATH="$OV/bin/intel64/Release" \
+	OUTPUT="$PWD/results/benchmark_gme_opt_int8_int4_causal_20260825.json" \
+	/home/chaofan/envs/qwen_env/bin/python3 -u run_eval.py
 ```
+
+这里的 Python binding、OpenVINO core 和 GPU plugin 必须来自同一套
+`benchmark/openvino/bin/intel64/Release` custom build；不要让 qwen_env 中官方
+wheel 的 `openvino/libs` 抢先加载。
 
 结果写入 `results/`：
 
-- `benchmark.json`: 全部性能和质量结果
+- `benchmark_gme_opt_int8_int4_causal_20260825.json`: 本次 GME 完整优化评测结果
 - `document_embedding_benchmark_before_optimized.json`: 优化前基线结果，用于 A/B 对比
 - `pages/`: 150 DPI 中间页面图像
 - `REPORT.md`: 结果报告
@@ -80,8 +90,8 @@ python -u run_eval.py
 ## 扩展评测：per-OC INT4（`int4_per_oc` / `int4_per_oc_sym`）
 
 `run_eval.py` 支持用 `PRECISIONS` 环境变量（逗号分隔的 package precision key）
-和 `OUTPUT` 覆盖默认的 `int8,int4` 范围和 `results/benchmark.json` 输出路径，
-默认行为不变：
+和 `OUTPUT` 覆盖默认的 `int8,int4_causal` 范围和输出路径。默认运行范围为
+`int8,int4_causal`：
 
 ```bash
 PRECISIONS=int4_per_oc,int4_per_oc_sym python -u run_eval.py
@@ -91,10 +101,11 @@ PRECISIONS=int4_per_oc,int4_per_oc_sym python -u run_eval.py
 这是为对比
 [`../gme-qwen2-vl-int4-hotspot-optimization/docs/08_per_oc_quantization.md`](../gme-qwen2-vl-int4-hotspot-optimization/docs/08_per_oc_quantization.md)
 里新增的两个语言塔量化方案而做的扩展，结果和结论见
-[REPORT_per_oc.md](REPORT_per_oc.md)，不改变本目录默认评测范围（GPU int8/int4）。
+[REPORT_per_oc.md](REPORT_per_oc.md)，不改变本目录默认评测范围（GPU int8/int4_causal）。
 
 ## 注意事项
 
 - 文本 token 数使用 GME package tokenizer，并记录每个页面/chunk 的 token 统计。
 - PDF 原生文本优先；本评测不默认 OCR，因为该 PDF 有可用文本层。OCR 只应作为单独实验，不能与原生文本结果混合。
 - 150 DPI 是页面图像默认点；如需扩展分辨率，应新增结果文件，不覆盖本次结果。
+- 当前 GME package 有 `gme_language_int4_causal.xml`，但没有 `int8_causal` 导出；因此默认评测使用最新 causal INT4 和现有普通 INT8，不对 int8 causal 做外推，也不需要为不存在的 int8 causal 重新导出。
