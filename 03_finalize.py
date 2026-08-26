@@ -317,6 +317,11 @@ def main() -> None:
                              "control group (S9.2.5) and the grouped-symmetric variants "
                              "(S9.4, measured 1.039x but query cosine -0.014, so not a "
                              "default). Adds ~3.7 GB and ~20 min.")
+    parser.add_argument("--round4-extras", action="store_true",
+                        help="also build the docs/11 analysis-only visual IR: the "
+                             "_nomask_qkvfused variant that folds the SDPA input transposes "
+                             "(S11.5, -31.8 ms at L=2304 but +103.8 ms at L=5040, so not a "
+                             "default). Adds ~0.4 GB.")
     parser.add_argument("--force", action="store_true",
                         help="recompress existing artifacts even when their fingerprint matches")
     args = parser.parse_args()
@@ -349,6 +354,8 @@ def main() -> None:
 
     lang_fp32 = package / "gme_language_fp32.xml"
     vis_fp32 = package / "gme_visual_fp32.xml"
+    vis_nomask_fp32 = package / "gme_visual_fp32_nomask.xml"
+    vis_qkvfused_fp32 = package / "gme_visual_fp32_nomask_qkvfused.xml"
 
     # CRITICAL for the vision tower: exclude the ViT rotary-embedding constant
     # (`rotary_pos_emb` inv_freq, an aten::outer MatMul). Quantizing it corrupts the
@@ -440,6 +447,30 @@ def main() -> None:
              mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=128, ratio=1.0,
              ignored_scope=vis_ignore, advanced_parameters=vis_int4_adv)
 
+    # Round-4 mask-free vision IR (docs/11): identical settings, different source graph.
+    # check_vision_equivalence.py shows the two FP32 sources are bit-identical, so any
+    # difference between the compressed pair is NNCF noise, not a semantic change.
+    if vis_nomask_fp32.exists():
+        compress(vis_nomask_fp32, package / "gme_visual_int8_nomask.xml", fingerprints_path,
+                 args.force, mode=nncf.CompressWeightsMode.INT8_ASYM, ignored_scope=vis_ignore)
+        compress(vis_nomask_fp32, package / "gme_visual_int4_nomask.xml", fingerprints_path,
+                 args.force, mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=128, ratio=1.0,
+                 ignored_scope=vis_ignore, advanced_parameters=vis_int4_adv)
+    else:
+        print(f"[cfg] {vis_nomask_fp32.name} absent; skipping the mask-free vision IRs "
+              "(run 02_export.py --stage visual --unmasked-vision to produce it)")
+
+    # docs/11 S11.5's rejected variant. Built only on request: it is here to make the
+    # crossover measurement reproducible, not to be deployed.
+    if args.round4_extras and vis_qkvfused_fp32.exists():
+        compress(vis_qkvfused_fp32, package / "gme_visual_int4_nomask_qkvfused.xml",
+                 fingerprints_path, args.force, mode=nncf.CompressWeightsMode.INT4_ASYM,
+                 group_size=128, ratio=1.0, ignored_scope=vis_ignore,
+                 advanced_parameters=vis_int4_adv)
+    elif args.round4_extras:
+        print(f"[cfg] {vis_qkvfused_fp32.name} absent; run 02_export.py --stage visual "
+              "--unmasked-vision --fuse-vision-input-transposes to produce it")
+
     cfg = json.loads(cfg_path.read_text())
     cfg["processor"]["max_length"] = max_length
     cfg["tokenizer_model"] = "openvino_tokenizer.xml"
@@ -465,6 +496,27 @@ def main() -> None:
         "int4_per_oc_sym": {"language": "gme_language_int4_per_oc_sym.xml", "visual": "gme_visual_int4.xml"},
         # mixed: INT4 language + INT8 vision (keeps the quant-sensitive vision tower safer)
         "int4_visint8": {"language": "gme_language_int4.xml", "visual": "gme_visual_int8.xml"},
+        # round-4 mask-free vision tower (docs/11). The visual IR is where image/fused
+        # latency lives, and the mask-free source is bit-identical to the mask-carrying one
+        # (check_vision_equivalence.py), so these pair it with the language IRs that are
+        # already recommended: `_vnomask` changes ONLY the vision tower relative to the key
+        # it is named after, which is what makes the A/B in docs/11 attributable.
+        **{f"{base_key}_vnomask": {"language": language, "visual": visual}
+           for base_key, language, visual in (
+               ("int4", "gme_language_int4.xml", "gme_visual_int4_nomask.xml"),
+               ("int4_causal", "gme_language_int4_causal.xml", "gme_visual_int4_nomask.xml"),
+               ("int4_gs64_causal", "gme_language_int4_gs64_causal.xml",
+                "gme_visual_int4_nomask.xml"),
+               ("int8", "gme_language_int8.xml", "gme_visual_int8_nomask.xml"),
+           )
+           if (package / language).exists() and (package / visual).exists()},
+        # docs/11 S11.5 control: same language IR as int4_causal_vnomask, vision tower with
+        # the SDPA input transposes folded in. Registered only when --round4-extras built it.
+        **({"int4_causal_vnomask_qkvfused": {
+                "language": "gme_language_int4_causal.xml",
+                "visual": "gme_visual_int4_nomask_qkvfused.xml"}}
+           if (package / "gme_visual_int4_nomask_qkvfused.xml").exists()
+           and (package / "gme_language_int4_causal.xml").exists() else {}),
     }
     cfg["default_precision"] = "int8"
     cfg_path.write_text(json.dumps(cfg, indent=2) + "\n")

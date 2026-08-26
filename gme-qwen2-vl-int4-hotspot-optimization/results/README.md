@@ -121,3 +121,40 @@ embedding 输出，stock = 官方 2026.3.0 wheel。
 
 `profile_run.json`、`tuning_{padded,per_sample}_{1,auto}.json`、`gpu-dump-int4-32/`
 是早期 batch_mode / streams 调参的产物，与本轮结论无关，保留备查。
+
+## 第四轮：image / fused（`r4_20260826/`，docs/11）
+
+与 `r3_*` 同一个交付构建，**本轮同样没有新增任何 plugin 改动**；所有变化都在导出侧的
+视觉 IR 上。开工前用 `profile_ops.py --precision int4_causal --length 1024` 复核到
+wall p50 221.4 ms，与 docs/09 发布的 222.3 ms 一致。
+
+文件名里的 `1_32_32` 是 `image_grid_thw` 的 `t,h,w`。**视觉塔的序列长度是 merge 前的
+patch 行数 `L = t*h*w`，不是视觉 token 数 `K = L/4`**——这是本轮最容易读错的口径。
+
+| 路径 | 口径 |
+| --- | --- |
+| `vis_base_int4_*.json` | 优化前的视觉 IR（`gme_visual_int4.xml`，带 rank-3 BOOL mask）。六个 grid，L = 1024…5040 |
+| `vis_nomaskA_int4_*.json` | **采纳方案**：mask-free 视觉 IR（`gme_visual_int4_nomask.xml`）。与 `vis_base_*` 对比即 docs/11 §11.3.6 的主表 |
+| `vis_nomaskAB_int4_*.json` | §11.5 **否决**方案：在 mask-free 之上再把 SDPA 输入 Transpose 融进 primitive（`gme_visual_int4_nomask_qkvfused.xml`） |
+| `vis_nomaskA_s1_*.json`、`vis_nomaskAB_s1_*.json` | 同样两个配置在**更早一个 session** 采的数据（`s1` = session 1）。IR 内容与上面两组逐位相同（重导出经 `cmp` 验证），保留是为了给 §11.5 的交叉点提供跨 session 佐证 |
+| `ab/vis_{A,AB}_*_r{1,2,3}.json` | §11.5 的**三轮交错 A/B**（A 与 A+B 交替，应对本机 GPU 双档频率）。三轮极差 < 1%，是「A+B 在大图上是真回退」这一结论的依据 |
+| `e2e_int4_causal.json`、`e2e_int4_causal_vnomask.json` | `profile_gme_image.py` 的端到端四段拆分（preprocess / visual / language / end-to-end），image 与 fused 各五个尺寸，§11.4 |
+| `r4_vision_equivalence_fp32.json` | **mask-free 的 FP32 逐位等价性**：5 个 grid（含 trace 时没见过的长宽比）全部 `max_abs_diff = 0`，§11.3.3 |
+| `r4_vision_batch_contract.json` | **单图契约**：三张不同尺寸的图走 batch 路径时，每张图的视觉输出与单独跑逐位相同，§11.3.4 |
+| `../../artifacts/openvino_validation_round4_vision.json` | 八个 precision 的精度评估（vs PyTorch FP32 golden），masked / mask-free 成对，§11.6.1 |
+
+> ⚠️ 第四轮学到的两条口径教训：
+> 1. **image/fused 的 `language` 段不能紧跟着视觉推理测**。在这块与 CPU 共享 TDP 的 32 EU
+>    核显上，一次 300–4000 ms 的重视觉负载会把 GPU 压进低频档，紧接着的语言推理被拖慢
+>    2–3 倍（S=281 上 79.6 → 238.5 ms）。`e2e_*.json` 的 `language_p50_ms` 列**只在
+>    mask-free 那一份可信**；优化前那一份要对照 `profile_ops.py` 的独立测量读，§11.1.1。
+> 2. **验证「单图契约」要比视觉 IR 的输出，不能比最终 embedding**。后者会混进语言 IR
+>    `padded` batch mode 本身的行间漂移（实测可达 1e-2），那是 `GmeOpenVINO` docstring
+>    早就写明的既有性质，与视觉塔无关，§11.3.4 的口径说明。
+
+补充（回答"mask 真的可以去掉吗"）：`r4_mask_necessity.json` 由
+`check_vision_mask_necessity.py` 产出，是 docs/11 §11.2.2–§11.2.4 的原始数据。它同时覆盖
+两件事：(a) 三种输入形态（单图 `t=1` / 多行 grid / `t>1`）在**两个 IR** 上的实际行为——
+多行 grid 两者都抛异常，`t>1` 时**带 mask 的 IR 输出全 NaN**；(b) 在**官方 PyTorch fp32**
+上量化「打包多图 vs 逐图」= row cosine 0.999999702（归约噪声），而「真的跨图串味」=
+row cosine 0.058744（比噪声底大 4399 倍）。后者说明这类误用是响的，不是哑的。

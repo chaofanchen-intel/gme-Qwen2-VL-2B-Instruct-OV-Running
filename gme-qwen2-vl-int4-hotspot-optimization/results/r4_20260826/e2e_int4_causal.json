@@ -1,0 +1,263 @@
+{
+  "precision": "int4_causal",
+  "language_ir": "gme_language_int4_causal.xml",
+  "visual_ir": "gme_visual_int4.xml",
+  "device": "GPU",
+  "batch_mode": "padded",
+  "streams": "1",
+  "warmup": 3,
+  "repeat": 5,
+  "fused_text_tokens": 32,
+  "rows": [
+    {
+      "mode": "image",
+      "size": "448x448",
+      "grid": [
+        [
+          1,
+          32,
+          32
+        ]
+      ],
+      "patches": 1024,
+      "tokens": 256,
+      "sequence": 281,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_p50_ms": 14.217,
+      "visual_p50_ms": 309.142,
+      "language_p50_ms": 238.454,
+      "stage_sum_ms": 561.813,
+      "end_to_end_p50_ms": 563.57,
+      "end_to_end_min_ms": 561.676,
+      "end_to_end_max_ms": 633.313
+    },
+    {
+      "mode": "fused",
+      "size": "448x448",
+      "grid": [
+        [
+          1,
+          32,
+          32
+        ]
+      ],
+      "patches": 1024,
+      "tokens": 256,
+      "sequence": 305,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_p50_ms": 14.404,
+      "visual_p50_ms": 307.368,
+      "language_p50_ms": 225.788,
+      "stage_sum_ms": 547.56,
+      "end_to_end_p50_ms": 547.913,
+      "end_to_end_min_ms": 544.164,
+      "end_to_end_max_ms": 548.412
+    },
+    {
+      "mode": "image",
+      "size": "644x476",
+      "grid": [
+        [
+          1,
+          46,
+          34
+        ]
+      ],
+      "patches": 1564,
+      "tokens": 391,
+      "sequence": 416,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_p50_ms": 19.992,
+      "visual_p50_ms": 655.787,
+      "language_p50_ms": 155.721,
+      "stage_sum_ms": 831.5,
+      "end_to_end_p50_ms": 831.732,
+      "end_to_end_min_ms": 823.039,
+      "end_to_end_max_ms": 981.509
+    },
+    {
+      "mode": "fused",
+      "size": "644x476",
+      "grid": [
+        [
+          1,
+          46,
+          34
+        ]
+      ],
+      "patches": 1564,
+      "tokens": 391,
+      "sequence": 440,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_p50_ms": 20.436,
+      "visual_p50_ms": 653.381,
+      "language_p50_ms": 158.514,
+      "stage_sum_ms": 832.331,
+      "end_to_end_p50_ms": 832.025,
+      "end_to_end_min_ms": 830.962,
+      "end_to_end_max_ms": 833.232
+    },
+    {
+      "mode": "image",
+      "size": "672x672",
+      "grid": [
+        [
+          1,
+          48,
+          48
+        ]
+      ],
+      "patches": 2304,
+      "tokens": 576,
+      "sequence": 601,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_p50_ms": 27.266,
+      "visual_p50_ms": 1037.661,
+      "language_p50_ms": 341.469,
+      "stage_sum_ms": 1406.396,
+      "end_to_end_p50_ms": 1408.888,
+      "end_to_end_min_ms": 1398.085,
+      "end_to_end_max_ms": 1411.985
+    },
+    {
+      "mode": "fused",
+      "size": "672x672",
+      "grid": [
+        [
+          1,
+          48,
+          48
+        ]
+      ],
+      "patches": 2304,
+      "tokens": 576,
+      "sequence": 625,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_p50_ms": 27.34,
+      "visual_p50_ms": 1039.779,
+      "language_p50_ms": 351.412,
+      "stage_sum_ms": 1418.531,
+      "end_to_end_p50_ms": 1418.778,
+      "end_to_end_min_ms": 1416.862,
+      "end_to_end_max_ms": 1420.056
+    },
+    {
+      "mode": "image",
+      "size": "896x896",
+      "grid": [
+        [
+          1,
+          64,
+          64
+        ]
+      ],
+      "patches": 4096,
+      "tokens": 1024,
+      "sequence": 1049,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_p50_ms": 45.306,
+      "visual_p50_ms": 2685.704,
+      "language_p50_ms": 240.937,
+      "stage_sum_ms": 2971.947,
+      "end_to_end_p50_ms": 2975.246,
+      "end_to_end_min_ms": 2968.655,
+      "end_to_end_max_ms": 2987.743
+    },
+    {
+      "mode": "fused",
+      "size": "896x896",
+      "grid": [
+        [
+          1,
+          64,
+          64
+        ]
+      ],
+      "patches": 4096,
+      "tokens": 1024,
+      "sequence": 1073,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_p50_ms": 48.921,
+      "visual_p50_ms": 2680.239,
+      "language_p50_ms": 243.369,
+      "stage_sum_ms": 2972.529,
+      "end_to_end_p50_ms": 2990.087,
+      "end_to_end_min_ms": 2969.497,
+      "end_to_end_max_ms": 2993.055
+    },
+    {
+      "mode": "image",
+      "size": "1288x728",
+      "grid": [
+        [
+          1,
+          92,
+          52
+        ]
+      ],
+      "patches": 4784,
+      "tokens": 1196,
+      "sequence": 1221,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_p50_ms": 57.866,
+      "visual_p50_ms": 4141.143,
+      "language_p50_ms": 280.877,
+      "stage_sum_ms": 4479.886,
+      "end_to_end_p50_ms": 4494.441,
+      "end_to_end_min_ms": 4483.612,
+      "end_to_end_max_ms": 4503.9
+    },
+    {
+      "mode": "fused",
+      "size": "1288x728",
+      "grid": [
+        [
+          1,
+          92,
+          52
+        ]
+      ],
+      "patches": 4784,
+      "tokens": 1196,
+      "sequence": 1245,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_p50_ms": 47.796,
+      "visual_p50_ms": 4142.822,
+      "language_p50_ms": 285.345,
+      "stage_sum_ms": 4475.963,
+      "end_to_end_p50_ms": 4479.914,
+      "end_to_end_min_ms": 4477.986,
+      "end_to_end_max_ms": 4481.02
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "GPU": {
+    "int4": {
+      "text_cos_min": 0.944538,
+      "query_cos": 0.955146,
+      "image_cos": 0.943653,
+      "fused_cos": 0.952074,
+      "fused_norm": 1.00014
+    },
+    "int4_causal": {
+      "text_cos_min": 0.94173,
+      "query_cos": 0.955173,
+      "image_cos": 0.945703,
+      "fused_cos": 0.95442,
+      "fused_norm": 0.99984
+    },
+    "int4_vnomask": {
+      "text_cos_min": 0.944538,
+      "query_cos": 0.955146,
+      "image_cos": 0.943769,
+      "fused_cos": 0.951327,
+      "fused_norm": 0.99965
+    },
+    "int4_causal_vnomask": {
+      "text_cos_min": 0.94173,
+      "query_cos": 0.955173,
+      "image_cos": 0.943164,
+      "fused_cos": 0.955472,
+      "fused_norm": 1.00032
+    },
+    "int4_gs64_causal": {
+      "text_cos_min": 0.944205,
+      "query_cos": 0.957576,
+      "image_cos": 0.941856,
+      "fused_cos": 0.959374,
+      "fused_norm": 0.99997
+    },
+    "int4_gs64_causal_vnomask": {
+      "text_cos_min": 0.944205,
+      "query_cos": 0.957576,
+      "image_cos": 0.943657,
+      "fused_cos": 0.958768,
+      "fused_norm": 1.0003
+    },
+    "int8": {
+      "text_cos_min": 0.997518,
+      "query_cos": 0.998764,
+      "image_cos": 0.989255,
+      "fused_cos": 0.995806,
+      "fused_norm": 1.00023
+    },
+    "int8_vnomask": {
+      "text_cos_min": 0.997518,
+      "query_cos": 0.998764,
+      "image_cos": 0.987343,
+      "fused_cos": 0.996379,
+      "fused_norm": 1.00023
+    }
+  }
+}

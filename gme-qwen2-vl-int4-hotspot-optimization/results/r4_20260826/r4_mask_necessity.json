@@ -1,0 +1,85 @@
+{
+  "device": "CPU",
+  "ir_cases": [
+    {
+      "ir": "gme_visual_fp32.xml",
+      "single_image_t1": {
+        "status": "ok",
+        "shape": [
+          256,
+          1536
+        ],
+        "nan_count": 0,
+        "all_finite": true
+      },
+      "two_grid_rows": {
+        "status": "raised",
+        "error": "RuntimeError: Exception from src/inference/src/cpp/infer_request.cpp:224:\nException from src/plugins/intel_cpu/src/node.cpp:792:\n[CPU] Reshape node with name '__module.visual"
+      },
+      "video_t2_single_row": {
+        "status": "ok",
+        "shape": [
+          128,
+          1536
+        ],
+        "nan_count": 196608,
+        "all_finite": false
+      }
+    },
+    {
+      "ir": "gme_visual_fp32_nomask.xml",
+      "single_image_t1": {
+        "status": "ok",
+        "shape": [
+          256,
+          1536
+        ],
+        "nan_count": 0,
+        "all_finite": true
+      },
+      "two_grid_rows": {
+        "status": "raised",
+        "error": "RuntimeError: Exception from src/inference/src/cpp/infer_request.cpp:224:\nException from src/plugins/intel_cpu/src/node.cpp:792:\n[CPU] Reshape node with name '__module.visual"
+      },
+      "video_t2_single_row": {
+        "status": "ok",
+        "shape": [
+          128,
+          1536
+        ],
+        "nan_count": 0,
+        "all_finite": true
+      }
+    }
+  ],
+  "torch_equivalence": {
+    "grid_rows": [
+      [
+        1,
+        32,
+        32
+      ],
+      [
+        1,
+        48,
+        32
+      ],
+      [
+        1,
+        32,
+        48
+      ]
+    ],
+    "packed_with_mask_vs_per_image": {
+      "max_abs_diff": 0.013707160949707031,
+      "relative": 0.00012386441812850535,
+      "row_cosine_min": 0.9999997019767761
+    },
+    "packed_without_mask_vs_per_image": {
+      "max_abs_diff": 60.300880432128906,
+      "relative": 0.5449073910713196,
+      "row_cosine_min": 0.058744266629219055
+    },
+    "leak_over_noise_ratio": 4399.2246573436305
+  }
+}

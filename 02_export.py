@@ -129,17 +129,30 @@ class GmeLanguageEmbed(torch.nn.Module):
 
 
 class GmeVisualEncoder(torch.nn.Module):
-    """Qwen2-VL visual encoder that produces image-token embeddings."""
+    """Qwen2-VL visual encoder that produces image-token embeddings.
+
+    Returns only the **merged** ``[K, 1536]`` tensor the language IR consumes.  That
+    unwrapping is load-bearing: transformers 4 returned it directly, but transformers 5
+    returns ``BaseModelOutputWithPooling(last_hidden_state=[L, 1280], pooler_output=[K, 1536])``.
+    Tracing the wrapper as-is therefore exports a **two-output** IR whose output 0 is the
+    unmerged 1280-dim hidden state -- and ``gme_openvino.py`` reads ``visual.output(0)``,
+    so the package would silently feed the language IR the wrong tensor at the wrong width.
+    Selecting the merged output here keeps the exported signature identical across both
+    transformers majors.
+    """
 
     def __init__(self, visual: torch.nn.Module) -> None:
         super().__init__()
         self.visual = visual
+
     def forward(
         self,
         pixel_values: torch.Tensor,
         image_grid_thw: torch.Tensor,
     ) -> torch.Tensor:
-        return self.visual(pixel_values, grid_thw=image_grid_thw)
+        output = self.visual(pixel_values, grid_thw=image_grid_thw)
+        pooled = getattr(output, "pooler_output", None)
+        return output if pooled is None else pooled
 
 
 def prompt(text: str | None, has_image: bool, instruction: str = DEFAULT_INSTRUCTION) -> str:
@@ -256,6 +269,114 @@ def suppress_causal_mask_materialization():
         sdpa_attention.use_gqa_in_sdpa = saved_gqa
 
 
+@contextlib.contextmanager
+def unmasked_vision_attention(fuse_input_transposes: bool = False,
+                              _allow_multi_block: bool = False):
+    """Trace the ViT blocks with one full-sequence, mask-free SDPA call.
+
+    Qwen2-VL's vision tower is *packed*, not batched: every image's patch rows are
+    concatenated into one sequence and attention is restricted to each image's own
+    block by ``cu_seqlens``.  Both of the upstream code paths express that in a way
+    that exports badly:
+
+    * the mask path (what the shipped ``gme_visual_fp32.xml`` was traced from) builds
+      ``torch.zeros([1, L, L], dtype=torch.bool)`` and fills the diagonal blocks with
+      a slice-assign.  The Intel GPU plugin will not lower a ScaledDotProductAttention
+      whose mask is a **rank-3 BOOL** tensor, so all 32 attention layers decompose into
+      MatMul + Select + Softmax + MatMul with permutes around them -- the same failure
+      mode docs/10 documents for the language ``_v5ctrl`` control export;
+    * the split path (transformers >= 5) calls ``lengths.tolist()`` and slices with the
+      resulting Python ints, which bakes this trace's ``L`` into the graph as constants
+      and destroys the dynamic sequence dimension the runtime needs.
+
+    ``gme_openvino.py`` invokes the visual IR **once per image** -- that is a documented,
+    bit-identity-tested property of ``_encode_image_batch``, not an accident -- so
+    ``cu_seqlens`` is always ``[0, L]``, the block-diagonal mask is always all-True, and
+    dropping it is an identity.  This patch therefore calls SDPA once over the whole
+    sequence with ``attn_mask=None``: rank-4 Q/K/V, no mask, ``is_causal=False``, which
+    is exactly the shape the plugin lowers to ``ocl::sdpa::opt``.
+
+    The narrowing this buys performance with: an IR traced this way computes *dense*
+    attention over whatever it is fed, so feeding it several images' patches in one call
+    would silently attend across image boundaries.  The single-image contract is what
+    makes it correct, and ``_encode_image_batch`` already guarantees it.
+
+    ``fuse_input_transposes`` emits Q/K/V as ``Unsqueeze -> Transpose(rank 4) -> SDPA``
+    instead of upstream's ``Transpose(rank 3) -> Unsqueeze -> SDPA``.  Same tensors, but
+    only the first order lets ``TransposeSDPAMatcher`` absorb the transposes into the SDPA
+    primitive's input order, which removes three ``permute_ref`` copies per layer.  It is
+    **off by default** because that trade reverses with sequence length: the permutes it
+    deletes are O(L) while the strided reads it hands the SDPA kernel cost O(L^2).
+    Measured at L=2304 it is -31.8 ms, at L=4096 it is -6.0 ms, and at L=5040 it is
+    **+103.8 ms** -- and this package's ``max_image_tokens=1280`` puts the worst case
+    inside the supported range.  See docs/11 for the full crossover table.
+
+    ``_allow_multi_block`` disables the single-block guard.  It exists for exactly one
+    caller -- ``check_vision_mask_necessity.py``, which deliberately runs a packed
+    multi-image sequence *without* the mask to measure how large a genuine cross-image
+    leak is (row cosine 0.059, ~4400x the fp32 noise floor).  Never set it when exporting.
+    """
+    from transformers.models.qwen2_vl import modeling_qwen2_vl as qwen2_vl
+
+    def forward(self, hidden_states, cu_seqlens, rotary_pos_emb=None,
+                position_embeddings=None, **_kwargs):
+        # Trace-time guard, not a graph op. `cu_seqlens` has one entry per attention block
+        # plus a leading 0, so length 2 means exactly one block and therefore an all-True
+        # mask -- the only case in which dropping it is an identity. This fires if someone
+        # later traces with a multi-image example, or with a t>1 (video) grid, both of which
+        # would otherwise silently produce an IR that attends across block boundaries.
+        # Measured on the real checkpoint, that is not a subtle error: row cosine drops to
+        # 0.059 versus per-image, ~4400x the fp32 reduction-order noise floor.
+        if len(cu_seqlens) != 2 and not _allow_multi_block:
+            raise RuntimeError(
+                f"--unmasked-vision requires a single-block example (cu_seqlens length 2), "
+                f"got {len(cu_seqlens)} from grid rows with more than one image or t > 1. "
+                "The mask-free IR is only an identity for one image per call; export the "
+                "mask-carrying IR instead."
+            )
+        seq_length = hidden_states.shape[0]
+        query_states, key_states, value_states = (
+            self.qkv(hidden_states)
+            .reshape(seq_length, 3, self.num_heads, -1)
+            .permute(1, 0, 2, 3)
+            .unbind(0)
+        )
+        cos, sin = position_embeddings
+        query_states, key_states = qwen2_vl.apply_rotary_pos_emb_vision(
+            query_states, key_states, cos, sin
+        )
+        # Both branches produce the same [1, H, L, D] tensor; only the op order differs,
+        # and that order is what decides whether the plugin fuses the transpose. See the
+        # docstring for why the fused form is not the default.
+        if fuse_input_transposes:
+            query_states = query_states.unsqueeze(0).transpose(1, 2)
+            key_states = key_states.unsqueeze(0).transpose(1, 2)
+            value_states = value_states.unsqueeze(0).transpose(1, 2)
+        else:
+            query_states = query_states.transpose(0, 1).unsqueeze(0)
+            key_states = key_states.transpose(0, 1).unsqueeze(0)
+            value_states = value_states.transpose(0, 1).unsqueeze(0)
+        # `scale` is deliberately left at the default. VisionAttention sets
+        # `self.scaling = head_dim ** -0.5`, which *is* SDPA's default `1/sqrt(q.size(-1))`,
+        # and passing it explicitly exports a 5-input SDPA (Q, K, V, scalar-0 mask, scale)
+        # instead of the 3-input form the plugin's fusion matches. check_vision_equivalence.py
+        # confirms the result is bit-identical to the mask-carrying IR either way.
+        attn_output = functional.scaled_dot_product_attention(
+            query_states, key_states, value_states,
+            attn_mask=None, dropout_p=0.0, is_causal=False,
+        )
+        # Match upstream's layout exactly: [1, H, L, D] -> [1, L, H, D] -> [L, dim].
+        attn_output = attn_output.transpose(1, 2).reshape(seq_length, -1).contiguous()
+        return self.proj(attn_output)
+
+    saved = qwen2_vl.VisionAttention.forward
+    qwen2_vl.VisionAttention.forward = forward
+    try:
+        yield
+    finally:
+        qwen2_vl.VisionAttention.forward = saved
+
+
 def export_model(
     module: torch.nn.Module,
     example_inputs: tuple[torch.Tensor, ...],
@@ -263,12 +384,16 @@ def export_model(
     input_names: list[str],
     shapes: list[ov.PartialShape],
     causal_attention: bool = False,
+    unmasked_vision: bool = False,
+    fuse_vision_input_transposes: bool = False,
 ) -> None:
     print(f"[export] converting {output_path.name} ...")
     start = time.monotonic()
     with contextlib.ExitStack() as stack:
         if causal_attention:
             stack.enter_context(suppress_causal_mask_materialization())
+        if unmasked_vision:
+            stack.enter_context(unmasked_vision_attention(fuse_vision_input_transposes))
         model = ov.convert_model(module, example_input=example_inputs)
     label_ports(model, input_names)
     model.reshape(dict(enumerate(shapes)))
@@ -399,6 +524,26 @@ def main() -> None:
              "into gme_language_fp32_causal.xml (an identity for this right-padded, "
              "last-valid-token-pooled package -- see GmeLanguageEmbed)",
     )
+    parser.add_argument(
+        "--visual-suffix",
+        default=None,
+        help="suffix for the visual IR filename; defaults to _nomask with "
+             "--unmasked-vision and empty otherwise",
+    )
+    parser.add_argument(
+        "--unmasked-vision",
+        action="store_true",
+        help="export the visual IR with one full-sequence, mask-free SDPA per block, "
+             "into gme_visual_fp32_nomask.xml (an identity for the one-image-per-call "
+             "contract gme_openvino.py already enforces -- see unmasked_vision_attention)",
+    )
+    parser.add_argument(
+        "--fuse-vision-input-transposes",
+        action="store_true",
+        help="with --unmasked-vision, emit Q/K/V so the plugin folds their Transpose into "
+             "SDPA, into gme_visual_fp32_nomask_qkvfused.xml. Analysis-only: faster below "
+             "~4K patch rows, slower above (docs/11), so it is not the shipped default",
+    )
     args = parser.parse_args()
 
     source_model = args.source_model.expanduser().resolve()
@@ -419,10 +564,16 @@ def main() -> None:
         # measured on, once for the causal IR that docs/09 adopts. Both are products -- the
         # first keeps the historical baseline reproducible, the second is the recommended
         # default -- so an in-order 01..05 run has to produce both.
+        # "language" and "visual" each run twice: once for the mask-carrying IR that the
+        # earlier rounds were measured on, once for the mask-free IR the current default
+        # adopts (docs/09 for language, docs/11 for vision). Both are products -- the first
+        # keeps the historical baseline reproducible, the second is the recommendation --
+        # so an in-order 01..05 run has to produce both.
         stages: list[tuple[str, list[str]]] = [
             ("language", []),
             ("language", ["--causal-sdpa"]),
             ("visual", []),
+            ("visual", ["--unmasked-vision"]),
             ("validate", []),
         ]
         for stage, extra in stages:
@@ -445,7 +596,7 @@ def main() -> None:
             ]
             if args.force and stage != "validate":
                 command.append("--force")
-            label = f"{stage}{' (causal)' if extra else ''}"
+            label = f"{stage}{' (' + extra[0].lstrip('-') + ')' if extra else ''}"
             print(f"[export] starting isolated {label} stage")
             subprocess.run(command, check=True)
         return
@@ -484,7 +635,13 @@ def main() -> None:
             causal_attention=args.causal_sdpa,
         )
 
-    visual_path = output / "gme_visual_fp32.xml"
+    # Like the language IR's _causal variant, the unmasked vision IR gets its own file so
+    # the mask-carrying IR every earlier round was measured on stays reproducible and the
+    # two can be A/B'd inside one session.
+    visual_suffix = args.visual_suffix if args.visual_suffix is not None else (
+        ("_nomask_qkvfused" if args.fuse_vision_input_transposes else "_nomask")
+        if args.unmasked_vision else "")
+    visual_path = output / f"gme_visual_fp32{visual_suffix}.xml"
     if args.stage == "visual" and not args.force and visual_path.exists():
         print(f"[export] {visual_path.name} exists, skipping (--force to re-export)")
     if args.stage == "visual" and (args.force or not visual_path.exists()):
@@ -496,6 +653,8 @@ def main() -> None:
             visual_path,
             ["pixel_values", "image_grid_thw"],
             [ov.PartialShape([-1, 1176]), ov.PartialShape([-1, 3])],
+            unmasked_vision=args.unmasked_vision,
+            fuse_vision_input_transposes=args.fuse_vision_input_transposes,
         )
 
     if args.stage != "validate":
