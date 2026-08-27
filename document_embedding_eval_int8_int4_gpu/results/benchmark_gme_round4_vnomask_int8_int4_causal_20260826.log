@@ -1,0 +1,11 @@
+Loading int8_vnomask on GPU
+Benchmark int8_vnomask/page_text: 14 items
+Benchmark int8_vnomask/text_chunk_256: 14 items
+Benchmark int8_vnomask/page_image_150: 14 items
+Benchmark int8_vnomask/page_fused_150: 14 items
+Loading int4_causal_vnomask on GPU
+Benchmark int4_causal_vnomask/page_text: 14 items
+Benchmark int4_causal_vnomask/text_chunk_256: 14 items
+Benchmark int4_causal_vnomask/page_image_150: 14 items
+Benchmark int4_causal_vnomask/page_fused_150: 14 items
+Wrote /home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round4_vnomask_int8_int4_causal_20260826.json

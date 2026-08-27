@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark GME PDF embeddings on GPU with INT8 and causal INT4."""
+"""Benchmark GME PDF embeddings on GPU with mask-free INT8 and causal INT4."""
 from __future__ import annotations
 
 import gc
@@ -253,12 +253,12 @@ def main() -> None:
     sys.path.insert(0, str(RUNNING))
     from gme_openvino import GmeOpenVINO
 
-    # Default scope is GPU int8/int4_causal (see README.md). PRECISIONS lets a caller
-    # extend this to any other package precision (e.g. int4, int4_per_oc)
+    # Default scope is the optimized mask-free visual pair (see README.md). PRECISIONS
+    # lets a caller extend this to any other package precision.
     # without touching the default code path or its output file.
     precisions_env = os.environ.get("PRECISIONS")
-    precisions = tuple(p.strip() for p in precisions_env.split(",")) if precisions_env else ("int8", "int4_causal")
-    default_output = precisions == ("int8", "int4_causal")
+    precisions = tuple(p.strip() for p in precisions_env.split(",")) if precisions_env else ("int8_vnomask", "int4_causal_vnomask")
+    default_output = precisions == ("int8_vnomask", "int4_causal_vnomask")
     output_path = Path(os.environ.get("OUTPUT", RESULTS / "benchmark.json")) if default_output else \
         Path(os.environ.get("OUTPUT", RESULTS / f"benchmark_{'_'.join(precisions)}.json"))
 

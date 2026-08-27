@@ -1,5 +1,10 @@
 # 1. 方法论与基线
 
+> 本文记录语言塔优化第一轮/第二轮的历史基线。当前 package 已进入第四轮：
+> image/fused 默认使用 mask-free visual IR，当前 precision key 为
+> `int8_vnomask` 和 `int4_causal_vnomask`；本文的 `int4` 和旧 runtime 数字不要
+> 解释为当前默认视觉路径。当前完整重测见 [`results/r4_rerun_20260826/`](../results/r4_rerun_20260826/)。
+
 ## 1.1 问题陈述
 
 `gme-Qwen2-VL-2B-Instruct` 在 Intel iGPU 上以 INT4 精度做纯文本 `text` / `query`

@@ -1,5 +1,9 @@
 # 3. 代码优化
 
+> 本文描述已交付的 GPU plugin opt-1/opt-2/opt-3。第三轮 causal 和第四轮
+> mask-free visual 都是导出侧改动，没有新增 plugin patch；当前组合与 fresh
+> 性能见 [`docs/11`](11_round4_image_fused_optimization.md)。
+
 三个改动都在 **Intel GPU plugin**。opt-1 / opt-2 是**纯图结构 / 调度**改动，
 opt-3 只改**权重的物理排布**，三者都不碰任何算术（§4 验证）。patch 全部基于官方
 tag `2026.3.0`（`8a17657b99`），见 `patches/`。

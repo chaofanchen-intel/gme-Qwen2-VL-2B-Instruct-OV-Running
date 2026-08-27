@@ -1,5 +1,11 @@
 # 9. 第三轮：以 gs128/gs64 为主的进一步降延迟
 
+> 本文是第三轮 language-only 优化报告。其“当前”均指 2026-08-21 的第三轮
+> 状态；第四轮随后新增了 mask-free visual IR。当前部署 precision 是
+> `int8_vnomask` / `int4_causal_vnomask`，第四轮 fresh matrix 见
+> [`docs/11`](11_round4_image_fused_optimization.md) 和
+> [`results/r4_rerun_20260826/`](../results/r4_rerun_20260826/)。
+
 第二轮把 1024 token 从 283.0 ms 降到 238.2 ms（opt-1/2/3），剩下的时间构成里 GEMM 占
 63%，而 GEMM 的头部空间在 oneDNN 内部。第三轮的任务是：**在不牺牲精度的前提下继续降
 latency，并且以 gs128 / gs64 为主**（`int4_per_oc` 已在 docs/08 因精度否决，只作最后备选）。
@@ -411,7 +417,7 @@ probe 预测只剩 1.025x，实测基本不动。
 | `int4_gs64_sym_causal` | 227.47 | 0.9434 |
 
 **`int4_causal` 同时更快且更准**，所以 gs64-sym 这一格可以直接排除。gs128-sym（214.47 /
-0.9416）确实在 Pareto 前沿上，但它的精度已经低于**当前默认 gs128 非对称**（0.9552），
+0.9416）确实在 Pareto 前沿上，但它的精度已经低于**第三轮默认 gs128 非对称**（0.9552），
 按本轮「不牺牲精度」的前提不予采纳。**已量化、已评估、作为可选项记录，不设为默认。**
 
 ---
@@ -494,11 +500,11 @@ DQ 调用数 **140 → 112**（每层 5 个降到 4 个，正是 gate/up 共享 
 | `DYNAMIC_QUANTIZATION_GROUP_SIZE=128`（§9.4b） | wall 220.88 → 239.49 | 补齐 docs/05 §5.1.3 缺的这一格，同样负收益 |
 | 直接重跑现有导出脚本（§9.3） | wall 238 → 295 | v5 的 BOOL mask 让 SDPA 被分解。**必须配合 causal 一起做** |
 
-### 推荐配置
+### 第三轮结束时推荐配置（第四轮前）
 
 | 场景 | 精度 key | wall（1024） | query cosine |
 | --- | --- | ---: | ---: |
-| 默认 / 均衡 | **`int4_causal`** | **222.3** | 0.9552 |
+| 第三轮默认 / 均衡 | **`int4_causal`** | **222.3** | 0.9552 |
 | 精度优先 | **`int4_gs64_causal`** | 236.0 | **0.9576** |
 | 对照：本轮之前的默认 | `int4` | 238.5 | 0.9551 |
 | 对照：本轮之前的精度档 | `int4_gs64` | 252.9 | 0.9574 |
@@ -526,7 +532,7 @@ gme-Qwen2-VL-2B-Instruct-Running/
   gme_compat.py                       新增：transformers 5 的名字兼容（01/02/04 共用）
   01_reference.py                     golden 已存在时跳过（--force 才重算），避免作废历史 cosine
   02_export.py                        --causal-sdpa / --language-suffix；--stage all 把语言 IR 导两遍
-  03_finalize.py                      默认就产出 causal 两档；--round3-extras 才产出对照组和分组对称；
+   03_finalize.py                      第三轮默认产出 causal 两档；--round3-extras 才产出对照组和分组对称；
                                       compress() 加「源比产物新就强制重压」防护
   ov_models/.../gme_language_fp32_causal.xml      causal=true、rank-4、无 mask
   ov_models/.../gme_language_fp32_v5ctrl.xml      对照：v5 导出但保留 mask
@@ -568,11 +574,11 @@ gme-qwen2-vl-int4-hotspot-optimization/
 ```bash
 cd gme-Qwen2-VL-2B-Instruct-Running
 
-# 1+2. 完整流水线：01 -> 02 -> 03 就能重现当前优化后的包。
-#      02 --stage all 会把语言 IR 导两遍（普通 + causal），03 默认就会压 causal 两档。
+# 1+2. 完整流水线：01 -> 02 -> 03 可重现第三轮 language-only 历史包。
+#      第四轮当前包还需要 mask-free visual IR；见 docs/11 的复现命令。
 python 01_reference.py                 # 已有 golden 时自动跳过（--force 才会重算）
 python 02_export.py                    # --stage all 是默认
-python 03_finalize.py                  # 产出 int4_causal / int4_gs64_causal
+python 03_finalize.py                  # 产出第三轮 language IR 的 int4_causal / int4_gs64_causal
 
 # 复现 docs/09 的分析（对照组 + 分组对称，仅分析用，约 +3.7 GB / +20 min）
 python 02_export.py --stage language --language-suffix _v5ctrl

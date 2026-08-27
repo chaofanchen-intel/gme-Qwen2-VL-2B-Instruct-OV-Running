@@ -1,8 +1,9 @@
-# GME Qwen2-VL-2B-Instruct — GPU INT4 text/query hotspot 分析与优化
+# GME Qwen2-VL-2B-Instruct — GPU text/query/image/fused hotspot 分析与优化
 
 针对 `gme-Qwen2-VL-2B-Instruct` 在 Intel iGPU 上 INT4 精度做纯文本
-`text` / `query` embedding 时延迟偏高（1024 token ≈ 281 ms）的问题，做了完整的
-hotspot 定位、源码优化、数值验证和回归测试。
+`text` / `query` embedding 时延迟偏高（历史 1024 token ≈ 281 ms）以及
+`image` / `fused` visual SDPA 未充分 lower 的问题，做了完整的 hotspot 定位、
+源码优化、数值验证和回归测试。
 
 **所有源码改动基于 OpenVINO 官方 release tag `2026.3.0`（`8a17657b99`），
 不掺杂本仓库既有的任何本地提交或工作区改动**，patch 见 [`patches/`](patches/)。
@@ -20,8 +21,13 @@ hotspot 定位、源码优化、数值验证和回归测试。
 | **回归** | 有状态生成式模型 greedy 解码 token id、首步 logits SHA 与 top-8 逐位相同 |
 | **改动** | Intel GPU plugin，8 个文件，+390 −19，图结构/调度 + 权重 layout，无算术改动。**第三、四轮都没有新增 plugin 改动**，全部在导出侧 |
 | **改了什么** | ① GQA `repeat_kv` 的 Broadcast 消除放开到无状态模型；② 新增 SDPA 输出 Transpose 融合 + 修复 `sdpa_gen_micro` 的 dispatch bug；③ **宽 INT4 投影（`N ≥ 4K`）的权重重排成 N 连续**，让 oneDNN `jit:gemm` 走更快的 layout；④（第三轮，导出侧）**语言 SDPA 改成 `causal=true` 且不带 mask**，kernel 直接跳过上三角；⑤（第四轮，导出侧）**视觉塔 SDPA 去掉那张恒为全 True 的 rank-3 BOOL mask**，32 层注意力从手工分解的 MatMul+Softmax 变回 `ocl::sdpa::opt` |
-| **推荐精度** | 默认/均衡 **`int4_causal_vnomask`**（text 221.4 ms / query cos 0.9552，image 448x448 288.7 ms）；精度优先 **`int4_gs64_causal_vnomask`**（text 236.0 ms，query cos 0.9576）。纯文本场景 `_vnomask` 与否完全等价（语言 IR 相同） |
+| **推荐精度** | package 默认/精度优先 **`int8_vnomask`**；低延迟/均衡 **`int4_causal_vnomask`**（历史 stage split image 448x448 288.7 ms）；更高精度的 INT4 选 `int4_gs64_causal_vnomask`。纯文本场景 `_vnomask` 与否完全等价（语言 IR 相同） |
 | **剩下的大头** | 文本侧 GEMM 占 GPU 时间 ~69%（causal 之后占比上升），下一轮首选 **RMS→DQ 融合**（~7 ms，docs/09 §9.4b）。图像侧 mask 修掉后**视觉塔 GEMM 占比升到 46%**，且 opt-3 的 `N≥4K` 规则在视觉塔维度上不触发，需单独定价（docs/11 §11.8） |
+
+上表中的 plugin profiling 和 stage-split 数字属于历史轮次。当前 package 的独立
+fresh rerun（2026-08-26，Python/GPU，repeat=5，主要看 mean）使用
+`int8_vnomask` / `int4_causal_vnomask`，原始结果见
+[`results/r4_rerun_20260826/`](results/r4_rerun_20260826/)。
 
 ## 优化前后的 GPU 时间构成（语言 IR，seq=1024，INT4/GPU）
 
@@ -75,6 +81,33 @@ GEMM 完全不动——这一笔与 GEMM 侧的任何后续优化正交。详见
 
 视觉塔的序列长度是 **merge 前的 patch 行数 L = 4K**，注意力 O(L²)，所以收益随分辨率上升：
 L=1024 上 1.53x，L=5040 上 **2.83x**。端到端 image/fused **1.79–2.50x**。详见 docs/11。
+
+## 当前第四轮 fresh rerun
+
+当前可引用的 end-to-end 结果来自同一套 custom core/plugin/Python binding：
+`2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`。它不是官方 wheel
+runtime，也不是旧的 masked visual 组合。
+
+| workload | `int8_vnomask` | `int4_causal_vnomask` |
+| --- | ---: | ---: |
+| text/query, 32 tokens (mean ms/call) | 44.12 / 43.80 | 32.32 / 31.99 |
+| text/query, 128 tokens (mean ms/call) | 54.18 / 54.15 | 41.86 / 41.65 |
+| text/query, 512 tokens (mean ms/call) | 135.56 / 135.63 | 119.36 / 119.35 |
+| text/query, 1024 tokens (mean ms/call) | 279.68 / 280.77 | 226.00 / 226.16 |
+| image/fused, 448x448 (mean ms/call) | 310.53 / 306.94 | 296.37 / 296.43 |
+| image/fused, 1288x728 (mean ms/call) | 1850.57 / 1850.86 | 1800.29 / 1795.29 |
+
+batch 使用 text=128 tokens 和 image=448x448；GPU `padded + streams=1` 在 N=8
+时分别为 `32.47` 和 `27.64 ms/embedding`（INT8/causal INT4 text），
+image 为 `284.46` 和 `279.71 ms/embedding`。完整的 N=1/2/4/8/16/32、
+`per_sample`/`padded`、`streams=1/auto` 数据见：
+
+- [`benchmark_text_image_matrix.json`](results/r4_rerun_20260826/benchmark_text_image_matrix.json)
+- [`benchmark_batch_int8_vnomask.json`](results/r4_rerun_20260826/benchmark_batch_int8_vnomask.json)
+- [`benchmark_batch_int4_causal_vnomask.json`](results/r4_rerun_20260826/benchmark_batch_int4_causal_vnomask.json)
+
+这次 fresh matrix 的详细 document embedding 评测另见
+[`document_embedding_eval_int8_int4_gpu/REPORT.md`](../document_embedding_eval_int8_int4_gpu/REPORT.md)。
 
 ---
 

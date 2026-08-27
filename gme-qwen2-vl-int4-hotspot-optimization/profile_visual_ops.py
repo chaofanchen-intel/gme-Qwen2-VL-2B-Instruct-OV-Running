@@ -85,7 +85,7 @@ def grid_for_tokens(tokens: int) -> tuple[int, int, int]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--precision", default="int4", choices=sorted(IR))
+    ap.add_argument("--precision", default="int4_causal_vnomask", choices=sorted(IR))
     ap.add_argument("--ir", default=None,
                     help="visual IR filename inside the package, overriding --precision. "
                          "Lets an intermediate/analysis-only IR be profiled without "

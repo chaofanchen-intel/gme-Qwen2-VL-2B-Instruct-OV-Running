@@ -7,7 +7,7 @@
 评测（`run_eval.py`），把这两个新方案和 [REPORT.md](REPORT.md) 里已有的
 `int8`/`int4`（gs128）放进同一张表对比。
 
-**不改变 [README.md](README.md) 声明的默认评测范围**（GPU int8/int4）；这是一次
+**不改变当时 [README.md](README.md) 声明的历史评测范围**（GPU int8/int4）；这是一次
 独立的扩展运行，结果写在单独的文件里，不覆盖 `results/benchmark.json`。
 
 ```bash
@@ -51,7 +51,7 @@ precision，可以直接跨表对照。
 | 精度 | page_text mean ms | items/s | tokens/s | page_image_150 mean ms | page_fused_150 mean ms |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | int8 | 515.3 | 27.17 | 2039.6 | 65859.7 | 66930.6 |
-| int4（gs128，当前默认） | 456.8 | 30.65 | 2300.8 | 65832.7 | 66899.8 |
+| int4（gs128，历史默认） | 456.8 | 30.65 | 2300.8 | 65832.7 | 66899.8 |
 | int4_per_oc | **424.3** | **32.99** | **2476.8** | 65298.5 | 66277.2 |
 | int4_per_oc_sym | **412.5** | **33.94** | **2547.6** | 65252.5 | 66257.5 |
 

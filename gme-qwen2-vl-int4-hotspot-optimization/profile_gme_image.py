@@ -22,7 +22,7 @@ both leave them alone and ``grid = (H/14, W/14)`` is exactly predictable; see
 PERFORMANCE_REPORT.md S4.2. 448x448 is a hard floor -- anything smaller is upscaled
 to the same 256 tokens.
 
-    python profile_gme_image.py --precision int4_causal --sizes 448x448,672x672
+    python profile_gme_image.py --precision int4_causal_vnomask --sizes 448x448,672x672
 """
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ def percentile(values: list[float], q: float = 50) -> float:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--precision", default="int4_causal")
+    ap.add_argument("--precision", default="int4_causal_vnomask")
     ap.add_argument("--device", default="GPU")
     ap.add_argument("--sizes", default=DEFAULT_SIZES,
                     help="comma-separated HxW list; multiples of 28 avoid processor rescaling")

@@ -44,7 +44,7 @@ LENGTHS = (1, 7, 32, 129, 512, 1024)
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--precision", default="int4", choices=sorted(IR))
+    ap.add_argument("--precision", default="int4_causal_vnomask", choices=sorted(IR))
     ap.add_argument("--device", default="GPU")
     ap.add_argument("--output", type=Path, required=True)
     args = ap.parse_args()

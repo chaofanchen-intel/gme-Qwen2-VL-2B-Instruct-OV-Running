@@ -1,9 +1,12 @@
 # GME-Qwen2-VL-2B-Instruct OpenVINO 部署与性能汇报
 
 **汇报对象**：项目负责人、组内研发与部署同学  
-**测试环境**：Intel Core Ultra 7 356H / Intel iGPU / OpenVINO 2026.2.1  
-**测试日期**：2026-08-01 至 2026-08-03  
-**数据口径**：所有本报告性能数据均来自 `repeat=20` 的 warm、端到端测试，不含模型加载与编译时间。
+**测试环境**：Intel Core Ultra 7 356H / Intel iGPU / 当前 custom OpenVINO core/plugin
+
+**报告范围**：本文保留 2026-08-01 至 2026-08-03 的历史 `repeat=20` 汇报数据，并在末尾链接第四轮 fresh rerun。
+
+**当前 package**：默认 `int8_vnomask`；低延迟推荐 `int4_causal_vnomask`。`_vnomask` 使用 mask-free visual IR，旧 masked visual 结果只作历史对照。
+**数据口径**：历史主表为 `repeat=20`；第四轮 fresh 矩阵为 Python/GPU `repeat=5`，以 mean 为主，完整原始 JSON 单独保存。
 
 ---
 
@@ -26,23 +29,42 @@
 
 | 场景 | 推荐方案 | 原因 |
 | --- | --- | --- |
-| Intel GPU 生产默认 | INT8 + `padded` | 文本精度接近 FP32，batch 后吞吐最好，image 质量和速度更均衡 |
-| Intel GPU 低延迟文本 | INT4 + `padded` | text 延迟最低，模型体积更小；上线前必须完成业务 Recall@K/nDCG 验证 |
-| Intel CPU 生产默认 | INT8 + `per_sample` + `streams="auto"` | CPU 上 padded 基本无收益，多 stream 能显著提升 batch 吞吐 |
+| Intel GPU 生产默认 | `int8_vnomask` + `padded` | 文本精度接近 FP32，视觉路径使用 mask-free IR；batch 后吞吐最好 |
+| Intel GPU 低延迟文本 | `int4_causal_vnomask` + `padded` | text 延迟最低，模型体积更小；上线前必须完成业务 Recall@K/nDCG 验证 |
+| Intel CPU 生产默认 | `int8_vnomask` + `per_sample` + `streams="auto"` | CPU 上 padded 基本无收益，多 stream 能显著提升 batch 吞吐 |
 | Intel CPU 精度优先 | FP32 | 参考级精度，但延迟和内存成本最高 |
 | 严格图像精度场景 | Python INT8 或统一 Pillow 预处理后的 C++ | C++ OpenCV 与 Python Pillow 的 resize 存在可测差异 |
 
-**当前建议默认选择：INT8。** INT4 适合作为 GPU 文本场景的低延迟选项，但不能只按性能上线，必须结合业务检索指标决策。
+**当前建议默认选择：`int8_vnomask`。** `int4_causal_vnomask` 适合作为 GPU 文本和轻量部署的低延迟选项，但不能只按性能上线，必须结合业务检索指标决策。
 
 ### 1.3 关键性能结论
 
-- GPU INT8 短文本 batch=1：约 `41–43 ms/call`。
-- GPU INT4 短文本 batch=1：约 `30–31 ms/call`。
-- GPU INT8 `448x448` image：约 `0.50–0.52 s/call`。
-- GPU INT4 `448x448` image：约 `0.49–0.50 s/call`。
+- 当前 fresh GPU `int8_vnomask` 短文本 batch=1：约 `43.8–44.1 ms/call`；`int4_causal_vnomask`：约 `32.0–32.3 ms/call`。
+- 当前 fresh GPU `int8_vnomask` `448x448` image：`310.5 ms/call`；`int4_causal_vnomask`：`296.4 ms/call`。
+- 当前 fresh GPU `int8_vnomask` `1288x728` image：`1850.6 ms/call`；`int4_causal_vnomask`：`1800.3 ms/call`。
 - 图片从 256 visual tokens 增加到 1260 visual tokens，GPU INT8 image 延迟约增加 9.9 倍。
 - 1024 token 文本相对 32 token 明显超线性增长，不能用短文本结果外推长文本 SLA。
 - CPU batch 吞吐主要依靠 `streams="auto"`；GPU batch 吞吐主要依靠 `padded`。
+
+### 1.4 第四轮 fresh rerun（2026-08-26）
+
+当前结果来自 `benchmark/openvino/bin/intel64/Release` 的 matching custom Python
+binding/core/plugin，版本为 `2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`。
+完整原始矩阵见 [hotspot rerun results](gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/)，
+document 四表示和质量结果见 [document REPORT](document_embedding_eval_int8_int4_gpu/REPORT.md)。
+
+| workload | `int8_vnomask` | `int4_causal_vnomask` |
+| --- | ---: | ---: |
+| text/query, 32 tokens (ms/call) | 44.12 / 43.80 | 32.32 / 31.99 |
+| text/query, 1024 tokens (ms/call) | 279.68 / 280.77 | 226.00 / 226.16 |
+| image/fused, 448x448 (ms/call) | 310.53 / 306.94 | 296.37 / 296.43 |
+| image/fused, 1288x728 (ms/call) | 1850.57 / 1850.86 | 1800.29 / 1795.29 |
+
+在 text=128 tokens 的 batch fresh sweep 中，`padded + streams=1` 的 N=8 为
+`32.47 ms/embedding`（INT8）和 `27.64 ms/embedding`（causal INT4）；
+448x448 image 的 N=8 为 `284.46` 和 `279.71 ms/embedding`。完整的
+`per_sample`/`padded`、`streams=1/auto` 和 N=1/2/4/8/16/32 数据保留在上述 JSON，
+本轮主要统计按 mean 而非 p50 解读。
 
 ---
 
@@ -372,7 +394,7 @@ Python GPU image：
 
 ### 8.1 上线前必须完成
 
-1. 在真实 query/corpus/image 数据上比较 INT8 与 INT4 的 Recall@K、nDCG、Top-K 命中率；
+1. 在真实 query/corpus/image 数据上比较 `int8_vnomask` 与 `int4_causal_vnomask` 的 Recall@K、nDCG、Top-K 命中率；
 2. 根据线上文本长度和图片 token 分布重新设置 micro-batch 大小；
 3. 在目标并发下测试 P50/P95/P99，而不是只使用本报告平均值；
 4. 固定 GPU 电源策略和运行环境，补充长期稳定性测试；
@@ -383,14 +405,15 @@ Python GPU image：
 
 ```text
 GPU:
-  precision = int8
+     precision = int8_vnomask
   batch_mode = padded
   streams = 1
   text micro-batch = 8~16
   image micro-batch = 4~8
+     low-latency text precision = int4_causal_vnomask
 
 CPU:
-  precision = int8
+     precision = int8_vnomask
   batch_mode = per_sample
   streams = auto
   text micro-batch = 4~8

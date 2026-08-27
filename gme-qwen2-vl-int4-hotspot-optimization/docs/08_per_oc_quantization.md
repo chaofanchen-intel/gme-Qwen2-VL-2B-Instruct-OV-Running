@@ -1,5 +1,10 @@
 # 8. per-OC INT4 量化：性能基线与精度评估
 
+> 本文是 per-OC 语言塔的历史扩展实验。文中的“当前默认”指本实验时的
+> `int4`/gs128 语言基线，不是当前 package 的默认 precision。当前 package 默认
+> 为 `int8_vnomask`，低延迟组合为 `int4_causal_vnomask`；per-OC 结论仍保持为
+> “精度风险过大，不建议采纳”。
+
 docs/06 §6.3 的 oneDNN `gemm_probe` 把 `D_cab_per_oc`（group-128 → per-output-channel
 scale）测到 **1.55x**，是所有已定价候选里最大的一个，但因为"需要重新量化、有精度
 代价"被挂起（§6.6 未解决项）。本节把它做成两个真正可跑的量化方案，补齐端到端性能
@@ -48,7 +53,7 @@ compress(lang_fp32, package / "gme_language_int4_per_oc_sym.xml", ...,
 
 | 精度 | 大小 | 相对 gs128 |
 | --- | ---: | --- |
-| `gme_language_int4.xml`（gs128, ASYM，当前默认） | 922 MB | 基准 |
+| `gme_language_int4.xml`（gs128, ASYM，历史语言基线） | 922 MB | 基准 |
 | `gme_language_int4_gs64.xml`（gs64, ASYM） | 947 MB | +25 MB（更细分组，更多 scale/zp） |
 | `gme_language_int4_per_oc.xml`（per-OC, ASYM） | **898 MB** | −24 MB |
 | `gme_language_int4_per_oc_sym.xml`（per-OC, SYM） | **898 MB** | −24 MB |
@@ -107,7 +112,7 @@ GEMM-占比方向性参考。**
 
 query workload 数字与 text 几乎一致（差 <1ms），从略。
 
-**与当前默认量化方案 `int4`（gs128）横向对比**（gs128 数字取自
+**与历史默认量化方案 `int4`（gs128）横向对比**（gs128 数字取自
 `results/ab/`，即 §4.3 已发表的表）：
 
 | tokens | 对比维度 | int4 (gs128) | int4_per_oc | int4_per_oc_sym | per_oc vs gs128 | per_oc_sym vs gs128 |
@@ -146,7 +151,7 @@ python 04_validate_python.py --precisions int4,int4_gs64,int4_per_oc,int4_per_oc
 
 | 精度 | text cosine | query cosine | image cosine | fused cosine |
 | --- | ---: | ---: | ---: | ---: |
-| `int4`（gs128，当前默认） | 0.944538 | 0.955146 | 0.941821 | 0.954111 |
+| `int4`（gs128，历史默认） | 0.944538 | 0.955146 | 0.941821 | 0.954111 |
 | `int4_gs64`（精度恢复档） | 0.949893 | 0.957442 | 0.943357 | 0.959970 |
 | `int4_per_oc` | **0.826530** | **0.832787** | 0.891442 | 0.923546 |
 | `int4_per_oc_sym` | **0.836570** | 0.882145 | 0.907891 | 0.930688 |
@@ -204,7 +209,7 @@ query 的检索质量 probe）上复测了同样的两个精度，性能结论�
 文本再快 7.6%\~10.8%），但**检索 Recall/MRR 没有表现出这里测到的绝对精度下降
 **——这是意料之中的（Recall/MRR 测的是同一量化方案内部的相对排序，cosine-vs-
 FP32-golden 测的是绝对误差，两者不矛盾，样本量也差两个数量级），详见
-[`../document_embedding_eval_int8_int4_gpu/REPORT_per_oc.md`](../document_embedding_eval_int8_int4_gpu/REPORT_per_oc.md)
+[`../../document_embedding_eval_int8_int4_gpu/REPORT_per_oc.md`](../../document_embedding_eval_int8_int4_gpu/REPORT_per_oc.md)
 §3。**不改变本节"不建议采纳"的结论**，只是记录一个值得注意的现象。
 
 ## 8.7 产物
@@ -229,6 +234,7 @@ gme-Qwen2-VL-2B-Instruct-Running/
 
 代码改动：`03_finalize.py`（新增两个 `compress()` 调用 + `precisions` 字典两条）、
 `dump_outputs.py` / `profile_ops.py`（`IR` 字典各加两条）、
-`profile_gme_int4_gpu.py`（新增 `--precision` 参数，默认 `int4` 保持向后兼容）、
+`profile_gme_int4_gpu.py`（新增 `--precision` 参数，当前默认 `int4_causal_vnomask`；历史
+per-OC 复现需显式传 precision）、
 `bench_ab.sh`（新增 `PRECISION` 环境变量，输出文件名加入精度字段，旧格式文件
 仍可被汇总脚本正确解析）。

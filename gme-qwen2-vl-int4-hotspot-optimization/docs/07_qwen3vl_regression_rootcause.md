@@ -1,5 +1,9 @@
 # 07 — Qwen3-VL-Embedding-2B 上 `CL_OUT_OF_RESOURCES` 的根因与修复
 
+> 本文记录第三轮 plugin 交叉模型回归的历史分析。第四轮没有新增 plugin 改动；
+> GME 当前 mask-free visual package 的性能和 precision 入口见
+> [`../README.md`](../README.md) 与 [`11_round4_image_fused_optimization.md`](11_round4_image_fused_optimization.md)。
+
 Date: 2026-08-17
 
 ## 症状

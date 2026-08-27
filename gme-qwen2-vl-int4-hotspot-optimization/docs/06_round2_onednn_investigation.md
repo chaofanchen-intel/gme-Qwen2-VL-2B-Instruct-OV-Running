@@ -1,5 +1,10 @@
 # 6. 第二轮：oneDNN 立项与 INT4 GEMM 成本分解
 
+> 本文是第二轮语言塔优化的历史调查记录。其 runtime、INT4 和默认语气均以
+> 当时的 masked visual package 为边界；当前 package 使用
+> `int8_vnomask` / `int4_causal_vnomask`，第四轮 fresh 结果见
+> [`../results/r4_rerun_20260826/`](../results/r4_rerun_20260826/)。
+
 第一轮（§1–§5）把两个 **图结构** 缺口修掉了，1024 token 从 283 ms 降到 264 ms。
 剩下的时间几乎全在 oneDNN 的 INT4 GEMM 里，而第一轮只能给出一句"实测饱和在
 ~15 TFLOPS，不在 OpenVINO 源码可控范围，需单独立项"——**没有证据说明它为什么慢**。

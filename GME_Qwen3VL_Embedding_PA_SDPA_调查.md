@@ -318,8 +318,8 @@ embedding graph 没有生成 decode、没有连续 batch scheduler、没有生�
 
 - GME runtime：[gme_openvino.py](../gme-Qwen2-VL-2B-Instruct-Running/gme_openvino.py)
 - GME benchmark：[08_benchmark_matrix.py](../gme-Qwen2-VL-2B-Instruct-Running/08_benchmark_matrix.py)
-- Qwen3 embedding runtime：[embedding_pipeline.cpp](../openvino.genai/src/cpp/src/rag/embedding_pipeline.cpp)
-- GenAI backend parser：[utils.cpp](../openvino.genai/src/cpp/src/utils.cpp)
-- GenAI VLM backend selection：[pipeline.cpp](../openvino.genai/src/cpp/src/visual_language/pipeline.cpp)
+- Qwen3 embedding runtime：[embedding_pipeline.cpp](../benchmark/openvino.genai/src/cpp/src/rag/embedding_pipeline.cpp)
+- GenAI backend parser：[utils.cpp](../benchmark/openvino.genai/src/cpp/src/utils.cpp)
+- GenAI VLM backend selection：[pipeline.cpp](../benchmark/openvino.genai/src/cpp/src/visual_language/pipeline.cpp)
 - Qwen3-VL-Embedding benchmark：[Qwen3-VL-Embedding-2B-Running/benchmark_results/BENCHMARK_RESULTS.md](../Qwen3-VL-Embedding-2B-Running/benchmark_results/BENCHMARK_RESULTS.md)
-- Qwen3.5 PA/SDPA reference：[Qwen3.5_iGPU_TTFT_Optimization_Report_EN.md](Qwen3.5_iGPU_TTFT_Optimization_Report_EN.md)
+- Qwen3.5 PA/SDPA reference：[Qwen3.5_iGPU_TTFT_Optimization_Report_EN.md](../benchmark/tests/Qwen3.5_iGPU_TTFT_Optimization_Report_EN.md)

@@ -520,6 +520,34 @@ fused 多 24 个文本 token。
 §11.1.1 那一笔：优化后的语言段回到了 72.6 ms（单独测 79.6 ms），而优化前是 238.5 ms。
 **这不是语言模型变快了，是它不再被前一次重负载拖到低频档。**
 
+### 11.4.1 当前 fresh stage split（2026-08-26）
+
+上表是历史 stage-split A/B。为给当前 package 一个可直接复核的阶段口径，
+`profile_gme_image.py` 又在同一套 custom core/plugin/Python binding 上运行了
+两种 vnomask precision（warmup=3、repeat=5）。下表是 p50，单位为 ms；
+它与 §11.6.4 的 public API mean 矩阵是不同统计口径，不能混算。
+
+| mode | size | K | `int8_vnomask` pre / visual / language / e2e | `int4_causal_vnomask` pre / visual / language / e2e |
+| --- | --- | ---: | ---: | ---: |
+| image | 448x448 | 256 | 13.910 / 199.152 / 95.751 / 306.910 | 13.932 / 199.241 / 72.153 / 285.901 |
+| fused | 448x448 | 256 | 14.034 / 198.770 / 98.834 / 309.748 | 14.003 / 199.503 / 75.390 / 289.660 |
+| image | 644x476 | 391 | 18.837 / 338.976 / 120.892 / 484.721 | 19.025 / 338.887 / 107.377 / 466.933 |
+| fused | 644x476 | 391 | 18.844 / 337.943 / 123.595 / 489.606 | 18.863 / 339.393 / 110.811 / 469.933 |
+| image | 672x672 | 576 | 26.510 / 528.106 / 183.425 / 719.559 | 25.479 / 530.430 / 133.534 / 690.998 |
+| fused | 672x672 | 576 | 26.314 / 529.987 / 179.306 / 725.751 | 25.831 / 530.080 / 137.014 / 693.851 |
+| image | 896x896 | 1024 | 46.444 / 1151.871 / 370.346 / 1506.826 | 41.508 / 1158.582 / 239.387 / 1441.793 |
+| fused | 896x896 | 1024 | 50.024 / 1150.413 / 378.664 / 1517.464 | 44.680 / 1158.818 / 243.768 / 1449.996 |
+| image | 1288x728 | 1196 | 55.185 / 1443.638 / 379.597 / 1838.345 | 50.647 / 1455.570 / 283.165 / 1797.777 |
+| fused | 1288x728 | 1196 | 48.104 / 1443.767 / 387.423 / 1837.780 | 51.398 / 1459.675 / 285.095 / 1799.941 |
+
+原始 stage-split 文件为
+[`profile_gme_image_int8_vnomask.json`](../results/r4_rerun_20260826/profile_gme_image_int8_vnomask.json)
+和
+[`profile_gme_image_int4_causal_vnomask.json`](../results/r4_rerun_20260826/profile_gme_image_int4_causal_vnomask.json)。
+当前 fresh stage 数据显示 mask-free visual 的 visual 段在两种 precision 上都约
+为 199/339/529/1155/1450 ms；两者主要差异来自 language 段的 INT8/causal INT4
+选择，而不是 visual mask-free 图之间的语义差异。
+
 ---
 
 ## 11.5 否决：把 SDPA 输入 Transpose 融进 primitive（有实测数字）
@@ -601,13 +629,62 @@ fused +0.0011；int8：image −0.0019 但 fused +0.0006）。这正是 NNCF 对
 
 | 场景 | precision key | 1024-token text | image 448x448 | image 1288x728 |
 | --- | --- | ---: | ---: | ---: |
-| **默认 / 均衡** | **`int4_causal_vnomask`** | 221.4 | **288.7** | **1798.3** |
-| 精度优先 | `int4_gs64_causal_vnomask` | 236.0 | — | — |
-| near-lossless | `int8_vnomask` | — | — | — |
+| package 默认 / 精度优先 | **`int8_vnomask`** | — | — | — |
+| 低延迟 / 均衡 | **`int4_causal_vnomask`** | 221.4 | **288.7** | **1798.3** |
+| 更高精度的 INT4 | `int4_gs64_causal_vnomask` | 236.0 | — | — |
 | 对照：本轮之前的默认 | `int4_causal` | 221.4 | 563.6 | 4494.4 |
 
 `_vnomask` 系列与它们同名的基准 key **只差视觉塔**，语言 IR 完全相同——这正是让 §11.4
 的 A/B 可归因的原因，也意味着 docs/09/10 的所有文本结论**原样成立**。
+
+### 11.6.4 当前 fresh rerun：text/query、image/fused 和 batch
+
+为避免把历史 stage-split 的 p50 数字误当成当前 package 的完整矩阵，2026-08-26
+又使用同一套 custom core/plugin/Python binding 对当前默认 precision 做了独立重测。
+原始结果见 [`results/r4_rerun_20260826/`](../results/r4_rerun_20260826/)：
+
+- Python/GPU，`repeat=5`，warm end-to-end；主要统计使用 mean；
+- text/query：32、128、512、1024 effective tokens；
+- image/fused：448x448、644x476、672x672、896x896、1288x728，以及 1260 visual-token logo；
+- batch：text N=1/2/4/8/16/32，image N=1/2/4/8，覆盖 `per_sample`/`padded` 和 `streams=1/auto`；
+- batch suite 的 `batch-precision` 每次只能指定一个 precision，因此 INT8/INT4 分别落在两个 JSON 文件中。
+
+text/query fresh mean（ms/call，N=1）：
+
+| precision | 32 text/query | 128 text/query | 512 text/query | 1024 text/query |
+| --- | ---: | ---: | ---: | ---: |
+| `int8_vnomask` | 44.12 / 43.80 | 54.18 / 54.15 | 135.56 / 135.63 | 279.68 / 280.77 |
+| `int4_causal_vnomask` | 32.32 / 31.99 | 41.86 / 41.65 | 119.36 / 119.35 | 226.00 / 226.16 |
+
+image/fused fresh mean（ms/call，N=1）：
+
+| precision | 448x448 / 256K | 644x476 / 391K | 672x672 / 576K | 896x896 / 1024K | 1288x728 / 1196K | logo / 1260K |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `int8_vnomask` | 310.53 / 306.94 | 486.84 / 484.11 | 729.97 / 728.56 | 1523.18 / 1521.81 | 1850.57 / 1850.86 | 2176.51 / 2170.73 |
+| `int4_causal_vnomask` | 296.37 / 296.43 | 470.46 / 468.91 | 699.25 / 694.68 | 1449.80 / 1449.04 | 1800.29 / 1795.29 | 2110.59 / 2114.97 |
+
+batch fresh mean（Python/GPU，text=128 tokens，image=448x448；单元格为
+`ms/call (ms/embedding)`）：
+
+| precision / mode / streams | N=1 | N=2 | N=4 | N=8 | N=16 | N=32 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `int8_vnomask` / per_sample / 1 | 54.70 (54.70) | 105.27 (52.64) | 204.46 (51.11) | 402.41 (50.30) | 798.05 (49.88) | 1584.76 (49.52) |
+| `int8_vnomask` / padded / 1 | 54.71 (54.71) | 73.12 (36.56) | 131.42 (32.85) | 259.72 (32.47) | 486.51 (30.41) | 1007.78 (31.49) |
+| `int4_causal_vnomask` / per_sample / 1 | 40.43 (40.43) | 75.74 (37.87) | 152.07 (38.02) | 287.73 (35.97) | 570.85 (35.68) | 1135.49 (35.48) |
+| `int4_causal_vnomask` / padded / 1 | 40.12 (40.12) | 60.82 (30.41) | 119.24 (29.81) | 221.12 (27.64) | 470.79 (29.42) | 890.09 (27.82) |
+
+对应的 image batch mean（只到 N=8）：
+
+| precision / mode / streams | N=1 | N=2 | N=4 | N=8 |
+| --- | ---: | ---: | ---: | ---: |
+| `int8_vnomask` / per_sample / 1 | 305.54 (305.54) | 605.65 (302.83) | 1199.44 (299.86) | 2382.24 (297.78) |
+| `int8_vnomask` / padded / 1 | 306.81 (306.81) | 579.71 (289.86) | 1146.85 (286.71) | 2275.64 (284.46) |
+| `int4_causal_vnomask` / per_sample / 1 | 286.99 (286.99) | 574.05 (287.03) | 1143.63 (285.91) | 2263.17 (282.90) |
+| `int4_causal_vnomask` / padded / 1 | 288.68 (288.68) | 555.45 (277.72) | 1112.75 (278.19) | 2237.67 (279.71) |
+
+完整的 `streams=auto` 和所有 batch cell 保留在两个 `benchmark_batch_*.json` 中。
+在这次 fresh workload 上，GPU `padded` 仍是 text 的主路径；image 的视觉塔逐图执行，
+所以 batch 主要摊薄后续 language/request 开销，不能期待 text 那样的吞吐增益。
 
 ### 11.6.3 batch 能带来多少性能？（image 上很少，text 上很多）
 
@@ -667,7 +744,8 @@ gme-qwen2-vl-int4-hotspot-optimization/
   check_vision_equivalence.py         新增：FP32 逐位等价性（§11.3.3）
   check_vision_batch_contract.py      新增：单图契约（§11.3.5）
   check_vision_mask_necessity.py      新增：mask 必要性的完整枚举 + PyTorch 等价性（§11.2.2–11.2.5）
-  results/r4_20260826/                本轮全部原始结果
+  results/r4_20260826/                历史第四轮分析原始结果（stage split / 等价性）
+  results/r4_rerun_20260826/          当前 vnomask fresh text/image/batch 原始结果
 ```
 
 **GPU plugin 交付面：本轮没有新增任何 plugin 改动。** 与第三轮一样，收益全在导出侧。
@@ -682,7 +760,7 @@ gme-qwen2-vl-int4-hotspot-optimization/
 | **剩下的 32 个 `permute_ref`（18.4 ms）** | `qkv` 的 `permute(1,0,2,3)`，§11.5 的方案不碰它 | 可考虑改成在 head 维上切三份，避免物化整个置换张量；需重新验证数值 |
 | **`ocl::sdpa::opt` 本身（L=1024 上 33.8 ms，L=5040 上 747 ms）** | 已是优化 kernel，但视觉塔是全注意力，没有 causal 那样的一半可省 | 唯一的结构性杠杆是降 `max_image_tokens`；需同时验证 Recall@K/nDCG，不能只看时延 |
 | **§11.5 的 L 依赖** | 交叉点实测在 L ≈ 4100 | 若 plugin 能让 SDPA 对 strided 输入不掉性能，A+B 就能全区间为正；属 plugin/kernel 侧 |
-| **`int8_vnomask` 的 image/fused 时延** | 本轮只验了精度，没做时延矩阵 | int8 视觉塔是 near-lossless 档（image cos 0.987），值得补一张与 int4 对照的时延表 |
+| **`int8_vnomask` 的 image/fused 时延** | 已在 §11.6.4 完成 fresh matrix：448x448 image 310.53 ms，1288x728 image 1850.57 ms | 后续只需按目标业务图片分布复测，不再把该项视为数据缺口 |
 | **§11.2.7 的跨设备外推** | 只在本机（f≈1.0）校验过模型，**没有第二台设备的实测** | 若迁到 dGPU/更强 iGPU，应重跑 §11.2.6 的 packed/split 表与 §11.2.7 的并发表；若逐图利用率 < 66%（N=4），需重新评估「并发 vs 真 batch 维视觉 IR」 |
 | **真 batch 维的视觉 IR** | 未实现。尺寸统一时它严格优于打包（占用率同、算力省） | 需要绕开 `rot_pos_emb` 的 Python 循环；只对「同尺寸批量」场景有意义，属跨设备迁移时的备选（§11.2.7） |
 | GPU 降频对相邻推理的影响（§11.1.1） | 已量化（S=281 上 79.6 → 238.5 ms） | 这解释了历史 image/fused 数字为何普遍偏高；重测 PERFORMANCE_REPORT §6.3 时应按本轮口径分段 |
@@ -690,6 +768,9 @@ gme-qwen2-vl-int4-hotspot-optimization/
 ---
 
 ## 11.9 复现
+
+下面第 1--3 步重建的是历史第四轮分析产物目录 `results/r4_20260826/`；当前
+fresh 性能矩阵和阶段拆分已经保存在 `results/r4_rerun_20260826/`，无需覆盖历史结果。
 
 ```bash
 cd gme-Qwen2-VL-2B-Instruct-Running

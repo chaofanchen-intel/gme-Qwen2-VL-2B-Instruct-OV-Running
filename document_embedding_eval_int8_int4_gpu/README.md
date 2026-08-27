@@ -1,12 +1,17 @@
-# GME 文档 Embedding 评测：GPU INT8 / causal INT4
+# GME 文档 Embedding 评测：GPU mask-free INT8 / causal INT4
 
 本目录专门评测 GME-Qwen2-VL-2B-Instruct 对 PDF 文档做 embedding 的性能和表征质量。
 
-本评测不实现 RAG，也不测 CPU、FP32 或其他精度。只测：
+本评测不实现 RAG，也不测 CPU、FP32 或其他精度。当前默认只测：
 
 - device: `GPU`
-- precision: `int8`, `int4_causal`
+- precision: `int8_vnomask`, `int4_causal_vnomask`
 - document: `../060_OT_Downlook_PR_Error.pdf`
+
+这里的 `_vnomask` 表示视觉塔使用 mask-free visual IR：对本评测的单图 image/fused
+路径，去掉恒为全 True 的 rank-3 BOOL attention mask。`int8_vnomask` 仍是普通 INT8
+语言 IR；`int4_causal_vnomask` 同时使用 causal INT4 语言 IR 和 mask-free INT4
+视觉 IR。历史 masked 结果仍保留在 `results/`，但不再作为当前默认结果。
 
 ## 文档特征
 
@@ -66,11 +71,12 @@ ROOT=/home/chaofan/model_benchmark
 OV=$ROOT/benchmark/openvino
 GME=$ROOT/gme-Qwen2-VL-2B-Instruct-Running
 cd $GME/document_embedding_eval_int8_int4_gpu
-env PYTHONPATH="$OV/bin/intel64/Release/python:$GME" \
+env -i HOME="$HOME" PATH=/usr/bin:/bin \
+	PYTHONPATH="$OV/bin/intel64/Release/python:$GME" \
 	LD_LIBRARY_PATH="$OV/bin/intel64/Release:$OV/temp/Linux_x86_64/tbb/lib" \
 	OPENVINO_LIB_PATHS="$OV/bin/intel64/Release" \
 	OPENVINO_PLUGIN_PATH="$OV/bin/intel64/Release" \
-	OUTPUT="$PWD/results/benchmark_gme_opt_int8_int4_causal_20260825.json" \
+	OUTPUT="$PWD/results/benchmark_gme_round4_vnomask_int8_int4_causal_20260826.json" \
 	/home/chaofan/envs/qwen_env/bin/python3 -u run_eval.py
 ```
 
@@ -80,7 +86,8 @@ wheel 的 `openvino/libs` 抢先加载。
 
 结果写入 `results/`：
 
-- `benchmark_gme_opt_int8_int4_causal_20260825.json`: 本次 GME 完整优化评测结果
+- `benchmark_gme_round4_vnomask_int8_int4_causal_20260826.json`: 当前第四轮 mask-free 完整评测结果
+- `benchmark_gme_opt_int8_int4_causal_20260825.json`: 历史 masked visual 优化结果
 - `document_embedding_benchmark_before_optimized.json`: 优化前基线结果，用于 A/B 对比
 - `pages/`: 150 DPI 中间页面图像
 - `REPORT.md`: 结果报告
@@ -90,22 +97,25 @@ wheel 的 `openvino/libs` 抢先加载。
 ## 扩展评测：per-OC INT4（`int4_per_oc` / `int4_per_oc_sym`）
 
 `run_eval.py` 支持用 `PRECISIONS` 环境变量（逗号分隔的 package precision key）
-和 `OUTPUT` 覆盖默认的 `int8,int4_causal` 范围和输出路径。默认运行范围为
-`int8,int4_causal`：
+和 `OUTPUT` 覆盖默认的 `int8_vnomask,int4_causal_vnomask` 范围和输出路径。当前默认
+运行范围为 `int8_vnomask,int4_causal_vnomask`：
 
 ```bash
-PRECISIONS=int4_per_oc,int4_per_oc_sym python -u run_eval.py
-# -> results/benchmark_int4_per_oc_int4_per_oc_sym.json（不覆盖 benchmark.json）
+PRECISIONS=int4_per_oc,int4_per_oc_sym OUTPUT="$PWD/results/benchmark_int4_per_oc_int4_per_oc_sym.json" \
+	python -u run_eval.py
+# -> results/benchmark_int4_per_oc_int4_per_oc_sym.json（不覆盖当前 vnomask 结果）
 ```
 
 这是为对比
 [`../gme-qwen2-vl-int4-hotspot-optimization/docs/08_per_oc_quantization.md`](../gme-qwen2-vl-int4-hotspot-optimization/docs/08_per_oc_quantization.md)
 里新增的两个语言塔量化方案而做的扩展，结果和结论见
-[REPORT_per_oc.md](REPORT_per_oc.md)，不改变本目录默认评测范围（GPU int8/int4_causal）。
+[REPORT_per_oc.md](REPORT_per_oc.md)，不改变本目录默认评测范围（GPU
+`int8_vnomask`/`int4_causal_vnomask`）。
 
 ## 注意事项
 
 - 文本 token 数使用 GME package tokenizer，并记录每个页面/chunk 的 token 统计。
 - PDF 原生文本优先；本评测不默认 OCR，因为该 PDF 有可用文本层。OCR 只应作为单独实验，不能与原生文本结果混合。
 - 150 DPI 是页面图像默认点；如需扩展分辨率，应新增结果文件，不覆盖本次结果。
-- 当前 GME package 有 `gme_language_int4_causal.xml`，但没有 `int8_causal` 导出；因此默认评测使用最新 causal INT4 和现有普通 INT8，不对 int8 causal 做外推，也不需要为不存在的 int8 causal 重新导出。
+- 当前 GME package 有 `gme_language_int4_causal.xml`，但没有 `int8_causal` 导出；因此默认评测使用最新 causal INT4、普通 INT8 和两者对应的 mask-free visual IR，不对 int8 causal 做外推，也不需要为不存在的 int8 causal 重新导出。
+- `int4_causal_vnomask` 只改变 visual IR 的文件选择，相同的 causal language IR 已经存在；本次不需要重新导出或重新量化。

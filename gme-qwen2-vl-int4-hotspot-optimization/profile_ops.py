@@ -51,7 +51,7 @@ IR = {**_config_precisions(), **IR}
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--precision", default="int4", choices=sorted(IR))
+    ap.add_argument("--precision", default="int4_causal_vnomask", choices=sorted(IR))
     ap.add_argument("--device", default="GPU")
     ap.add_argument("--length", type=int, default=1024)
     ap.add_argument("--warmup", type=int, default=14)

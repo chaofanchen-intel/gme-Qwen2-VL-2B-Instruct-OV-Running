@@ -304,7 +304,8 @@ class GmeOpenVINO:
         max_length: int | None = None,
     ) -> None:
         """precision: one of the keys in the package config's ``precisions`` map
-        (e.g. ``fp32``/``int8``/``int4``); defaults to the package ``default_precision``.
+        (e.g. ``fp32``/``int8_vnomask``/``int4_causal_vnomask``); defaults to the
+        package ``default_precision``.
         fp32_math: force f32 inference-precision hint (defaults to True only for the
         fp32 weights, so the reference is reproduced exactly; quantized models use the
         device default for best speed).

@@ -1,0 +1,31 @@
+resolving workloads (tokenizing filler text, writing benchmark images) ...
+  text   128 tokens <- 215 chars (query: 209 chars + instruction)
+  image    448x448 -> grid [1, 32, 32], 1024 patch rows, 256 visual tokens, image-mode sequence 278 tokens
+
+=== suite: batch ===
+  python/GPU/per_sample/streams=1/N=1          text=40.4ms(40.4/emb) image=287.0ms(287.0/emb)
+  python/GPU/per_sample/streams=1/N=2          text=75.7ms(37.9/emb) image=574.0ms(287.0/emb)
+  python/GPU/per_sample/streams=1/N=4          text=152.1ms(38.0/emb) image=1143.6ms(285.9/emb)
+  python/GPU/per_sample/streams=1/N=8          text=287.7ms(36.0/emb) image=2263.2ms(282.9/emb)
+  python/GPU/per_sample/streams=1/N=16         text=570.9ms(35.7/emb)
+  python/GPU/per_sample/streams=1/N=32         text=1135.5ms(35.5/emb)
+  python/GPU/per_sample/streams=auto/N=1       text=68.1ms(68.1/emb) image=319.7ms(319.7/emb)
+  python/GPU/per_sample/streams=auto/N=2       text=75.8ms(37.9/emb) image=577.7ms(288.8/emb)
+  python/GPU/per_sample/streams=auto/N=4       text=146.6ms(36.6/emb) image=1137.6ms(284.4/emb)
+  python/GPU/per_sample/streams=auto/N=8       text=288.1ms(36.0/emb) image=2328.6ms(291.1/emb)
+  python/GPU/per_sample/streams=auto/N=16      text=567.9ms(35.5/emb)
+  python/GPU/per_sample/streams=auto/N=32      text=1124.9ms(35.1/emb)
+  python/GPU/padded/streams=1/N=1              text=40.1ms(40.1/emb) image=288.7ms(288.7/emb)
+  python/GPU/padded/streams=1/N=2              text=60.8ms(30.4/emb) image=555.5ms(277.7/emb)
+  python/GPU/padded/streams=1/N=4              text=119.2ms(29.8/emb) image=1112.8ms(278.2/emb)
+  python/GPU/padded/streams=1/N=8              text=221.1ms(27.6/emb) image=2237.7ms(279.7/emb)
+  python/GPU/padded/streams=1/N=16             text=470.8ms(29.4/emb)
+  python/GPU/padded/streams=1/N=32             text=890.1ms(27.8/emb)
+  python/GPU/padded/streams=auto/N=1           text=119.3ms(119.3/emb) image=329.8ms(329.8/emb)
+  python/GPU/padded/streams=auto/N=2           text=61.9ms(30.9/emb) image=577.0ms(288.5/emb)
+  python/GPU/padded/streams=auto/N=4           text=120.5ms(30.1/emb) image=1144.7ms(286.2/emb)
+  python/GPU/padded/streams=auto/N=8           text=221.0ms(27.6/emb) image=2244.1ms(280.5/emb)
+  python/GPU/padded/streams=auto/N=16          text=471.1ms(29.4/emb)
+  python/GPU/padded/streams=auto/N=32          text=901.0ms(28.2/emb)
+
+wrote /home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/benchmark_batch_int4_causal_vnomask.json

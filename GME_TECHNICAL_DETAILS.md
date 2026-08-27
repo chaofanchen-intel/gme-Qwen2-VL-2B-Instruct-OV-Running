@@ -2,6 +2,11 @@
 
 本文保留原始运行说明中的技术解释、实验方法、兼容性判断和性能结果。面向需要理解实现边界、复现实验或做部署选型的读者；日常 handoff 操作请先看 [README.md](README.md)，完整性能矩阵请看 [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md)。
 
+**当前状态（第四轮）**：package 已默认使用 `int8_vnomask`，低延迟推荐使用
+`int4_causal_vnomask`。`_vnomask` 只替换 image/fused 的 visual IR；旧的
+`int8`/`int4_causal` masked visual 数字在本文中仅作为历史对照。当前完整
+text/query/image/fused/batch 矩阵见 `gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/`。
+
 本文对应的脚本编号为连续的 `01` 到 `09`：
 
 - `01_reference.py`：官方 PyTorch golden reference；
@@ -25,8 +30,8 @@ GME-Qwen2-VL-2B-Instruct 不是普通 Qwen2-VL 生成模型后面简单接一个
 - Python OpenVINO FP32 在 text、query、image、fused 四种模式上与官方 PyTorch golden 等价；
 - C++ text/query 使用相同 tokenizer IR 和 language IR，FP32 下与 golden 等价；
 - C++ image/fused 使用 OpenCV，而 Python 参考使用 Pillow，resize 重采样会带来可测的 cosine 差异；
-- INT8 是当前部署候选，通常能保持约 `0.99` 级别的检索向量相似度；
-- INT4 体积更小，但必须使用业务数据验证 Recall@K、nDCG、Top-K 命中率；
+- `int8_vnomask` 是当前精度优先部署候选，通常能保持约 `0.99` 级别的检索向量相似度；
+- `int4_causal_vnomask` 是当前低延迟组合，体积更小，但必须使用业务数据验证 Recall@K、nDCG、Top-K 命中率；
 - CPU 和 GPU 的 batch 优化方向不同：CPU 主要靠 streams，GPU 主要靠 padded batch；
 - 本文的 CPU/GPU 结论不能外推到未验证的 NPU。
 
@@ -243,7 +248,7 @@ from gme_openvino import GmeOpenVINO
 enc = GmeOpenVINO(
     "/path/to/gme-qwen2-vl-2b-instruct-openvino",
     device="GPU",
-    precision="int8",
+    precision="int8_vnomask",
     cache_dir="/var/cache/gme_ov",
 )
 
@@ -282,7 +287,7 @@ C++ 的 `--min-image-tokens`/`--max-image-tokens` 可以调整图片 token 上�
 
 ## 8. 精度实测
 
-以下数据来自本机 Core Ultra 7 356H、Linux、OpenVINO 2026.2 环境，比较对象是官方 PyTorch FP32 golden。完整原始 JSON 位于 `artifacts/`，性能矩阵见 [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md)。
+以下数据来自本机 Core Ultra 7 356H、Linux、OpenVINO 2026.2 环境，比较对象是官方 PyTorch FP32 golden；这些是历史精度矩阵。当前第四轮的 mask-free precision 组合和 document embedding 质量结果见 [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md) 与 [document_embedding_eval_int8_int4_gpu/REPORT.md](document_embedding_eval_int8_int4_gpu/REPORT.md)。
 
 ### 8.1 Python OpenVINO
 
@@ -388,11 +393,11 @@ C++ text/query 与 Python 共用 tokenizer/language IR，因此接近精确；im
 
 | 设备 | 推荐方式 | 实测结果 |
 | --- | --- | --- |
-| CPU INT8 | `per_sample + streams="auto"` | text×8 约 `1.81x`，image×4 约 `1.76x` |
-| CPU INT8 | padded | N=1/4/8 归一化吞吐约 `1.00x/1.00x/0.99x` |
-| GPU INT8 | padded batch | 短文本 N=4 约 `22.04 ms/embedding` |
-| GPU INT8 | 4 次串行单样本 | 约 `71.49 ms/embedding` |
-| GPU INT8 | 4 个异步单样本 | 约 `53.20 ms/embedding` |
+| CPU `int8_vnomask` | `per_sample + streams="auto"` | 历史 text×8 约 `1.81x`，image×4 约 `1.76x` |
+| CPU `int8_vnomask` | padded | 历史 N=1/4/8 归一化吞吐约 `1.00x/1.00x/0.99x` |
+| GPU `int8_vnomask` | padded batch | 当前 fresh 短文本 N=4 约 `32.85 ms/embedding` |
+| GPU `int8_vnomask` | 4 次串行单样本 | 当前 fresh 约 `51.11 ms/embedding` |
+| GPU `int8_vnomask` | 4 个异步单样本 | 当前 fresh `per_sample/streams=auto` 约 `51.42 ms/embedding` |
 
 因此 `batch_mode="auto"` 在 CPU 选择 per-sample，在 GPU 选择 padded。完整的 `N={1,2,4,8,16,32}` 矩阵由 `08_benchmark_matrix.py --suite batch` 生成，结果见 [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md)。
 
@@ -405,8 +410,9 @@ C++ text/query 与 Python 共用 tokenizer/language IR，因此接近精确；im
 | precision | language | visual | 说明 |
 | --- | --- | --- | --- |
 | `fp32` | FP32 | FP32 | 参考精度 |
-| `int8` | INT8 | INT8，排除 rotary | 默认部署候选 |
-| `int4` | INT4 gs128，data-aware | INT4 gs128，排除 rotary | 体积最小组合 |
+| `int8_vnomask` | INT8 | INT8，排除 rotary，mask-free visual | 当前默认部署候选 |
+| `int4_causal_vnomask` | INT4 gs128，causal、data-aware | INT4 gs128，排除 rotary，mask-free visual | 当前低延迟推荐 |
+| `int8` / `int4` | 历史普通语言/视觉组合 | masked visual | 历史对照，仍保留用于复现 |
 | `int4_gs64` | INT4 gs64，data-aware | INT4 | 文本质量恢复较好 |
 | `int4_visint8` | INT4，data-aware | INT8 | 视觉塔更保守 |
 
@@ -425,14 +431,15 @@ INT4 language 使用 calibration、AWQ 和 scale estimation；校准文本跨长
 
 ```text
 GPU:
-  precision = int8
+  precision = int8_vnomask
   batch_mode = padded
   streams = 1
   text micro-batch = 8~16
   image micro-batch = 4~8
+  low-latency text precision = int4_causal_vnomask
 
 CPU:
-  precision = int8
+  precision = int8_vnomask
   batch_mode = per_sample
   streams = auto
   text micro-batch = 4~8

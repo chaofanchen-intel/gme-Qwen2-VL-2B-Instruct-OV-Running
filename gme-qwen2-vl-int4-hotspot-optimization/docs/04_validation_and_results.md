@@ -4,6 +4,13 @@
 > 加上第二轮的 opt-3 之后精度结论有一处变化，记在 **§4.1b**，性能数字统一按
 > 第二轮重测（**§4.3**）。
 
+> **第四轮状态**：本文前面的 opt-1/2/3 验证和第三轮 image/fused 可运行性结果
+> 都是历史 masked visual 口径。第四轮没有新增 plugin 改动，而是新增
+> `gme_visual_*_nomask.xml`；当前 `int8_vnomask` / `int4_causal_vnomask` 的
+> fresh GPU 性能与 document embedding 结果见
+> [`docs/11`](11_round4_image_fused_optimization.md) 和
+> [`results/r4_rerun_20260826/`](../results/r4_rerun_20260826/)。
+
 ## 4.1 数值正确性（opt-1 + opt-2）：bit-identical
 
 对照组用 **pip 安装的官方 OpenVINO 2026.3.0 wheel**
@@ -222,3 +229,11 @@ vtune -collect gpu-hotspots -result-dir results/vtune-gpu-hotspots-int4-1024-pat
    权重压缩 GEMM 的实际吞吐**，但其中有一部分（宽投影的权重排布）是 OpenVINO
    侧就能修的，两轮合计已拿到 **~17%** 的干净收益；再往前要么动 oneDNN kernel
    本身，要么动模型导出（§5.2）。
+
+## 4.6 第四轮当前结果入口
+
+第四轮 mask-free visual 优化已通过 FP32 逐位等价性和单图 visual batch contract
+验证；它只影响 image/fused 的 visual IR，不改变 text/query 的 language IR。当前
+部署应使用 `int8_vnomask` 或 `int4_causal_vnomask`，而不是把本文历史的
+`int8`/`int4_causal` masked visual 组合称为最新默认。完整的 text/query、image/fused
+和 batch fresh 数据见 [`../results/r4_rerun_20260826/`](../results/r4_rerun_20260826/)。

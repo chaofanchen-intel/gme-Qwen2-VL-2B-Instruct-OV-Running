@@ -9,6 +9,13 @@
 plugin patch 和 bit-identical 回归验证，见
 [gme-qwen2-vl-int4-hotspot-optimization/README.md](./gme-qwen2-vl-int4-hotspot-optimization/README.md)。
 
+当前交付 package 已包含第四轮 mask-free visual IR。默认精度 key 是
+`int8_vnomask`（精度优先）和 `int4_causal_vnomask`（低延迟推荐）；其中
+`_vnomask` 只改变 image/fused 使用的 visual IR，纯 text/query 的 language IR
+分别仍是普通 INT8 和 causal INT4。当前 fresh GPU 矩阵和 document embedding
+结果见 [gme-qwen2-vl-int4-hotspot-optimization/results/README.md](./gme-qwen2-vl-int4-hotspot-optimization/results/README.md)
+以及 [document_embedding_eval_int8_int4_gpu/REPORT.md](./document_embedding_eval_int8_int4_gpu/REPORT.md)。
+
 支持四种输入模式：
 
 - `text`：默认 instruction 的文本 embedding；
@@ -42,12 +49,12 @@ GME checkpoint + gme_inference.py
               |       -> golden_meta.json
               |
               +-- 02_export.py
-              |       -> gme_language_fp32.xml
-              |       -> gme_visual_fp32.xml
+                    |       -> gme_language_fp32.xml / gme_language_fp32_causal.xml
+                    |       -> gme_visual_fp32.xml / gme_visual_fp32_nomask.xml
               |
               +-- 03_finalize.py
                       -> openvino_tokenizer.xml
-                      -> INT8 / INT4 IR
+                      -> INT8 / INT4 / causal / mask-free IR
                       -> gme_openvino_config.json
 
 Python runtime: gme_openvino.py
@@ -57,7 +64,7 @@ C++ runtime: cpp/gme_embed
   native tokenizer + image preprocessing -> visual IR -> language IR -> embedding[1536]
 ```
 
-`gme_language` 包含 token embedding、视觉 token 注入、decoder、last-valid-token pooling 和 L2 normalize。`gme_visual` 只负责视觉编码。纯文本不会调用视觉 IR。视觉 IR 按单图调用，这是为了适配 Qwen2-VL 导出图中按 `image_grid_thw` 进行的 Python 控制流；运行时仍然支持任意数量、任意分辨率的图片输入。
+`gme_language` 包含 token embedding、视觉 token 注入、decoder、last-valid-token pooling 和 L2 normalize。`gme_visual` 只负责视觉编码。纯文本不会调用视觉 IR。当前 image/fused 默认使用 mask-free visual IR：它去掉了对单图路径恒为全 True 的 rank-3 BOOL attention mask，使视觉 SDPA 走优化 kernel。视觉 IR 按单图调用，这是为了适配 Qwen2-VL 导出图中按 `image_grid_thw` 进行的 Python 控制流；运行时仍然支持任意数量、任意分辨率的图片输入。
 
 ## 目录结构
 
@@ -84,7 +91,7 @@ gme-Qwen2-VL-2B-Instruct-Running/
 导出和 Python 校验需要一个包含以下依赖的 Python 环境：
 
 - PyTorch；
-- `transformers==4.51.3`；
+- `transformers==4.51.3` 或由 `gme_compat.py` 适配的兼容版本（当前第四轮 package 使用 5.2.0 导出）；
 - OpenVINO Runtime；
 - NNCF；
 - `openvino-tokenizers`；
@@ -163,7 +170,7 @@ PY=/path/to/python
   --artifacts "$ART"
 ```
 
-默认生成 `fp32`、`int8`、`int4`、`int4_gs64` 和 `int4_visint8`。默认精度是 `int8`。`--force` 用于忽略 NNCF 指纹并重新量化；正常重复运行会跳过配置未变化的产物。
+默认生成 `fp32`、`int8`、`int4`、`int4_gs64`、causal 语言 IR、mask-free visual IR 和 `int4_visint8`。package 默认精度是 `int8_vnomask`；`int4_causal_vnomask` 是当前低延迟推荐组合。`--force` 用于忽略 NNCF 指纹并重新量化；正常重复运行会跳过配置未变化的产物。
 
 ### 4. Python 精度校验
 
@@ -175,7 +182,7 @@ PY=/path/to/python
   --devices CPU,GPU
 ```
 
-如果 `golden_fused.npy` 不存在，脚本会用 `--source-model` 生成并缓存它。只测 CPU 时可以使用 `--devices CPU`；只测部分量化精度可以使用 `--precisions int8,int4`。
+如果 `golden_fused.npy` 不存在，脚本会用 `--source-model` 生成并缓存它。只测 CPU 时可以使用 `--devices CPU`；只测部分量化精度可以使用 `--precisions int8_vnomask,int4_causal_vnomask`。
 
 ### 5. 构建 C++ runtime
 
@@ -213,7 +220,7 @@ bash "$RUN/cpp/build.sh" \
   --openvino-install "$OV" \
   --backends python,cpp \
   --devices CPU,GPU \
-  --precisions int8 \
+  --precisions int8_vnomask,int4_causal_vnomask \
   --repeat 20
 ```
 
@@ -244,7 +251,7 @@ bash "$RUN/cpp/build.sh" \
   --openvino-install "$OV" \
   --suite latency,text-lengths \
   --devices GPU \
-  --precisions int8 \
+  --precisions int8_vnomask,int4_causal_vnomask \
   --repeat 20
 
 "$PY" "$RUN/09_retest_gpu_1024.py" \
@@ -268,7 +275,7 @@ from gme_openvino import GmeOpenVINO
 encoder = GmeOpenVINO(
     "/path/to/gme-qwen2-vl-2b-instruct-openvino",
     device="GPU",
-    precision="int8",
+    precision="int8_vnomask",
 )
 text_embeddings = encoder.get_text_embeddings(["a compact electric vehicle"])
 query_embeddings = encoder.get_text_embeddings(
@@ -289,13 +296,13 @@ Python 图片输入支持本地路径、HTTP(S)、`file://`、base64 data URL �
 source "$OV/setupvars.sh"
 BIN="$RUN/cpp/build/gme_embed"
 
-"$BIN" --package "$PKG" --device GPU --precision int8 \
+"$BIN" --package "$PKG" --device GPU --precision int8_vnomask \
   --mode text --is-query 0 "a compact electric vehicle"
 
-"$BIN" --package "$PKG" --device GPU --precision int8 \
+"$BIN" --package "$PKG" --device GPU --precision int8_vnomask \
   --mode image --image "/path/to/image.png"
 
-"$BIN" --package "$PKG" --device GPU --precision int8 \
+"$BIN" --package "$PKG" --device GPU --precision int8_vnomask \
   --mode fused --image "/path/to/image.png" "a compact electric vehicle"
 ```
 
@@ -308,8 +315,9 @@ C++ 输入图片是本地路径；网络图片需要由调用方先下载。使�
 建议的初始部署配置：
 
 ```text
-GPU: precision=int8, batch_mode=padded, streams=1
-CPU: precision=int8, batch_mode=per_sample, streams=auto
+GPU: precision=int8_vnomask, batch_mode=padded, streams=1
+CPU: precision=int8_vnomask, batch_mode=per_sample, streams=auto
+GPU text low latency: precision=int4_causal_vnomask, batch_mode=padded, streams=1
 ```
 
 ## 已知限制

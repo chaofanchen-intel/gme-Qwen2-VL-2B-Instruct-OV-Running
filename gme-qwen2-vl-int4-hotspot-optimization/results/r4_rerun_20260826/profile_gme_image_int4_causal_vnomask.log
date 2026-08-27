@@ -1,0 +1,13 @@
+precision=int4_causal_vnomask language=gme_language_int4_causal.xml visual=gme_visual_int4_nomask.xml device=GPU batch_mode=padded
+image  448x448   L=1024  K=256   S=281   preproc=    13.9 visual=    199.2 language=    72.2 sum=    285.3 e2e=    285.9
+fused  448x448   L=1024  K=256   S=305   preproc=    14.0 visual=    199.5 language=    75.4 sum=    288.9 e2e=    289.7
+image  644x476   L=1564  K=391   S=416   preproc=    19.0 visual=    338.9 language=   107.4 sum=    465.3 e2e=    466.9
+fused  644x476   L=1564  K=391   S=440   preproc=    18.9 visual=    339.4 language=   110.8 sum=    469.1 e2e=    469.9
+image  672x672   L=2304  K=576   S=601   preproc=    25.5 visual=    530.4 language=   133.5 sum=    689.4 e2e=    691.0
+fused  672x672   L=2304  K=576   S=625   preproc=    25.8 visual=    530.1 language=   137.0 sum=    692.9 e2e=    693.9
+image  896x896   L=4096  K=1024  S=1049  preproc=    41.5 visual=   1158.6 language=   239.4 sum=   1439.5 e2e=   1441.8
+fused  896x896   L=4096  K=1024  S=1073  preproc=    44.7 visual=   1158.8 language=   243.8 sum=   1447.3 e2e=   1450.0
+image  1288x728  L=4784  K=1196  S=1221  preproc=    50.6 visual=   1455.6 language=   283.2 sum=   1789.4 e2e=   1797.8
+fused  1288x728  L=4784  K=1196  S=1245  preproc=    51.4 visual=   1459.7 language=   285.1 sum=   1796.2 e2e=   1799.9
+
+wrote /home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/profile_gme_image_int4_causal_vnomask.json

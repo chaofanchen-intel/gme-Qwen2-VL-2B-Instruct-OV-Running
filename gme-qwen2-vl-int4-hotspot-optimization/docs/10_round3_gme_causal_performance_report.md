@@ -1,5 +1,11 @@
 # 第三轮 GME 性能报告：causal 导出、量化方案与优化点对比
 
+> 本文记录第三轮（2026-08-21）的 language IR 统一重测，属于历史报告。第四轮
+> 已新增 mask-free visual IR，当前 package 使用 `int8_vnomask` 和
+> `int4_causal_vnomask`；当前 image/fused 和 batch 结果见
+> [`../results/r4_rerun_20260826/`](../results/r4_rerun_20260826/) 及
+> [`../../document_embedding_eval_int8_int4_gpu/REPORT.md`](../../document_embedding_eval_int8_int4_gpu/REPORT.md)。
+
 ## 1. 报告目的
 
 本报告汇总 GME-Qwen2-VL-2B-Instruct 第三轮优化后的 latency，重点回答四个问题：
@@ -21,7 +27,7 @@
 |---|---|
 | CPU/GPU | Intel Core Ultra 7 356H，32 EU Intel integrated GPU |
 | 内存特征 | memory-frequency-limited，实测 DRAM ceiling 约 48 GB/s |
-| OpenVINO runtime | `2026.3.0-22454-09c4cc4117e-qwen-ttft-optimizations` |
+| OpenVINO runtime（第三轮历史） | `2026.3.0-22454-09c4cc4117e-qwen-ttft-optimizations` |
 | OpenVINO commit | `09c4cc4117e220cb6771a626d30a45ed027901cd` |
 | workload | GME language IR，sequence length 1024 |
 | 输入 | `batch=1`，1024 token，全 1 attention mask |
@@ -42,7 +48,7 @@
 
 ## 3. 模型和导出组合
 
-### 3.1 当前存在的语言 IR
+### 3.1 第三轮阶段存在的语言 IR
 
 | precision key | 量化/导出含义 | causal | 是否纳入主比较 |
 |---|---|---:|---:|
@@ -68,9 +74,9 @@
 
 causal 路径的收益只应主要出现在 SDPA 和显式 mask 构造，不应改变 GEMM 的工作量。
 
-## 4. 统一重测：所有可用模型的当前 latency
+## 4. 统一重测：第三轮阶段所有可用模型的 latency
 
-以下均为 2026-08-21 统一重测、当前优化 runtime、1024 token、GPU、wall p50。
+以下均为 2026-08-21 统一重测、第三轮优化 runtime、1024 token、GPU、wall p50；不包含第四轮视觉 mask-free 改动。
 
 | 模型 | 导出/量化 | wall p50 | profiled sum | host gap | GEMM | SDPA | DynamicQuantize | RMSNorm | permute |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -87,7 +93,7 @@ causal 路径的收益只应主要出现在 SDPA 和显式 mask 构造，不应�
 
 ### 4.1 统一重测的直接结论
 
-1. **causal 是当前最有效的无损导出侧优化**：gs128 从 237.77 降到 223.30 ms，gs64 从
+1. **causal 是第三轮阶段最有效的无损导出侧优化**：gs128 从 237.77 降到 223.30 ms，gs64 从
    251.85 降到 238.06 ms；GEMM 基本不变，SDPA 约减半。
 2. **gs64 的主要代价在 GEMM**：普通 gs64 的 GEMM 166.02 ms，比 gs128 的 152.15 ms
    多 13.87 ms；causal 后这一差距仍然存在。
@@ -160,8 +166,8 @@ causal 路径的收益只应主要出现在 SDPA 和显式 mask 构造，不应�
 | 阶段 | wall p50 | 相对前一阶段 | 说明 |
 |---|---:|---:|---|
 | stock 普通导出 | 284.76 | — | 第三轮 gs64 stock profiling |
-| opt1+2+3 普通导出 | 251.85 | **−32.91 ms / −11.56%** | 当前优化 runtime 统一重测 |
-| opt1+2+3 + causal | 238.06 | **−13.79 ms / −5.47%** | 当前优化 runtime 统一重测 |
+| opt1+2+3 普通导出 | 251.85 | **−32.91 ms / −11.56%** | 第三轮优化 runtime 统一重测 |
+| opt1+2+3 + causal | 238.06 | **−13.79 ms / −5.47%** | 第三轮优化 runtime 统一重测 |
 
 gs64 从 stock 到 causal 约 284.76 → 238.06 ms，约 **1.196x，降低 16.40%**。
 注意 gs64 的 opt1+2+3 阶段收益比 gs128 大，不代表 gs64 一定更快；gs64 的量化 GEMM
@@ -182,7 +188,7 @@ gs64 从 stock 到 causal 约 284.76 → 238.06 ms，约 **1.196x，降低 16.40
 
 ## 7. 不同量化方案的性能与精度取舍
 
-### 7.1 性能排序（当前优化 runtime）
+### 7.1 性能排序（第三轮优化 runtime）
 
 按 wall p50 从快到慢：
 
@@ -204,7 +210,7 @@ gs64 从 stock 到 causal 约 284.76 → 238.06 ms，约 **1.196x，降低 16.40
 
 | 模型 | text cosine | query cosine | 结论 |
 |---|---:|---:|---|
-| `int4_causal` | 0.941730 | 0.955173 | 推荐默认 causal gs128 |
+| `int4_causal` | 0.941730 | 0.955173 | 第三轮推荐默认 causal gs128 |
 | `int4_gs64_causal` | 0.944205 | 0.957576 | 精度优先 causal 方案 |
 | `int4_sym_causal` | 0.926687 | 0.941559 | 性能更快，但 query 明显下降 |
 | `int4_gs64_sym_causal` | 0.937980 | 0.943423 | 不建议默认 |
@@ -216,11 +222,11 @@ causal 的 FP32 图等价已经逐位验证；上表量化 cosine 变化不能�
 
 ## 8. 结论和推荐
 
-### 8.1 默认推荐
+### 8.1 第三轮结束时默认推荐（第四轮前）
 
-**推荐 `int4_causal`：**
+**第三轮阶段推荐 `int4_causal`：**（第四轮前的 language-only 结论）
 
-- 当前优化 runtime 下 wall p50 约 223.3 ms；
+- 第三轮优化 runtime 下 wall p50 约 223.3 ms；
 - 相比普通 gs128 约再降 14.5 ms；
 - SDPA 从约 26.0 ms 降到 11.5 ms；
 - GEMM 基本不变；
@@ -286,7 +292,7 @@ done
   `results/per_oc_sym_ops_1024_patched.json`
 - causal FP32 等价：`results/r3_causal_equivalence_fp32.json`
 
-这份报告的核心结论是：**GME 当前最值得采用的是 causal 导出；它几乎只优化 SDPA，
+这份历史报告的核心结论是：**第三轮阶段最值得采用的是 causal 导出；它几乎只优化 SDPA，
 不会改变 GEMM latency。gs64 是精度优先选项，per-OC/对称量化是性能上限但有明显精度
 代价。plugin 侧 opt-1/opt-2/opt-3 仍然有效，但 opt-1/opt-2 的独立贡献当前只能以
 合并阶段观察。**

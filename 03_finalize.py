@@ -10,9 +10,9 @@ Adds, into the exported package directory:
   * an updated gme_openvino_config.json describing every precision.
 
 Run after 02_export.py has produced the FP32 IRs. A default run produces every *shipped*
-precision, including the round-3 causal-SDPA ones (int4_causal / int4_gs64_causal, the
-recommended defaults -- see docs/09_round3_further_latency_optimization.md), so
-01 -> 02 -> 03 reproduces the current optimized package with no extra steps.
+precision, including the round-3 causal-SDPA and round-4 mask-free visual variants. The
+current package defaults are `int8_vnomask` for the near-lossless path and
+`int4_causal_vnomask` for the lower-latency path; see docs/11.
 
 --round3-extras additionally builds the two analysis-only variants that back docs/09's
 argument but are not products: the _v5ctrl control group (S9.2.5) and the grouped-symmetric
@@ -518,7 +518,7 @@ def main() -> None:
            if (package / "gme_visual_int4_nomask_qkvfused.xml").exists()
            and (package / "gme_language_int4_causal.xml").exists() else {}),
     }
-    cfg["default_precision"] = "int8"
+    cfg["default_precision"] = "int8_vnomask" if "int8_vnomask" in cfg["precisions"] else "int8"
     cfg_path.write_text(json.dumps(cfg, indent=2) + "\n")
     print(f"[cfg] updated {cfg_path.name} with precisions: {list(cfg['precisions'])}")
 

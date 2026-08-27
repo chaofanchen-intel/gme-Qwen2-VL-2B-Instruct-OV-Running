@@ -6,7 +6,8 @@ image-processor assets:
 
 * ``gme_language_fp32.xml``: token lookup, visual-token insertion, decoder,
   last-valid-token pooling and L2 normalization.
-* ``gme_visual_fp32.xml``: Qwen2-VL's visual encoder.
+* ``gme_visual_fp32.xml``: Qwen2-VL's historical mask-carrying visual encoder.
+* ``gme_visual_fp32_nomask.xml``: current single-image mask-free visual encoder.
 
 Splitting the two neural subgraphs avoids the excessive conversion-memory peak
 of a complete visual-language graph. The runtime only passes the visual
@@ -562,12 +563,12 @@ def main() -> None:
     if args.stage == "all":
         # "language" runs twice: once for the mask-carrying IR that every earlier round was
         # measured on, once for the causal IR that docs/09 adopts. Both are products -- the
-        # first keeps the historical baseline reproducible, the second is the recommended
-        # default -- so an in-order 01..05 run has to produce both.
+        # first keeps the historical baseline reproducible, the second is the current
+        # causal language option -- so an in-order 01..05 run has to produce both.
         # "language" and "visual" each run twice: once for the mask-carrying IR that the
-        # earlier rounds were measured on, once for the mask-free IR the current default
-        # adopts (docs/09 for language, docs/11 for vision). Both are products -- the first
-        # keeps the historical baseline reproducible, the second is the recommendation --
+        # earlier rounds were measured on, once for the mask-free IR used by the current
+        # image/fused package (docs/11 for vision). Both are products -- the first keeps
+        # the historical baseline reproducible, the second is the current visual option --
         # so an in-order 01..05 run has to produce both.
         stages: list[tuple[str, list[str]]] = [
             ("language", []),

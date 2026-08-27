@@ -4,7 +4,7 @@ order, each session a fresh model compile + warmup + repeat, forcing both backen
 into the same GPU power/thermal regime before timing so the comparison is apples
 to apples.
 
-Motivated by PERFORMANCE_REPORT.md 6.2: a single-run matrix showed C++ int8/int4
+Motivated by PERFORMANCE_REPORT.md 6.2: a single-run matrix showed C++ quantized
 at GPU 1024 tok roughly 2x slower than Python, while fp32 and every other length
 matched closely. The first pass at this (see git history / the JSON this file
 used to write) assumed a cold-GPU-clock-ramp story and "fixed" it by adding a
@@ -53,7 +53,7 @@ DEFAULT_OPENVINO_INSTALL = HERE.parent / "benchmark" / "openvino" / "install"
 INSTRUCTION = "Find an image that matches the given text."
 
 # Calls needed to run past the boost->steady-state transition. Measured by hand:
-# inside one continuous process, int8/int4 flip after the 3rd call and never flip
+# inside one continuous process, the quantized vnomask paths flip after the 3rd call and never flip
 # back across 20 further calls. But each FRESH PROCESS launch samples whatever
 # ambient GPU power state happens to exist at that instant -- which is not a pure
 # function of this process's own warmup count -- so no fixed warmup count forces
@@ -63,14 +63,14 @@ INSTRUCTION = "Find an image that matches the given text."
 # is left to the multi-round median/p10/p90 in the summary rather than assumed
 # away. fp32 calls are already ~1.7s, long enough that the transition happens
 # within a single call.
-STEADY_WARMUP = {"fp32": 3, "int8": 12, "int4": 14}
+STEADY_WARMUP = {"fp32": 3, "int8_vnomask": 12, "int4_causal_vnomask": 14}
 
 # (precision, session count, repeat per session, batch_mode override or None)
 PLAN = [
     ("fp32", 8, 2, None),
-    ("int8", 15, 5, None),
-    ("int4", 15, 5, None),
-    ("int8", 6, 5, "per_sample"),  # diagnostic: does forcing per_sample on GPU change the picture?
+    ("int8_vnomask", 15, 5, None),
+    ("int4_causal_vnomask", 15, 5, None),
+    ("int8_vnomask", 6, 5, "per_sample"),  # diagnostic: does forcing per_sample on GPU change the picture?
 ]
 
 

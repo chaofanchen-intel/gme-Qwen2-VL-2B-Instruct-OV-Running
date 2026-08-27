@@ -1,5 +1,31 @@
 # GME hotspot results
 
+## 当前第四轮 fresh rerun：`r4_rerun_20260826/`
+
+这是当前交付 package 的最新 GPU/Python 重测，使用与 package 同源的 custom
+OpenVINO core、GPU plugin 和 Python binding：
+`2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`。本轮使用
+`int8_vnomask` 和 `int4_causal_vnomask`，即 mask-free visual IR；没有使用官方
+wheel runtime。text/query 使用 32/128/512/1024 effective tokens，image/fused
+使用 448x448、644x476、672x672、896x896、1288x728 和 logo，batch 使用
+N=1/2/4/8/16/32（image 到 N=8），并覆盖 `per_sample`/`padded` 与
+`streams=1/auto`。
+
+| 文件 | 内容 |
+| --- | --- |
+| `benchmark_text_image_matrix.json` | 两个当前 precision 的 text/query 长度和 image/fused 尺寸矩阵，Python/GPU，repeat=5 |
+| `benchmark_batch_int8_vnomask.json` | `int8_vnomask` 的完整 text/image batch 矩阵 |
+| `benchmark_batch_int4_causal_vnomask.json` | `int4_causal_vnomask` 的完整 text/image batch 矩阵 |
+| `profile_gme_image_int8_vnomask.json` | `int8_vnomask` 的 preprocess/visual/language/end-to-end stage split，p50 |
+| `profile_gme_image_int4_causal_vnomask.json` | `int4_causal_vnomask` 的 preprocess/visual/language/end-to-end stage split，p50 |
+| `benchmark_*.log` | 对应命令的原始 stdout/stderr |
+| `bench_images/` | 矩阵使用的确定性 synthetic 图片 |
+
+fresh 矩阵的主要结果应以 **mean ms/call** 和 `ms/embedding` 为主，原始 JSON
+保留所有 cell；当前 document embedding 的四表示、batch 1/4/8/14 和质量结果
+见 `../../document_embedding_eval_int8_int4_gpu/results/` 下的当前 rerun 文件及其
+`REPORT.md`。
+
 `gme_visual_opt123_20260813.json` records the stock-vs-opt1+opt2+opt3 GME
 image/fused smoke and correctness comparison. The patched GME visual path remains
 runnable; image-only is bit-identical for the tested sizes, while some fused cases

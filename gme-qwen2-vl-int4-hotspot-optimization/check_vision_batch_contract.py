@@ -23,7 +23,7 @@ for reasons that have nothing to do with the vision tower -- measured here at up
 and present on the shipped mask-carrying package too. Comparing the visual output isolates
 the property this change could actually break.
 
-    python check_vision_batch_contract.py --precisions int4_causal,int4_causal_vnomask
+    python check_vision_batch_contract.py --precisions int4_causal,int4_causal_vnomask,int8,int8_vnomask
 """
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ def cos_rows(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--device", default="GPU")
-    ap.add_argument("--precisions", default="int4_causal,int4_causal_vnomask")
+    ap.add_argument("--precisions", default="int4_causal,int4_causal_vnomask,int8,int8_vnomask")
     ap.add_argument("--output", default=None)
     args = ap.parse_args()
 

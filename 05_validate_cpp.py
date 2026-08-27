@@ -66,7 +66,7 @@ def main():
                         help="OpenVINO installation containing setupvars.sh")
     parser.add_argument("--devices", default="CPU,GPU",
                         help="comma-separated devices to test (default: CPU,GPU)")
-    parser.add_argument("--precisions", default="fp32,int8,int4",
+    parser.add_argument("--precisions", default="fp32,int8_vnomask,int4_causal_vnomask",
                         help="comma-separated precisions to test")
     parser.add_argument("--timeout", type=int, default=600,
                         help="per-inference subprocess timeout in seconds")

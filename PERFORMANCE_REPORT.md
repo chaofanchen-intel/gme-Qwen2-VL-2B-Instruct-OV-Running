@@ -1,11 +1,118 @@
 # GME-Qwen2-VL-2B-Instruct OpenVINO 性能测试报告
 
-**状态：已完成实测（2026-08-03）。** 所有时延数据均来自 `08_benchmark_matrix.py` 的 `repeat=20` 结果；
-原始 JSON 保存在 `artifacts/benchmark_matrix_*_r20*.json`。**不要**引用 `GME_TECHNICAL_DETAILS.md` §9.1/§9.2 的历史数值来填本表：
-那些是另一套 workload（`gme_logo.png` + 27 token 短句），与本报告的常见尺寸/长文本口径不可比。
+**状态：当前第四轮结果已完成，历史主表保留。** 本文件后面的原有章节是
+2026-08-03 的 repeat=20 历史矩阵，使用旧的普通/masked visual precision；它们
+仍可用于 workload 对照，但不代表当前 package 默认值。当前结果使用
+`int8_vnomask` 和 `int4_causal_vnomask`，主要统计按 mean 解读，原始 JSON 见
+[`gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/`](gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/)。
+
+历史主表的所有时延数据来自 `08_benchmark_matrix.py` 的 `repeat=20` 结果；
+原始 JSON 保存在 `artifacts/benchmark_matrix_*_r20*.json`。**不要**用
+`GME_TECHNICAL_DETAILS.md` §9.1/§9.2 的另一套历史 workload（`gme_logo.png` +
+27 token 短句）填当前表格。
 
 本报告与 `GME_TECHNICAL_DETAILS.md` §9.1–§9.3 的关系：技术说明记录**固定参考 workload** 的历史结果（用于回归对比）；本报告覆盖
 **部署选型真正需要的维度**——指定 token 长度的文本、常见分辨率的图片、以及 batch 扩展性。
+
+## 当前第四轮 fresh rerun（2026-08-26）
+
+本节是当前 package 的性能入口。测试使用同源 custom Python binding、OpenVINO
+core 和 GPU plugin，版本为
+`2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`；没有混用 qwen_env
+中的官方 OpenVINO wheel runtime。运行时环境为：
+
+```bash
+ROOT=/home/chaofan/model_benchmark
+OV=$ROOT/benchmark/openvino
+GME=$ROOT/gme-Qwen2-VL-2B-Instruct-Running
+CUSTOM_PY=$OV/bin/intel64/Release/python
+CUSTOM_LIB=$OV/bin/intel64/Release
+TBB=$OV/temp/Linux_x86_64/tbb/lib
+PY=/home/chaofan/envs/qwen_env/bin/python3
+export PYTHONPATH="$CUSTOM_PY:$GME"
+export LD_LIBRARY_PATH="$CUSTOM_LIB:$TBB"
+export OPENVINO_LIB_PATHS="$CUSTOM_LIB"
+export OPENVINO_PLUGIN_PATH="$CUSTOM_LIB"
+```
+
+`int8_vnomask` 使用普通 INT8 language IR + mask-free INT8 visual IR；
+`int4_causal_vnomask` 使用 causal INT4 language IR + mask-free INT4 visual IR。
+两者都已有于 package，不需要重新导出。本次矩阵只启用 Python/GPU，先 warm
+后 repeat=5；它是当前 workload 的新基准，不与下方历史 repeat=20 数字混算。
+
+### text/query（N=1，mean ms/call）
+
+| precision | 32 tokens text/query | 128 tokens text/query | 512 tokens text/query | 1024 tokens text/query |
+| --- | ---: | ---: | ---: | ---: |
+| `int8_vnomask` | 44.12 / 43.80 | 54.18 / 54.15 | 135.56 / 135.63 | 279.68 / 280.77 |
+| `int4_causal_vnomask` | 32.32 / 31.99 | 41.86 / 41.65 | 119.36 / 119.35 | 226.00 / 226.16 |
+
+### image/fused（N=1，mean ms/call）
+
+| precision | 448x448 / 256K | 644x476 / 391K | 672x672 / 576K | 896x896 / 1024K | 1288x728 / 1196K | logo / 1260K |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `int8_vnomask` | 310.53 / 306.94 | 486.84 / 484.11 | 729.97 / 728.56 | 1523.18 / 1521.81 | 1850.57 / 1850.86 | 2176.51 / 2170.73 |
+| `int4_causal_vnomask` | 296.37 / 296.43 | 470.46 / 468.91 | 699.25 / 694.68 | 1449.80 / 1449.04 | 1800.29 / 1795.29 | 2110.59 / 2114.97 |
+
+### batch（Python/GPU，text=128 tokens，image=448x448）
+
+单元格为 `mean ms/call (mean ms/embedding)`。`N` 是一次公开 API 调用的样本数；
+视觉塔仍按单图执行，batch 主要影响后续 language/request 编排。
+
+| precision / mode / streams | N=1 | N=2 | N=4 | N=8 | N=16 | N=32 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `int8_vnomask` / per_sample / 1 | 54.70 (54.70) | 105.27 (52.64) | 204.46 (51.11) | 402.41 (50.30) | 798.05 (49.88) | 1584.76 (49.52) |
+| `int8_vnomask` / padded / 1 | 54.71 (54.71) | 73.12 (36.56) | 131.42 (32.85) | 259.72 (32.47) | 486.51 (30.41) | 1007.78 (31.49) |
+| `int4_causal_vnomask` / per_sample / 1 | 40.43 (40.43) | 75.74 (37.87) | 152.07 (38.02) | 287.73 (35.97) | 570.85 (35.68) | 1135.49 (35.48) |
+| `int4_causal_vnomask` / padded / 1 | 40.12 (40.12) | 60.82 (30.41) | 119.24 (29.81) | 221.12 (27.64) | 470.79 (29.42) | 890.09 (27.82) |
+
+对应的 image batch（只到 N=8）：
+
+| precision / mode / streams | N=1 | N=2 | N=4 | N=8 |
+| --- | ---: | ---: | ---: | ---: |
+| `int8_vnomask` / per_sample / 1 | 305.54 (305.54) | 605.65 (302.83) | 1199.44 (299.86) | 2382.24 (297.78) |
+| `int8_vnomask` / padded / 1 | 306.81 (306.81) | 579.71 (289.86) | 1146.85 (286.71) | 2275.64 (284.46) |
+| `int4_causal_vnomask` / per_sample / 1 | 286.99 (286.99) | 574.05 (287.03) | 1143.63 (285.91) | 2263.17 (282.90) |
+| `int4_causal_vnomask` / padded / 1 | 288.68 (288.68) | 555.45 (277.72) | 1112.75 (278.19) | 2237.67 (279.71) |
+
+完整的 `streams=auto` 结果、workload shape、每个 cell 和 stdout/stderr 保留在：
+
+- [`benchmark_text_image_matrix.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/benchmark_text_image_matrix.json)
+- [`benchmark_batch_int8_vnomask.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/benchmark_batch_int8_vnomask.json)
+- [`benchmark_batch_int4_causal_vnomask.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/benchmark_batch_int4_causal_vnomask.json)
+
+当前矩阵可用下面的环境和命令复现（`batch` suite 的 precision 需要分别运行）：
+
+```bash
+ROOT=/home/chaofan/model_benchmark
+OV=$ROOT/benchmark/openvino
+GME=$ROOT/gme-Qwen2-VL-2B-Instruct-Running
+HOT=$GME/gme-qwen2-vl-int4-hotspot-optimization
+CUSTOM_PY=$OV/bin/intel64/Release/python
+CUSTOM_LIB=$OV/bin/intel64/Release
+TBB=$OV/temp/Linux_x86_64/tbb/lib
+PY=/home/chaofan/envs/qwen_env/bin/python3
+
+env -i HOME="$HOME" PATH=/usr/bin:/bin \
+  PYTHONPATH="$CUSTOM_PY:$GME" \
+  LD_LIBRARY_PATH="$CUSTOM_LIB:$TBB" \
+  OPENVINO_LIB_PATHS="$CUSTOM_LIB" OPENVINO_PLUGIN_PATH="$CUSTOM_LIB" \
+  "$PY" -u "$GME/08_benchmark_matrix.py" \
+    --package "$GME/ov_models/gme-qwen2-vl-2b-instruct-openvino" \
+    --artifacts "$HOT/results/r4_rerun_20260826" \
+    --backends python --devices GPU \
+    --precisions int8_vnomask,int4_causal_vnomask \
+    --suite text-lengths,image-sizes --text-lengths 32,128,512,1024 \
+    --image-sizes 448x448,644x476,672x672,896x896,1288x728 \
+    --include-logo --repeat 5 \
+    --output "$HOT/results/r4_rerun_20260826/benchmark_text_image_matrix.json"
+```
+
+`run_eval.py` 的当前 document embedding 命令和 custom binding 环境见
+[`document_embedding_eval_int8_int4_gpu/README.md`](document_embedding_eval_int8_int4_gpu/README.md)。
+
+下方原有章节统一视为**历史 repeat=20 参考矩阵**；其中的 `int8`、`int4` 和
+masked visual 结果不要替代本节的当前 vnomask 结果。
 
 ## PA / SDPA backend 适用性
 
@@ -201,7 +308,7 @@ language IR:          [4, S=max(Sa,Sb,Sc,Sd)]
 
 ---
 
-## 5. 复现命令
+## 5. 历史 repeat=20 矩阵复现命令
 
 ```bash
 source ../benchmark/openvino/install/setupvars.sh

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Profile steady-state GME Qwen2-VL GPU INT4 text/query inference."""
+"""Profile steady-state GME Qwen2-VL GPU text/query inference."""
 from __future__ import annotations
 
 import argparse
@@ -62,8 +62,8 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=HERE / "results" / "profile_run.json")
     parser.add_argument("--batch-mode", choices=("padded", "per_sample"), default="padded")
     parser.add_argument("--streams", default="1")
-    parser.add_argument("--precision", default="int4",
-                        help="package precision key (default: int4)")
+    parser.add_argument("--precision", default="int4_causal_vnomask",
+                        help="package precision key (default: int4_causal_vnomask)")
     args = parser.parse_args()
 
     sys.path.insert(0, str(GME_ROOT))

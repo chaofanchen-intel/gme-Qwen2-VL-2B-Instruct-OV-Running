@@ -1,0 +1,326 @@
+{
+  "unit": "ms, warm, end-to-end per call (tokenize/preprocess + inference), excludes load/compile",
+  "repeat": 5,
+  "config": {
+    "devices": [
+      "GPU"
+    ],
+    "precisions": [
+      "int8_vnomask"
+    ],
+    "backends": [
+      "python"
+    ],
+    "instruction": "Find an image that matches the given text.",
+    "repeat": 5,
+    "text_lengths": [
+      128
+    ],
+    "image_sizes": [
+      "448x448"
+    ],
+    "include_logo": false,
+    "batch_sizes": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32
+    ],
+    "image_batch_sizes": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "batch_modes": [
+      "per_sample",
+      "padded"
+    ],
+    "streams": [
+      1,
+      "auto"
+    ],
+    "batch_precision": "int8_vnomask",
+    "batch_text_length": 128
+  },
+  "workloads": {
+    "texts": {
+      "128": {
+        "text": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 215,
+          "sequence_tokens": 128
+        },
+        "query": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 209,
+          "instruction": "Find an image that matches the given text.",
+          "sequence_tokens": 128
+        }
+      }
+    },
+    "images": {
+      "448x448": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/bench_images/bench_448x448.png",
+        "image": {
+          "file": "bench_448x448.png",
+          "source_size_wh": [
+            448,
+            448
+          ],
+          "processor_size_wh": [
+            448,
+            448
+          ],
+          "image_grid_thw": [
+            1,
+            32,
+            32
+          ],
+          "raw_patch_rows": 1024,
+          "visual_tokens": 256,
+          "sequence_tokens": 278
+        },
+        "fused": {
+          "file": "bench_448x448.png",
+          "source_size_wh": [
+            448,
+            448
+          ],
+          "processor_size_wh": [
+            448,
+            448
+          ],
+          "image_grid_thw": [
+            1,
+            32,
+            32
+          ],
+          "raw_patch_rows": 1024,
+          "visual_tokens": 256,
+          "sequence_tokens": 386
+        }
+      }
+    },
+    "note": "sequence_tokens is the effective unpadded length after GME templating, including the expanded image-pad run; visual_tokens is grid_t*grid_h*grid_w/4"
+  },
+  "suites": {
+    "batch": {
+      "text_length": "128",
+      "image_size": "448x448",
+      "precision": "int8_vnomask",
+      "cells": {
+        "python/GPU/per_sample/streams=1/N=1": {
+          "text": {
+            "ms_per_call": 54.7,
+            "ms_per_embedding": 54.7
+          },
+          "image": {
+            "ms_per_call": 305.54,
+            "ms_per_embedding": 305.54
+          }
+        },
+        "python/GPU/per_sample/streams=1/N=2": {
+          "text": {
+            "ms_per_call": 105.27,
+            "ms_per_embedding": 52.64
+          },
+          "image": {
+            "ms_per_call": 605.65,
+            "ms_per_embedding": 302.83
+          }
+        },
+        "python/GPU/per_sample/streams=1/N=4": {
+          "text": {
+            "ms_per_call": 204.46,
+            "ms_per_embedding": 51.11
+          },
+          "image": {
+            "ms_per_call": 1199.44,
+            "ms_per_embedding": 299.86
+          }
+        },
+        "python/GPU/per_sample/streams=1/N=8": {
+          "text": {
+            "ms_per_call": 402.41,
+            "ms_per_embedding": 50.3
+          },
+          "image": {
+            "ms_per_call": 2382.24,
+            "ms_per_embedding": 297.78
+          }
+        },
+        "python/GPU/per_sample/streams=1/N=16": {
+          "text": {
+            "ms_per_call": 798.05,
+            "ms_per_embedding": 49.88
+          }
+        },
+        "python/GPU/per_sample/streams=1/N=32": {
+          "text": {
+            "ms_per_call": 1584.76,
+            "ms_per_embedding": 49.52
+          }
+        },
+        "python/GPU/per_sample/streams=auto/N=1": {
+          "text": {
+            "ms_per_call": 60.95,
+            "ms_per_embedding": 60.95
+          },
+          "image": {
+            "ms_per_call": 312.24,
+            "ms_per_embedding": 312.24
+          }
+        },
+        "python/GPU/per_sample/streams=auto/N=2": {
+          "text": {
+            "ms_per_call": 105.31,
+            "ms_per_embedding": 52.66
+          },
+          "image": {
+            "ms_per_call": 611.34,
+            "ms_per_embedding": 305.67
+          }
+        },
+        "python/GPU/per_sample/streams=auto/N=4": {
+          "text": {
+            "ms_per_call": 205.7,
+            "ms_per_embedding": 51.42
+          },
+          "image": {
+            "ms_per_call": 1213.59,
+            "ms_per_embedding": 303.4
+          }
+        },
+        "python/GPU/per_sample/streams=auto/N=8": {
+          "text": {
+            "ms_per_call": 400.82,
+            "ms_per_embedding": 50.1
+          },
+          "image": {
+            "ms_per_call": 2461.06,
+            "ms_per_embedding": 307.63
+          }
+        },
+        "python/GPU/per_sample/streams=auto/N=16": {
+          "text": {
+            "ms_per_call": 797.45,
+            "ms_per_embedding": 49.84
+          }
+        },
+        "python/GPU/per_sample/streams=auto/N=32": {
+          "text": {
+            "ms_per_call": 1583.97,
+            "ms_per_embedding": 49.5
+          }
+        },
+        "python/GPU/padded/streams=1/N=1": {
+          "text": {
+            "ms_per_call": 54.71,
+            "ms_per_embedding": 54.71
+          },
+          "image": {
+            "ms_per_call": 306.81,
+            "ms_per_embedding": 306.81
+          }
+        },
+        "python/GPU/padded/streams=1/N=2": {
+          "text": {
+            "ms_per_call": 73.12,
+            "ms_per_embedding": 36.56
+          },
+          "image": {
+            "ms_per_call": 579.71,
+            "ms_per_embedding": 289.86
+          }
+        },
+        "python/GPU/padded/streams=1/N=4": {
+          "text": {
+            "ms_per_call": 131.42,
+            "ms_per_embedding": 32.85
+          },
+          "image": {
+            "ms_per_call": 1146.85,
+            "ms_per_embedding": 286.71
+          }
+        },
+        "python/GPU/padded/streams=1/N=8": {
+          "text": {
+            "ms_per_call": 259.72,
+            "ms_per_embedding": 32.47
+          },
+          "image": {
+            "ms_per_call": 2275.64,
+            "ms_per_embedding": 284.46
+          }
+        },
+        "python/GPU/padded/streams=1/N=16": {
+          "text": {
+            "ms_per_call": 486.51,
+            "ms_per_embedding": 30.41
+          }
+        },
+        "python/GPU/padded/streams=1/N=32": {
+          "text": {
+            "ms_per_call": 1007.78,
+            "ms_per_embedding": 31.49
+          }
+        },
+        "python/GPU/padded/streams=auto/N=1": {
+          "text": {
+            "ms_per_call": 65.38,
+            "ms_per_embedding": 65.38
+          },
+          "image": {
+            "ms_per_call": 319.12,
+            "ms_per_embedding": 319.12
+          }
+        },
+        "python/GPU/padded/streams=auto/N=2": {
+          "text": {
+            "ms_per_call": 77.5,
+            "ms_per_embedding": 38.75
+          },
+          "image": {
+            "ms_per_call": 586.44,
+            "ms_per_embedding": 293.22
+          }
+        },
+        "python/GPU/padded/streams=auto/N=4": {
+          "text": {
+            "ms_per_call": 131.82,
+            "ms_per_embedding": 32.95
+          },
+          "image": {
+            "ms_per_call": 1149.01,
+            "ms_per_embedding": 287.25
+          }
+        },
+        "python/GPU/padded/streams=auto/N=8": {
+          "text": {
+            "ms_per_call": 258.53,
+            "ms_per_embedding": 32.32
+          },
+          "image": {
+            "ms_per_call": 2312.9,
+            "ms_per_embedding": 289.11
+          }
+        },
+        "python/GPU/padded/streams=auto/N=16": {
+          "text": {
+            "ms_per_call": 491.4,
+            "ms_per_embedding": 30.71
+          }
+        },
+        "python/GPU/padded/streams=auto/N=32": {
+          "text": {
+            "ms_per_call": 1025.21,
+            "ms_per_embedding": 32.04
+          }
+        }
+      }
+    }
+  }
+}

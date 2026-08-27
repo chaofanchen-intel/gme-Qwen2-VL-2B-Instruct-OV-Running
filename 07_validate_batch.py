@@ -138,8 +138,8 @@ def check(label: str, batch: np.ndarray, reference: np.ndarray, floor: float, re
 
 def batch_vs_sequential(report: dict, images: list[Path], paths: BatchPaths) -> None:
     """A: any N works. B: the batch equals the same items encoded one by one."""
-    print("[A/B] Python batch vs sequential (int8, streams=1, per_sample) -- expect bit-exact")
-    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8", batch_mode="per_sample")
+    print("[A/B] Python batch vs sequential (int8_vnomask, streams=1, per_sample) -- expect bit-exact")
+    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8_vnomask", batch_mode="per_sample")
     for size in SIZES:
         texts, image_paths = TEXTS[:size], images[:size]
         text_batch = encoder.get_text_embeddings(texts)
@@ -169,8 +169,8 @@ def batch_vs_sequential(report: dict, images: list[Path], paths: BatchPaths) -> 
     # The padded path (the GPU default, and what the official model does) cannot be
     # bit-exact: a row's decode sees padding whose amount depends on the longest
     # sample beside it. Record how far that drifts on deliberately ragged input.
-    print("\n[B2] Python padded batch vs sequential (int8) -- drift is expected, not a bug")
-    padded = GmeOpenVINO(paths.package, device="CPU", precision="int8", batch_mode="padded")
+    print("\n[B2] Python padded batch vs sequential (int8_vnomask) -- drift is expected, not a bug")
+    padded = GmeOpenVINO(paths.package, device="CPU", precision="int8_vnomask", batch_mode="padded")
     check("padded text vs sequential", padded.get_text_embeddings(TEXTS),
           np.concatenate([padded.get_text_embeddings([t]) for t in TEXTS]), 0.999, report)
     check("padded fused vs sequential", padded.get_fused_embeddings(TEXTS[:3], images[:3]),
@@ -180,9 +180,9 @@ def batch_vs_sequential(report: dict, images: list[Path], paths: BatchPaths) -> 
 
 def streams_invariance(report: dict, images: list[Path], paths: BatchPaths) -> None:
     """C: concurrency is a throughput knob, not a numerical one."""
-    print("\n[C] Python streams=1 vs streams='auto' (int8) -- expect bit-exact")
-    single = GmeOpenVINO(paths.package, device="CPU", precision="int8", streams=1)
-    concurrent = GmeOpenVINO(paths.package, device="CPU", precision="int8", streams="auto")
+    print("\n[C] Python streams=1 vs streams='auto' (int8_vnomask) -- expect bit-exact")
+    single = GmeOpenVINO(paths.package, device="CPU", precision="int8_vnomask", streams=1)
+    concurrent = GmeOpenVINO(paths.package, device="CPU", precision="int8_vnomask", streams="auto")
     print(f"  pool sizes: streams=1 -> {single.language_pool.size}, "
           f"streams='auto' -> {concurrent.language_pool.size}")
     report["pool_size_auto"] = concurrent.language_pool.size
@@ -286,8 +286,8 @@ def cpp_parity(report: dict, images: list[Path], dump_dir: Path, paths: BatchPat
 
 def api_parity(report: dict, images: list[Path], paths: BatchPaths) -> None:
     """F: the official API surface, including the parts only upstream's loop shows."""
-    print("\n[F] official API surface (int8, per_sample)")
-    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8", batch_mode="per_sample")
+    print("\n[F] official API surface (int8_vnomask, per_sample)")
+    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8_vnomask", batch_mode="per_sample")
     reference = encoder.get_text_embeddings(TEXTS, show_progress_bar=False)
 
     # embed() is the single-batch primitive the chunked entry points call, so the
@@ -362,8 +362,8 @@ def same_shape_rows(report: dict, paths: BatchPaths) -> None:
     earlier ragged-input checks could not catch it, because ragged feeds differ in
     shape. This one is deliberately non-ragged.
     """
-    print("\n[I] distinct samples sharing a tensor shape (int8, per_sample)")
-    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8", batch_mode="per_sample")
+    print("\n[I] distinct samples sharing a tensor shape (int8_vnomask, per_sample)")
+    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8_vnomask", batch_mode="per_sample")
 
     # Equal token length, different content -> identical feed shapes.
     same_length = ["red car", "big dog", "hot sun", "old man"]
@@ -384,7 +384,7 @@ def same_shape_rows(report: dict, paths: BatchPaths) -> None:
     ])
     check("same-length text batch", encoder.get_text_embeddings(same_length, show_progress_bar=False),
           sequential, 1.0 - 1e-9, report)
-    fresh = GmeOpenVINO(paths.package, device="CPU", precision="int8", batch_mode="per_sample")
+    fresh = GmeOpenVINO(paths.package, device="CPU", precision="int8_vnomask", batch_mode="per_sample")
     check("same-length text, batch first", fresh.get_text_embeddings(same_length, show_progress_bar=False),
           sequential, 1.0 - 1e-9, report)
 
@@ -422,7 +422,7 @@ def visual_any_n(report: dict, images: list[Path], paths: BatchPaths) -> None:
     print("\n[H] visual IR: dynamic image count")
     import openvino as ov
 
-    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8")
+    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8_vnomask")
     inputs = encoder.processor(
         text=["<|vision_start|><|image_pad|><|vision_end|>"] * 2,
         images=[load_image(path) for path in images[:2]],
