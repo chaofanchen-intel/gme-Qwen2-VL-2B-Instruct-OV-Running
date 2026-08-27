@@ -756,11 +756,12 @@ gme-qwen2-vl-int4-hotspot-optimization/
 
 | 项 | 现状 | 预估 |
 | --- | --- | --- |
-| **视觉塔的 `jit:gemm:any__i8`** | mask 修掉后占比从 30% 升到 **46%**（L=1024 上 90.2 ms / 130 calls） | 与语言侧 GEMM 是同一个 oneDNN `jit:gemm` 问题（docs/09 §9.1），opt-3 的 `N≥4K` 规则在视觉塔的 1280/5120 维度上不触发，需要单独定价 |
+| **视觉塔的 `jit:gemm:any__i8`** | mask 修掉后占比从 30% 升到 **46%**（L=1024 上 90.2 ms / 130 calls） | ~~opt-3 的 `N≥4K` 规则在视觉塔维度上不触发~~ —— **这条已被 docs/12 §12.3.1 证伪**：真正的 guard 是 `N >= 4*K`，`mlp.fc1`（K=1280 / N=5120）恰好合格；挡住它的是 `prim_input_size != 3`（视觉塔的 Linear 输入是 rank-2）。docs/12 用整塔 rank-3 解锁了它，fc1 快 28–32% |
 | **剩下的 32 个 `permute_ref`（18.4 ms）** | `qkv` 的 `permute(1,0,2,3)`，§11.5 的方案不碰它 | 可考虑改成在 head 维上切三份，避免物化整个置换张量；需重新验证数值 |
 | **`ocl::sdpa::opt` 本身（L=1024 上 33.8 ms，L=5040 上 747 ms）** | 已是优化 kernel，但视觉塔是全注意力，没有 causal 那样的一半可省 | 唯一的结构性杠杆是降 `max_image_tokens`；需同时验证 Recall@K/nDCG，不能只看时延 |
 | **§11.5 的 L 依赖** | 交叉点实测在 L ≈ 4100 | 若 plugin 能让 SDPA 对 strided 输入不掉性能，A+B 就能全区间为正；属 plugin/kernel 侧 |
 | **`int8_vnomask` 的 image/fused 时延** | 已在 §11.6.4 完成 fresh matrix：448x448 image 310.53 ms，1288x728 image 1850.57 ms | 后续只需按目标业务图片分布复测，不再把该项视为数据缺口 |
+| **§11.5 的 `qkvfused` 与 docs/12 的 `headfirst` 之别** | §11.5 删掉 96 次转置的办法是让 SDPA 读 strided（O(L²) 代价，大图翻盘）；docs/12 §12.2 改成把四趟搬运并成一趟，SDPA 仍读连续内存，**全尺寸正收益** | 已落地，见 docs/12 |
 | **§11.2.7 的跨设备外推** | 只在本机（f≈1.0）校验过模型，**没有第二台设备的实测** | 若迁到 dGPU/更强 iGPU，应重跑 §11.2.6 的 packed/split 表与 §11.2.7 的并发表；若逐图利用率 < 66%（N=4），需重新评估「并发 vs 真 batch 维视觉 IR」 |
 | **真 batch 维的视觉 IR** | 未实现。尺寸统一时它严格优于打包（占用率同、算力省） | 需要绕开 `rot_pos_emb` 的 Python 循环；只对「同尺寸批量」场景有意义，属跨设备迁移时的备选（§11.2.7） |
 | GPU 降频对相邻推理的影响（§11.1.1） | 已量化（S=281 上 79.6 → 238.5 ms） | 这解释了历史 image/fused 数字为何普遍偏高；重测 PERFORMANCE_REPORT §6.3 时应按本轮口径分段 |

@@ -184,3 +184,22 @@ patch 行数 `L = t*h*w`，不是视觉 token 数 `K = L/4`**——这是本轮�
 多行 grid 两者都抛异常，`t>1` 时**带 mask 的 IR 输出全 NaN**；(b) 在**官方 PyTorch fp32**
 上量化「打包多图 vs 逐图」= row cosine 0.999999702（归约噪声），而「真的跨图串味」=
 row cosine 0.058744（比噪声底大 4399 倍）。后者说明这类误用是响的，不是哑的。
+
+## 第五轮：视觉塔布局 + int8_causal（`r5_20260827/`，docs/12）
+
+与 `r4_*` 同一个 runtime，**本轮同样没有新增 plugin 改动**。
+
+| 路径 | 口径 |
+| --- | --- |
+| `lang_int8_r{1,2}.json`、`lang_int8_causal_r{1,2}.json` | §12.1 的交错两轮：`int8` 277.7 → `int8_causal` **262.5 ms**。补的是一个**漏做**（`03_finalize.py` 只把非 causal 的 FP32 压成 INT8），不是被否掉过的方案 |
+| `vis__*.json`、`vis__unbind_*.json`、`vis__headfirst_*.json`、`vis__headfirst_rank3_*.json` | §12.2.5 四种 Q/K/V 布局在三个 grid 上的对比（文件名里空的那段是第四轮的 `_nomask` 基线） |
+| `ab_*_r{1,2}.json` | §12.3.2 **失败的第一次尝试**：per-Linear rank-3。opt-3 命中了（GEMM −60.2 ms），但 64 次 `generic_eltwise_ref` 拷贝（+89.2 ms）反噬，净 +22.6 ms。保留是因为它是"为什么必须整塔改一次"的证据 |
+| `ab2_*_r{1,2}.json` | §12.3.4 **采纳的做法**：整塔一次 rank-3。收益完全落在 `mlp.fc1`（−28~32%），其余投影 ±0.5 ms 内不动 |
+| `r5_headfirst_equivalence_fp32.json`、`r5_rank3_equivalence_fp32.json` | §12.4.1 两个变体各 5 个 grid，全部 `max_abs_diff = 0` |
+| `e2e_int4_causal_vopt.json` | §12.5 端到端四段拆分 |
+| `../../artifacts/openvino_validation_round5.json` | §12.4.2 六个 precision 的精度评估 |
+
+> ⚠️ 第五轮的一条口径教训：**图上"看起来免费"的 Unsqueeze/Squeeze 不一定免费**。
+> §12.3.2 里每个投影外面包一对，本以为是 metadata-only，实际被 lower 成 64 次
+> `generic_eltwise_ref` 拷贝，把一笔 −60 ms 的真实 GEMM 收益变成了净 +22.6 ms。
+> 判断依据只能是 profiling 里的 `calls_by_exec_type`，不能靠"reshape 应该是免费的"这种直觉。

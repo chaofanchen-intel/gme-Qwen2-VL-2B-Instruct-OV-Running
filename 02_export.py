@@ -272,6 +272,8 @@ def suppress_causal_mask_materialization():
 
 @contextlib.contextmanager
 def unmasked_vision_attention(fuse_input_transposes: bool = False,
+                              qkv_layout: str = "upstream",
+                              rank3_linear: bool = False,
                               _allow_multi_block: bool = False):
     """Trace the ViT blocks with one full-sequence, mask-free SDPA call.
 
@@ -312,6 +314,26 @@ def unmasked_vision_attention(fuse_input_transposes: bool = False,
     **+103.8 ms** -- and this package's ``max_image_tokens=1280`` puts the worst case
     inside the supported range.  See docs/11 for the full crossover table.
 
+    ``qkv_layout`` selects how Q/K/V reach SDPA's [1, H, L, D]:
+
+    * ``"upstream"`` -- verbatim upstream: ``permute(1,0,2,3)`` to split QKV, then a
+      ``transpose(0,1)`` on each of the three. Two data movements per layer.
+    * ``"unbind"``   -- ``unbind(1)``; identical tensors, one fewer graph node. A control
+      for whether the cost is the permute node or the copy it implies.
+    * ``"headfirst"`` -- ``permute(1,2,0,3)`` reaches [3,H,L,D] in **one** movement, so the
+      three per-tensor transposes vanish. Rotary is rewritten for the [H,L,D] layout
+      (same arithmetic; ``rotate_half`` only touches the last axis).
+
+    docs/12 measures all three.
+
+    ``rank3_linear`` feeds every ViT projection a ``[1, L, C]`` input instead of ``[L, C]``.
+    The tensors are identical -- only a leading unit axis is added -- but the GPU plugin's
+    INT4 weight-reorder (opt-3, docs/06 S6.9) starts with ``prim_input_size != 3 -> reject``,
+    so the whole vision tower is excluded from it purely for being rank 2.  Of the ViT's
+    projections only ``mlp.fc1`` clears opt-3's other gate (``N >= 4K``: 5120 vs 4x1280,
+    exactly on the boundary), so this is a bounded experiment, not a general win.
+    docs/12 S12.3 reports what it actually measured.
+
     ``_allow_multi_block`` disables the single-block guard.  It exists for exactly one
     caller -- ``check_vision_mask_necessity.py``, which deliberately runs a packed
     multi-image sequence *without* the mask to measure how large a genuine cross-image
@@ -335,21 +357,76 @@ def unmasked_vision_attention(fuse_input_transposes: bool = False,
                 "The mask-free IR is only an identity for one image per call; export the "
                 "mask-carrying IR instead."
             )
-        seq_length = hidden_states.shape[0]
-        query_states, key_states, value_states = (
-            self.qkv(hidden_states)
-            .reshape(seq_length, 3, self.num_heads, -1)
-            .permute(1, 0, 2, 3)
-            .unbind(0)
-        )
+        # shape[-2] so this works whether the tower runs rank 2 ([L, C]) or rank 3
+        # ([1, L, C]); under `rank3_linear` the unsqueeze happens once for the whole tower
+        # (see tower_forward) rather than around every projection.
+        seq_length = hidden_states.shape[-2]
+        qkv_source = hidden_states
+        if qkv_layout == "headfirst":
+            # One permute does the whole job. Upstream needs two data movements per layer:
+            # `permute(1,0,2,3)` to split QKV, then a `transpose(0,1)` on each of Q/K/V to
+            # reach SDPA's [1,H,L,D]. Measured at L=1024 that is 18.3 ms + 20.1 ms of
+            # `permute_ref` per call. `permute(1,2,0,3)` lands on [3,H,L,D] directly, so the
+            # three transposes disappear and only one copy of the same tensor remains.
+            #
+            # This is NOT the rejected `fuse_input_transposes` (docs/11 S11.5): that one
+            # deleted the copies by making SDPA read strided, which costs O(L^2). Here SDPA
+            # still receives contiguous [1,H,L,D] -- only the redundant second pass is gone.
+            #
+            # Rotary then has to run on [H,L,D] instead of [L,H,D], which is why it is
+            # written out below instead of calling apply_rotary_pos_emb_vision: that helper
+            # hardcodes `cos.unsqueeze(-2)` for the seq-first layout. rotate_half only ever
+            # touches the last axis, so the arithmetic is unchanged.
+            query_states, key_states, value_states = (
+                self.qkv(qkv_source)
+                .reshape(seq_length, 3, self.num_heads, -1)
+                .permute(1, 2, 0, 3)
+                .unbind(0)
+            )
+        elif qkv_layout == "unbind":
+            # Same tensors as upstream with one fewer node: unbinding dim 1 of [L,3,H,D] is
+            # exactly what `permute(1,0,2,3).unbind(0)` computes, without the explicit
+            # Transpose. Kept as a control for how much of the 18.3 ms is the permute node
+            # itself versus the data movement it implies.
+            query_states, key_states, value_states = (
+                self.qkv(qkv_source)
+                .reshape(seq_length, 3, self.num_heads, -1)
+                .unbind(1)
+            )
+        else:
+            query_states, key_states, value_states = (
+                self.qkv(qkv_source)
+                .reshape(seq_length, 3, self.num_heads, -1)
+                .permute(1, 0, 2, 3)
+                .unbind(0)
+            )
         cos, sin = position_embeddings
-        query_states, key_states = qwen2_vl.apply_rotary_pos_emb_vision(
-            query_states, key_states, cos, sin
-        )
+        if qkv_layout == "headfirst":
+            # apply_rotary_pos_emb_vision inlined for [H, L, D]: the helper's
+            # `cos.unsqueeze(-2)` assumes seq-first, so broadcast over heads instead.
+            # Everything else -- the float() casts, the multiply order, rotate_half -- is
+            # copied verbatim so the arithmetic matches upstream bit for bit.
+            original_dtype = query_states.dtype
+            query_float, key_float = query_states.float(), key_states.float()
+            cos_b, sin_b = cos.unsqueeze(0).float(), sin.unsqueeze(0).float()
+            rotate_half = qwen2_vl.rotate_half
+            query_states = ((query_float * cos_b)
+                            + (rotate_half(query_float) * sin_b)).to(original_dtype)
+            key_states = ((key_float * cos_b)
+                          + (rotate_half(key_float) * sin_b)).to(original_dtype)
+        else:
+            query_states, key_states = qwen2_vl.apply_rotary_pos_emb_vision(
+                query_states, key_states, cos, sin
+            )
         # Both branches produce the same [1, H, L, D] tensor; only the op order differs,
         # and that order is what decides whether the plugin fuses the transpose. See the
         # docstring for why the fused form is not the default.
-        if fuse_input_transposes:
+        if qkv_layout == "headfirst":
+            # Already [H, L, D]; only the batch axis is missing.
+            query_states = query_states.unsqueeze(0)
+            key_states = key_states.unsqueeze(0)
+            value_states = value_states.unsqueeze(0)
+        elif fuse_input_transposes:
             query_states = query_states.unsqueeze(0).transpose(1, 2)
             key_states = key_states.unsqueeze(0).transpose(1, 2)
             value_states = value_states.unsqueeze(0).transpose(1, 2)
@@ -367,15 +444,51 @@ def unmasked_vision_attention(fuse_input_transposes: bool = False,
             attn_mask=None, dropout_p=0.0, is_causal=False,
         )
         # Match upstream's layout exactly: [1, H, L, D] -> [1, L, H, D] -> [L, dim].
-        attn_output = attn_output.transpose(1, 2).reshape(seq_length, -1).contiguous()
+        # Reshaping straight to [1, L, C] under rank3_linear keeps `proj` rank 3 without a
+        # separate Unsqueeze node -- the per-projection Unsqueeze/Squeeze pairs an earlier
+        # attempt used cost 64 `generic_eltwise_ref` copies per call (docs/12 S12.3).
+        if rank3_linear:
+            attn_output = attn_output.transpose(1, 2).reshape(1, seq_length, -1).contiguous()
+        else:
+            attn_output = attn_output.transpose(1, 2).reshape(seq_length, -1).contiguous()
         return self.proj(attn_output)
+
+    saved_tower = qwen2_vl.Qwen2VisionTransformerPretrainedModel.forward
+
+    def tower_forward(self, hidden_states, grid_thw, **kwargs):
+        # Upstream's own forward, with one change: the block stack runs on [1, L, C].
+        # VisionMlp and the residual adds are shape-agnostic, and VisionAttention above
+        # reads shape[-2], so nothing else needs patching -- and the merger's first op is
+        # a `view(-1, hidden_size)` that flattens the leading axis away again, so no
+        # squeeze is needed either. Total cost: two metadata-only reshapes per call.
+        hidden_states = self.patch_embed(hidden_states)
+        rotary_pos_emb = self.rot_pos_emb(grid_thw)
+        emb = torch.cat((rotary_pos_emb, rotary_pos_emb), dim=-1)
+        position_embeddings = (emb.cos(), emb.sin())
+        cu_seqlens = torch.repeat_interleave(
+            grid_thw[:, 1] * grid_thw[:, 2], grid_thw[:, 0]
+        ).cumsum(dim=0, dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32)
+        cu_seqlens = functional.pad(cu_seqlens, (1, 0), value=0)
+
+        hidden_states = hidden_states.unsqueeze(0)
+        for blk in self.blocks:
+            hidden_states = blk(hidden_states, cu_seqlens=cu_seqlens,
+                                position_embeddings=position_embeddings, **kwargs)
+        hidden_states = hidden_states.squeeze(0)
+        return qwen2_vl.BaseModelOutputWithPooling(
+            last_hidden_state=hidden_states,
+            pooler_output=self.merger(hidden_states),
+        )
 
     saved = qwen2_vl.VisionAttention.forward
     qwen2_vl.VisionAttention.forward = forward
+    if rank3_linear:
+        qwen2_vl.Qwen2VisionTransformerPretrainedModel.forward = tower_forward
     try:
         yield
     finally:
         qwen2_vl.VisionAttention.forward = saved
+        qwen2_vl.Qwen2VisionTransformerPretrainedModel.forward = saved_tower
 
 
 def export_model(
@@ -387,6 +500,8 @@ def export_model(
     causal_attention: bool = False,
     unmasked_vision: bool = False,
     fuse_vision_input_transposes: bool = False,
+    vision_qkv_layout: str = "upstream",
+    vision_rank3_linear: bool = False,
 ) -> None:
     print(f"[export] converting {output_path.name} ...")
     start = time.monotonic()
@@ -394,7 +509,9 @@ def export_model(
         if causal_attention:
             stack.enter_context(suppress_causal_mask_materialization())
         if unmasked_vision:
-            stack.enter_context(unmasked_vision_attention(fuse_vision_input_transposes))
+            stack.enter_context(unmasked_vision_attention(fuse_vision_input_transposes,
+                                                          vision_qkv_layout,
+                                                          vision_rank3_linear))
         model = ov.convert_model(module, example_input=example_inputs)
     label_ports(model, input_names)
     model.reshape(dict(enumerate(shapes)))
@@ -539,6 +656,20 @@ def main() -> None:
              "contract gme_openvino.py already enforces -- see unmasked_vision_attention)",
     )
     parser.add_argument(
+        "--vision-qkv-layout",
+        choices=("upstream", "unbind", "headfirst"),
+        default="upstream",
+        help="with --unmasked-vision, how Q/K/V reach SDPA's [1,H,L,D]. 'headfirst' does it "
+             "in one permute instead of a permute plus three transposes (docs/12); the "
+             "default suffix becomes _nomask_<layout> for anything but 'upstream'",
+    )
+    parser.add_argument(
+        "--vision-rank3-linear",
+        action="store_true",
+        help="with --unmasked-vision, give ViT projections a [1,L,C] input so the plugin's "
+             "INT4 weight reorder (opt-3) is not rejected for rank 2 alone (docs/12 S12.3)",
+    )
+    parser.add_argument(
         "--fuse-vision-input-transposes",
         action="store_true",
         help="with --unmasked-vision, emit Q/K/V so the plugin folds their Transpose into "
@@ -640,7 +771,10 @@ def main() -> None:
     # the mask-carrying IR every earlier round was measured on stays reproducible and the
     # two can be A/B'd inside one session.
     visual_suffix = args.visual_suffix if args.visual_suffix is not None else (
-        ("_nomask_qkvfused" if args.fuse_vision_input_transposes else "_nomask")
+        ("_nomask_qkvfused" if args.fuse_vision_input_transposes
+         else "_nomask" if args.vision_qkv_layout == "upstream" and not args.vision_rank3_linear
+         else f"_nomask_{args.vision_qkv_layout}"
+              f"{'_rank3' if args.vision_rank3_linear else ''}")
         if args.unmasked_vision else "")
     visual_path = output / f"gme_visual_fp32{visual_suffix}.xml"
     if args.stage == "visual" and not args.force and visual_path.exists():
@@ -656,6 +790,8 @@ def main() -> None:
             [ov.PartialShape([-1, 1176]), ov.PartialShape([-1, 3])],
             unmasked_vision=args.unmasked_vision,
             fuse_vision_input_transposes=args.fuse_vision_input_transposes,
+            vision_qkv_layout=args.vision_qkv_layout,
+            vision_rank3_linear=args.vision_rank3_linear,
         )
 
     if args.stage != "validate":

@@ -17,12 +17,13 @@
 | **结果（plugin patch，第一/二轮）** | 1024 token **1.170–1.172x**、512 token **1.180–1.184x**、128 token **1.151–1.158x**、32 token **1.017–1.018x** |
 | **结果（第三轮，导出侧 SDPA causal，可叠加）** | 1024 token 再 **1.073x**（gs128 238.5 → **222.3 ms**）/ **1.072x**（gs64 252.9 → **236.0 ms**）；SDPA 单项 **2.24x**。累计相对最初 stock gs128 **1.273x**。见 [`docs/09`](docs/09_round3_further_latency_optimization.md) |
 | **结果（第四轮，导出侧 mask-free 视觉 SDPA）** | **image/fused 端到端 1.79–2.50x**（448x448 563.6 → **288.7 ms**；1288x728 4494.4 → **1798.3 ms**）；视觉 IR 单项 1.53–2.83x，收益随分辨率上升。见 [`docs/11`](docs/11_round4_image_fused_optimization.md) |
+| **结果（第五轮，视觉塔布局 + 补 int8_causal）** | image 端到端再 **1.07–1.13x**（448x448 288.7 → **256.6 ms**；1288x728 1798.3 → **1677.6 ms**），**累计 2.20–2.70x**；text/query 的 **`int8_causal` 补漏 −15.2 ms（1.058x）**。见 [`docs/12`](docs/12_round5_vision_layout_and_int8_causal.md) |
 | **正确性** | text/语言 IR 结果见 §4；image-only 三尺寸 bit-identical；fused 仍可运行但部分尺寸有小幅稳定漂移，见 `docs/04_validation_and_results.md` §4.1c。第三轮 causal 改造在 FP32 上**逐位相同**（含不等长右 padding 批），docs/09 §9.2.5。第四轮 mask-free 视觉塔在 FP32 上**逐位相同**（5 个 grid，`max_abs_diff = 0.0`），docs/11 §11.3.3 |
 | **回归** | 有状态生成式模型 greedy 解码 token id、首步 logits SHA 与 top-8 逐位相同 |
-| **改动** | Intel GPU plugin，8 个文件，+390 −19，图结构/调度 + 权重 layout，无算术改动。**第三、四轮都没有新增 plugin 改动**，全部在导出侧 |
-| **改了什么** | ① GQA `repeat_kv` 的 Broadcast 消除放开到无状态模型；② 新增 SDPA 输出 Transpose 融合 + 修复 `sdpa_gen_micro` 的 dispatch bug；③ **宽 INT4 投影（`N ≥ 4K`）的权重重排成 N 连续**，让 oneDNN `jit:gemm` 走更快的 layout；④（第三轮，导出侧）**语言 SDPA 改成 `causal=true` 且不带 mask**，kernel 直接跳过上三角；⑤（第四轮，导出侧）**视觉塔 SDPA 去掉那张恒为全 True 的 rank-3 BOOL mask**，32 层注意力从手工分解的 MatMul+Softmax 变回 `ocl::sdpa::opt` |
-| **推荐精度** | package 默认/精度优先 **`int8_vnomask`**；低延迟/均衡 **`int4_causal_vnomask`**（历史 stage split image 448x448 288.7 ms）；更高精度的 INT4 选 `int4_gs64_causal_vnomask`。纯文本场景 `_vnomask` 与否完全等价（语言 IR 相同） |
-| **剩下的大头** | 文本侧 GEMM 占 GPU 时间 ~69%（causal 之后占比上升），下一轮首选 **RMS→DQ 融合**（~7 ms，docs/09 §9.4b）。图像侧 mask 修掉后**视觉塔 GEMM 占比升到 46%**，且 opt-3 的 `N≥4K` 规则在视觉塔维度上不触发，需单独定价（docs/11 §11.8） |
+| **改动** | Intel GPU plugin，8 个文件，+390 −19，图结构/调度 + 权重 layout，无算术改动。**第三、四、五轮都没有新增 plugin 改动**，全部在导出侧 |
+| **改了什么** | ① GQA `repeat_kv` 的 Broadcast 消除放开到无状态模型；② 新增 SDPA 输出 Transpose 融合 + 修复 `sdpa_gen_micro` 的 dispatch bug；③ **宽 INT4 投影（`N ≥ 4K`）的权重重排成 N 连续**，让 oneDNN `jit:gemm` 走更快的 layout；④（第三轮，导出侧）**语言 SDPA 改成 `causal=true` 且不带 mask**，kernel 直接跳过上三角；⑤（第四轮，导出侧）**视觉塔 SDPA 去掉那张恒为全 True 的 rank-3 BOOL mask**，32 层注意力从手工分解的 MatMul+Softmax 变回 `ocl::sdpa::opt`；⑥（第五轮，导出侧）**视觉塔 Q/K/V 四趟搬运并成一趟**（`permute_ref` 128→32 calls）+ **给 ViT 投影加 batch 维让 ③ 的权重重排够得着 `mlp.fc1`**（−28~32%），另补上漏做的 **`int8_causal`** |
+| **推荐精度** | **第五轮起改用 `_vopt` 系**：package 默认/精度优先 **`int8_causal_vopt`**（1024-token text 262.5 ms）；低延迟/均衡 **`int4_causal_vopt`**（stage-split image 448x448 **256.6 ms**）；更高精度的 INT4 选 `int4_gs64_causal_vopt`。`_vnomask` 系（第四轮）仍保留可用。纯文本场景视觉塔无关，只看语言 IR 是否 `causal` |
+| **剩下的大头** | 文本侧 GEMM 占 GPU 时间 ~69%（causal 之后占比上升），下一轮首选 **RMS→DQ 融合**（~7 ms，docs/09 §9.4b）。图像侧第五轮后视觉塔只剩 **32 次 QKV 拆分 permute（导出侧已到极限）** 和 **不满足 `N≥4K` 的 fc2/qkv/proj GEMM**；`max_image_tokens` 的时延/精度对照表仍是最大未测项（docs/12 §12.8） |
 
 上表中的 plugin profiling 和 stage-split 数字属于历史轮次。当前 package 的独立
 fresh rerun（2026-08-26，Python/GPU，repeat=5，主要看 mean）使用
@@ -124,6 +125,7 @@ image 为 `284.46` 和 `279.71 ms/embedding`。完整的 N=1/2/4/8/16/32、
 | [`docs/08_per_oc_quantization.md`](docs/08_per_oc_quantization.md) | per-OC INT4 量化方案（docs/06 §6.3 挂起项落地）：两个新精度、性能基线、精度评估——**收益大但精度不达标，不建议采纳** |
 | [`docs/09_round3_further_latency_optimization.md`](docs/09_round3_further_latency_optimization.md) | **第三轮**：gs64 首次算子级基线、oneDNN 定价表 round-3、**导出侧 SDPA causal（采纳，1.073x）**、分组对称量化（可选）、以及 4 个带实测数字的否决项 |
 | [`docs/10_round3_gme_causal_performance_report.md`](docs/10_round3_gme_causal_performance_report.md) | **第三轮统一性能报告**：普通/causal、gs128/gs64、per-OC/对称量化的 1024-token wall、GEMM、SDPA、plugin 阶段和数据缺口 |
+| [`docs/12_round5_vision_layout_and_int8_causal.md`](docs/12_round5_vision_layout_and_int8_causal.md) | **第五轮**：补上漏掉的 **`int8_causal`**（−15.2 ms，且落在默认精度上）；视觉塔两笔纯重排优化——**`headfirst`**（四趟 Q/K/V 搬运并成一趟，`permute_ref` 128→32 calls）与 **`rank3`**（给 ViT 投影加 batch 维，解锁 opt-3，`mlp.fc1` −28~32%）；含一个失败尝试的实测（per-Linear rank3 被 64 次 eltwise 拷贝反噬） |
 | [`docs/11_round4_image_fused_optimization.md`](docs/11_round4_image_fused_optimization.md) | **第四轮**：image/fused 的四段拆分、视觉塔 hotspot（rank-3 BOOL mask 让 SDPA 不 lower）、**mask-free 视觉 SDPA（采纳，端到端 1.79–2.50x）**、transformers 5 下的视觉输出接错 bug、一个带实测交叉点的否决项，以及两个设计问题的实测答案：**为什么逐图而不是像官方那样打包**（§11.2.6）、**batch 在 image 上能带来多少**（§11.6.3） |
 | [`patches/README.md`](patches/README.md) | patch 的 base、应用方式、影响面、上游建议 |
 | [`results/qwen3_ab_text/REPORT.md`](results/qwen3_ab_text/REPORT.md) | 三个 GME patch 对 Qwen3-VL-Embedding-2B 的适用性复测：opt-3 text 基本无收益，image/fused `CL_OUT_OF_RESOURCES` 回归 |

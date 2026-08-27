@@ -374,6 +374,20 @@ def main() -> None:
     compress(vis_fp32, package / "gme_visual_int8.xml", fingerprints_path, args.force,
              mode=nncf.CompressWeightsMode.INT8_ASYM, ignored_scope=vis_ignore)
 
+    # INT8 from the causal source too. Round 3 only ever compressed `_causal` to INT4, so
+    # the INT8 path -- which is the package default -- silently never got the causal SDPA
+    # win. That was an omission, not a measured rejection: causal removes an explicit
+    # [B,1,S,S] mask and lets SDPA run `ocl::sdpa::opt` with the upper triangle skipped,
+    # and SDPA executes in f16 regardless of how the *weights* are compressed, so the
+    # saving is orthogonal to INT4-vs-INT8. Measured in docs/12.
+    lang_causal_fp32 = package / "gme_language_fp32_causal.xml"
+    if lang_causal_fp32.exists():
+        compress(lang_causal_fp32, package / "gme_language_int8_causal.xml", fingerprints_path,
+                 args.force, mode=nncf.CompressWeightsMode.INT8_ASYM)
+    else:
+        print(f"[nncf] {lang_causal_fp32.name} absent; skipping gme_language_int8_causal.xml "
+              "(run 02_export.py --stage language --causal-sdpa to produce it)")
+
     # INT4 language (default gs128) and accuracy-recovered (gs64): data-aware, see
     # _calibration_dataset for why -- plain (data-free) INT4 hurts text embeddings
     # noticeably more than image/fused.
@@ -471,6 +485,19 @@ def main() -> None:
         print(f"[cfg] {vis_qkvfused_fp32.name} absent; run 02_export.py --stage visual "
               "--unmasked-vision --fuse-vision-input-transposes to produce it")
 
+    # docs/12 S12.2: Q/K/V layout variants of the mask-free vision tower. Same weights and
+    # same arithmetic as `_nomask`; only the order of the reshape/permute/transpose chain
+    # differs, which is what decides how many `permute_ref` copies survive on the GPU.
+    for layout in ("unbind", "headfirst", "headfirst_rank3"):
+        source = package / f"gme_visual_fp32_nomask_{layout}.xml"
+        if source.exists():
+            compress(source, package / f"gme_visual_int4_nomask_{layout}.xml", fingerprints_path,
+                     args.force, mode=nncf.CompressWeightsMode.INT4_ASYM, group_size=128,
+                     ratio=1.0, ignored_scope=vis_ignore, advanced_parameters=vis_int4_adv)
+            compress(source, package / f"gme_visual_int8_nomask_{layout}.xml", fingerprints_path,
+                     args.force, mode=nncf.CompressWeightsMode.INT8_ASYM,
+                     ignored_scope=vis_ignore)
+
     cfg = json.loads(cfg_path.read_text())
     cfg["processor"]["max_length"] = max_length
     cfg["tokenizer_model"] = "openvino_tokenizer.xml"
@@ -508,6 +535,34 @@ def main() -> None:
                ("int4_gs64_causal", "gme_language_int4_gs64_causal.xml",
                 "gme_visual_int4_nomask.xml"),
                ("int8", "gme_language_int8.xml", "gme_visual_int8_nomask.xml"),
+               ("int8_causal", "gme_language_int8_causal.xml", "gme_visual_int8_nomask.xml"),
+           )
+           if (package / language).exists() and (package / visual).exists()},
+        # round-4b: the INT8 counterpart of int4_causal, which round 3 never built (docs/12).
+        **({"int8_causal": {"language": "gme_language_int8_causal.xml",
+                            "visual": "gme_visual_int8.xml"}}
+           if (package / "gme_language_int8_causal.xml").exists() else {}),
+        # docs/12 recommendation: `_vopt` = the fully-optimized vision tower (mask-free +
+        # headfirst Q/K/V + rank-3 projections). Short alias for the descriptive
+        # `_vnomask_headfirst_rank3` keys below, which stay registered for A/B.
+        **{f"{prefix}_vopt": {"language": language, "visual": visual}
+           for prefix, language, visual in (
+               ("int4_causal", "gme_language_int4_causal.xml",
+                "gme_visual_int4_nomask_headfirst_rank3.xml"),
+               ("int4_gs64_causal", "gme_language_int4_gs64_causal.xml",
+                "gme_visual_int4_nomask_headfirst_rank3.xml"),
+               ("int8_causal", "gme_language_int8_causal.xml",
+                "gme_visual_int8_nomask_headfirst_rank3.xml"),
+           )
+           if (package / language).exists() and (package / visual).exists()},
+        # docs/12 S12.2 Q/K/V layout variants, paired with the recommended causal language IRs.
+        **{f"{prefix}_vnomask_{layout}": {"language": language, "visual": visual}
+           for layout in ("unbind", "headfirst", "headfirst_rank3")
+           for prefix, language, visual in (
+               ("int4_causal", "gme_language_int4_causal.xml",
+                f"gme_visual_int4_nomask_{layout}.xml"),
+               ("int8_causal", "gme_language_int8_causal.xml",
+                f"gme_visual_int8_nomask_{layout}.xml"),
            )
            if (package / language).exists() and (package / visual).exists()},
         # docs/11 S11.5 control: same language IR as int4_causal_vnomask, vision tower with
@@ -518,7 +573,10 @@ def main() -> None:
            if (package / "gme_visual_int4_nomask_qkvfused.xml").exists()
            and (package / "gme_language_int4_causal.xml").exists() else {}),
     }
-    cfg["default_precision"] = "int8_vnomask" if "int8_vnomask" in cfg["precisions"] else "int8"
+    for _default in ("int8_causal_vopt", "int8_vnomask", "int8"):
+        if _default in cfg["precisions"]:
+            cfg["default_precision"] = _default
+            break
     cfg_path.write_text(json.dumps(cfg, indent=2) + "\n")
     print(f"[cfg] updated {cfg_path.name} with precisions: {list(cfg['precisions'])}")
 
