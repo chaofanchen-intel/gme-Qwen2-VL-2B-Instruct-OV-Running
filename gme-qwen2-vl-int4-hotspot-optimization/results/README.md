@@ -1,8 +1,40 @@
 # GME hotspot results
 
-## 当前第四轮 fresh rerun：`r4_rerun_20260826/`
+## 当前第五轮 final rerun：`r5_final_20260827/`
 
-这是当前交付 package 的最新 GPU/Python 重测，使用与 package 同源的 custom
+这是当前最终 package 的 GPU/Python 重测，使用同源 custom OpenVINO
+core/plugin/Python binding：`2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`。
+正式 precision 为 `int8_causal_vopt`、`int4_causal_vopt` 和
+`int4_gs64_causal_vopt`，package 默认是 `int8_causal_vopt`。text/query 使用
+32/128/512/1024 effective tokens，image/fused 使用五种标准尺寸和 logo，
+batch 使用 text N=1/2/4/8/16/32、image N=1/2/4/8，覆盖
+`per_sample`/`padded` 与 `streams=1/auto`，每个 cell repeat=5。
+
+| 文件 | 内容 |
+| --- | --- |
+| `benchmark_text_image_matrix.json` | 三个最终 precision 的 text/query 与 image/fused 多尺寸矩阵 |
+| `benchmark_batch_int8_causal_vopt.json` | 默认 INT8 causal vopt 的 text/image batch 全矩阵 |
+| `benchmark_batch_int4_causal_vopt.json` | 低延迟 INT4 causal vopt 的 text/image batch 全矩阵 |
+| `benchmark_batch_int4_gs64_causal_vopt.json` | gs64 causal vopt 的 text/image batch 全矩阵 |
+
+最初未优化 stock 对照不重新运行，直接使用
+[`../../artifacts/benchmark_matrix_fresh_r1.json`](../../artifacts/benchmark_matrix_fresh_r1.json)
+（初始 INT8 text/image/batch 矩阵）、`base_ops_int4_1024.json`（初始 INT4
+language profiling）和 `r4_20260826/vis_base_int4_*.json`（初始 INT4 visual
+profiling）。document 四表示的初始 INT8/INT4 baseline 见
+[`../../document_embedding_eval_int8_int4_gpu/results/document_embedding_benchmark_before_optimized.json`](../../document_embedding_eval_int8_int4_gpu/results/document_embedding_benchmark_before_optimized.json)。
+
+第五轮 final 的关键 N=8 batch 结果（`padded + streams=1`）为：text=128
+时 `31.90`、`27.53`、`29.35 ms/embedding`，448x448 image 时
+`260.55`、`247.79`、`253.42 ms/embedding`，顺序为 INT8 causal、INT4
+causal、INT4 gs64 causal。详细数据以 JSON 为准。
+
+document embedding 的第五轮 final 三 precision 结果见
+[`../../document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round5_final_vopt_20260827.json`](../../document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round5_final_vopt_20260827.json)。
+
+## 历史第四轮 fresh rerun：`r4_rerun_20260826/`
+
+这是第五轮 final 之前的历史 GPU/Python 重测，使用与 package 同源的 custom
 OpenVINO core、GPU plugin 和 Python binding：
 `2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`。本轮使用
 `int8_vnomask` 和 `int4_causal_vnomask`，即 mask-free visual IR；没有使用官方

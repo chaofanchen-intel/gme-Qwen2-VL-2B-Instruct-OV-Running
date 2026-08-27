@@ -26,9 +26,11 @@
 | **剩下的大头** | 文本侧 GEMM 占 GPU 时间 ~69%（causal 之后占比上升），下一轮首选 **RMS→DQ 融合**（~7 ms，docs/09 §9.4b）。图像侧第五轮后视觉塔只剩 **32 次 QKV 拆分 permute（导出侧已到极限）** 和 **不满足 `N≥4K` 的 fc2/qkv/proj GEMM**；`max_image_tokens` 的时延/精度对照表仍是最大未测项（docs/12 §12.8） |
 
 上表中的 plugin profiling 和 stage-split 数字属于历史轮次。当前 package 的独立
-fresh rerun（2026-08-26，Python/GPU，repeat=5，主要看 mean）使用
-`int8_vnomask` / `int4_causal_vnomask`，原始结果见
-[`results/r4_rerun_20260826/`](results/r4_rerun_20260826/)。
+第五轮 final rerun（2026-08-27，Python/GPU，repeat=5，主要看 mean）使用
+`int8_causal_vopt`、`int4_causal_vopt` 和 `int4_gs64_causal_vopt`，原始结果见
+[`results/r5_final_20260827/`](results/r5_final_20260827/)。最初未优化 stock
+结果保留在 `results/base_ops_int4_1024.json`、`results/r4_20260826/` 和
+根目录 `artifacts/benchmark_matrix_fresh_r1.json`，用于累计对照。
 
 ## 优化前后的 GPU 时间构成（语言 IR，seq=1024，INT4/GPU）
 
@@ -83,7 +85,38 @@ GEMM 完全不动——这一笔与 GEMM 侧的任何后续优化正交。详见
 视觉塔的序列长度是 **merge 前的 patch 行数 L = 4K**，注意力 O(L²)，所以收益随分辨率上升：
 L=1024 上 1.53x，L=5040 上 **2.83x**。端到端 image/fused **1.79–2.50x**。详见 docs/11。
 
-## 当前第四轮 fresh rerun
+## 当前第五轮 final rerun
+
+当前最终 end-to-end 结果来自同一套 custom core/plugin/Python binding：
+`2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`。没有使用官方 wheel
+runtime，也没有重新运行最初 stock baseline。
+
+| workload | `int8_causal_vopt` | `int4_causal_vopt` | `int4_gs64_causal_vopt` |
+| --- | ---: | ---: | ---: |
+| text/query, 32 tokens (mean ms/call) | 43.75 / 43.37 | 32.47 / 32.07 | 36.64 / 36.27 |
+| text/query, 128 tokens (mean ms/call) | 54.13 / 53.53 | 40.30 / 39.78 | 43.42 / 42.92 |
+| text/query, 512 tokens (mean ms/call) | 128.60 / 127.97 | 119.25 / 119.01 | 139.35 / 138.66 |
+| text/query, 1024 tokens (mean ms/call) | 260.95 / 262.29 | 225.47 / 225.54 | 240.39 / 239.83 |
+| image/fused, 448x448 (mean ms/call) | 285.13 / 284.54 | 262.76 / 257.84 | 269.60 / 268.09 |
+| image/fused, 1288x728 (mean ms/call) | 1750.35 / 1757.35 | 1688.70 / 1688.79 | 1707.59 / 1711.78 |
+
+GPU `padded + streams=1`、text=128 的 N=8 为 `31.90`、`27.53`、`29.35`
+ms/embedding（INT8 causal、INT4 causal、INT4 gs64 causal）；448x448 image
+对应为 `260.55`、`247.79`、`253.42` ms/embedding。完整 N sweep 和
+`streams=auto` 数据见：
+
+- [`benchmark_text_image_matrix.json`](results/r5_final_20260827/benchmark_text_image_matrix.json)
+- [`benchmark_batch_int8_causal_vopt.json`](results/r5_final_20260827/benchmark_batch_int8_causal_vopt.json)
+- [`benchmark_batch_int4_causal_vopt.json`](results/r5_final_20260827/benchmark_batch_int4_causal_vopt.json)
+- [`benchmark_batch_int4_gs64_causal_vopt.json`](results/r5_final_20260827/benchmark_batch_int4_gs64_causal_vopt.json)
+
+初始 stock INT8 在相同 text/image workload 上的完整数据位于
+[`../artifacts/benchmark_matrix_fresh_r1.json`](../artifacts/benchmark_matrix_fresh_r1.json)。
+以 1024-token text 为例，初始 stock text/query 为 296.57/296.01 ms，
+第五轮 `int8_causal_vopt` 为 260.95/262.29 ms；448x448 image/fused
+初始为 476.69/468.07 ms，最终为 285.13/284.54 ms。
+
+## 历史第四轮 fresh rerun
 
 当前可引用的 end-to-end 结果来自同一套 custom core/plugin/Python binding：
 `2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`。它不是官方 wheel

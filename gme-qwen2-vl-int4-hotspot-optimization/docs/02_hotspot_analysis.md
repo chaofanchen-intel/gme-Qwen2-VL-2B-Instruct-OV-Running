@@ -1,8 +1,9 @@
 # 2. Hotspot 分析
 
-> 本文记录旧 masked visual / language INT4 基线上的 hotspot。第四轮已在导出侧
-> 增加 mask-free visual IR；当前 image/fused 结果见 [`docs/11`](11_round4_image_fused_optimization.md)，
-> 不要用本文的历史视觉时间作为当前默认性能。
+> 本文记录旧 masked visual / language INT4 基线上的 hotspot。第四、五轮已在导出侧
+> 增加 mask-free 和布局优化 visual IR；当前 image/fused 结果见
+> [`docs/12`](12_round5_vision_layout_and_int8_causal.md)，不要用本文的历史视觉
+> 时间作为当前默认性能。
 
 ## 2.1 VTune GPU hotspots（定性）
 

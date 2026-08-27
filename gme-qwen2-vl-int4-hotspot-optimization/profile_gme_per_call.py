@@ -40,7 +40,7 @@ def main() -> None:
     sys.path.insert(0, str(GME_ROOT))
     from gme_openvino import GmeOpenVINO
 
-    encoder = GmeOpenVINO(PACKAGE, device="GPU", precision="int4_causal_vnomask", streams=1, batch_mode="padded")
+    encoder = GmeOpenVINO(PACKAGE, device="GPU", precision="int4_causal_vopt", streams=1, batch_mode="padded")
     text = make_text(encoder, args.length, encoder._instruction(None, False))
     for _ in range(args.warmup):
         encoder.get_text_embeddings([text], is_query=False, batch_size=1, show_progress_bar=False)

@@ -66,7 +66,7 @@ def cos_rows(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--device", default="GPU")
-    ap.add_argument("--precisions", default="int4_causal,int4_causal_vnomask,int8,int8_vnomask")
+    ap.add_argument("--precisions", default="int4_causal_vopt,int4_gs64_causal_vopt,int8_causal_vopt")
     ap.add_argument("--output", default=None)
     args = ap.parse_args()
 

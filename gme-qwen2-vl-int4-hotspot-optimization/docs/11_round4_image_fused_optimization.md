@@ -1,4 +1,9 @@
-# 第四轮：image / fused 路径的 hotspot 分析与优化
+# 第四轮：image / fused 路径的 hotspot 分析与优化（历史）
+
+> 第五轮已在本轮 mask-free visual 的基础上继续加入 `headfirst` 和 `rank3` 布局，
+> 并补上 `int8_causal`。因此本文的 `_vnomask` 结果是第四轮历史中间态；当前
+> final precision、初始 stock 对照和完整性能见 [`docs/12`](12_round5_vision_layout_and_int8_causal.md)
+> 及 [`results/r5_final_20260827/`](../results/r5_final_20260827/)。
 
 前三轮全部围绕**语言 IR** 的纯文本 `text` / `query` 路径：1024 token 从 stock 283.0 ms
 降到 `int4_causal` 的 222.3 ms（累计 1.273x，docs/06、docs/09、docs/10）。
@@ -520,7 +525,7 @@ fused 多 24 个文本 token。
 §11.1.1 那一笔：优化后的语言段回到了 72.6 ms（单独测 79.6 ms），而优化前是 238.5 ms。
 **这不是语言模型变快了，是它不再被前一次重负载拖到低频档。**
 
-### 11.4.1 当前 fresh stage split（2026-08-26）
+### 11.4.1 第四轮历史 fresh stage split（2026-08-26）
 
 上表是历史 stage-split A/B。为给当前 package 一个可直接复核的阶段口径，
 `profile_gme_image.py` 又在同一套 custom core/plugin/Python binding 上运行了
@@ -544,7 +549,7 @@ fused 多 24 个文本 token。
 [`profile_gme_image_int8_vnomask.json`](../results/r4_rerun_20260826/profile_gme_image_int8_vnomask.json)
 和
 [`profile_gme_image_int4_causal_vnomask.json`](../results/r4_rerun_20260826/profile_gme_image_int4_causal_vnomask.json)。
-当前 fresh stage 数据显示 mask-free visual 的 visual 段在两种 precision 上都约
+第四轮历史 fresh stage 数据显示 mask-free visual 的 visual 段在两种 precision 上都约
 为 199/339/529/1155/1450 ms；两者主要差异来自 language 段的 INT8/causal INT4
 选择，而不是 visual mask-free 图之间的语义差异。
 
@@ -625,22 +630,22 @@ fused +0.0011；int8：image −0.0019 但 fused +0.0006）。这正是 NNCF 对
 真正的等价性论据是 §11.3.3 的 **FP32 逐位相同**；量化后这点双向小差不能用来否定它，
 也不构成精度回退。
 
-### 11.6.2 推荐
+### 11.6.2 第四轮阶段推荐（第五轮前）
 
 | 场景 | precision key | 1024-token text | image 448x448 | image 1288x728 |
 | --- | --- | ---: | ---: | ---: |
-| package 默认 / 精度优先 | **`int8_vnomask`** | — | — | — |
-| 低延迟 / 均衡 | **`int4_causal_vnomask`** | 221.4 | **288.7** | **1798.3** |
-| 更高精度的 INT4 | `int4_gs64_causal_vnomask` | 236.0 | — | — |
+| 第四轮 package 默认 / 精度优先 | **`int8_vnomask`** | — | — | — |
+| 第四轮低延迟 / 均衡 | **`int4_causal_vnomask`** | 221.4 | **288.7** | **1798.3** |
+| 第四轮更高精度的 INT4 | `int4_gs64_causal_vnomask` | 236.0 | — | — |
 | 对照：本轮之前的默认 | `int4_causal` | 221.4 | 563.6 | 4494.4 |
 
 `_vnomask` 系列与它们同名的基准 key **只差视觉塔**，语言 IR 完全相同——这正是让 §11.4
 的 A/B 可归因的原因，也意味着 docs/09/10 的所有文本结论**原样成立**。
 
-### 11.6.4 当前 fresh rerun：text/query、image/fused 和 batch
+### 11.6.4 第四轮历史 fresh rerun：text/query、image/fused 和 batch
 
 为避免把历史 stage-split 的 p50 数字误当成当前 package 的完整矩阵，2026-08-26
-又使用同一套 custom core/plugin/Python binding 对当前默认 precision 做了独立重测。
+又使用同一套 custom core/plugin/Python binding 对第四轮阶段 precision 做了独立重测。
 原始结果见 [`results/r4_rerun_20260826/`](../results/r4_rerun_20260826/)：
 
 - Python/GPU，`repeat=5`，warm end-to-end；主要统计使用 mean；
@@ -745,7 +750,7 @@ gme-qwen2-vl-int4-hotspot-optimization/
   check_vision_batch_contract.py      新增：单图契约（§11.3.5）
   check_vision_mask_necessity.py      新增：mask 必要性的完整枚举 + PyTorch 等价性（§11.2.2–11.2.5）
   results/r4_20260826/                历史第四轮分析原始结果（stage split / 等价性）
-  results/r4_rerun_20260826/          当前 vnomask fresh text/image/batch 原始结果
+  results/r4_rerun_20260826/          第四轮 vnomask fresh text/image/batch 原始结果
 ```
 
 **GPU plugin 交付面：本轮没有新增任何 plugin 改动。** 与第三轮一样，收益全在导出侧。
@@ -771,7 +776,7 @@ gme-qwen2-vl-int4-hotspot-optimization/
 ## 11.9 复现
 
 下面第 1--3 步重建的是历史第四轮分析产物目录 `results/r4_20260826/`；当前
-fresh 性能矩阵和阶段拆分已经保存在 `results/r4_rerun_20260826/`，无需覆盖历史结果。
+第四轮 fresh 性能矩阵和阶段拆分已经保存在 `results/r4_rerun_20260826/`，无需覆盖历史结果。
 
 ```bash
 cd gme-Qwen2-VL-2B-Instruct-Running

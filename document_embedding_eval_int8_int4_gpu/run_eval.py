@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark GME PDF embeddings on GPU with mask-free INT8 and causal INT4."""
+"""Benchmark GME PDF embeddings on GPU with final causal and visual optimizations."""
 from __future__ import annotations
 
 import gc
@@ -253,13 +253,16 @@ def main() -> None:
     sys.path.insert(0, str(RUNNING))
     from gme_openvino import GmeOpenVINO
 
-    # Default scope is the optimized mask-free visual pair (see README.md). PRECISIONS
-    # lets a caller extend this to any other package precision.
-    # without touching the default code path or its output file.
+    # Default scope is the three fifth-round final precisions (see README.md).
+    # PRECISIONS and OUTPUT remain available for explicit comparison runs.
     precisions_env = os.environ.get("PRECISIONS")
-    precisions = tuple(p.strip() for p in precisions_env.split(",")) if precisions_env else ("int8_vnomask", "int4_causal_vnomask")
-    default_output = precisions == ("int8_vnomask", "int4_causal_vnomask")
-    output_path = Path(os.environ.get("OUTPUT", RESULTS / "benchmark.json")) if default_output else \
+    precisions = tuple(p.strip() for p in precisions_env.split(",")) if precisions_env else (
+        "int8_causal_vopt", "int4_causal_vopt", "int4_gs64_causal_vopt"
+    )
+    default_output = precisions == (
+        "int8_causal_vopt", "int4_causal_vopt", "int4_gs64_causal_vopt"
+    )
+    output_path = Path(os.environ.get("OUTPUT", RESULTS / "benchmark_gme_round5_final_vopt_20260827.json")) if default_output else \
         Path(os.environ.get("OUTPUT", RESULTS / f"benchmark_{'_'.join(precisions)}.json"))
 
     RESULTS.mkdir(parents=True, exist_ok=True)

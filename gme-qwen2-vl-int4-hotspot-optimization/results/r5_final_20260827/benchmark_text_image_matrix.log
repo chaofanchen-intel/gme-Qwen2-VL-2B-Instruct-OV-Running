@@ -1,0 +1,47 @@
+resolving workloads (tokenizing filler text, writing benchmark images) ...
+  text    32 tokens <- 23 chars (query: 17 chars + instruction)
+  text   128 tokens <- 215 chars (query: 209 chars + instruction)
+  text   512 tokens <- 983 chars (query: 977 chars + instruction)
+  text  1024 tokens <- 2007 chars (query: 2001 chars + instruction)
+  image    448x448 -> grid [1, 32, 32], 1024 patch rows, 256 visual tokens, image-mode sequence 278 tokens
+  image    644x476 -> grid [1, 34, 46], 1564 patch rows, 391 visual tokens, image-mode sequence 413 tokens
+  image    672x672 -> grid [1, 48, 48], 2304 patch rows, 576 visual tokens, image-mode sequence 598 tokens
+  image    896x896 -> grid [1, 64, 64], 4096 patch rows, 1024 visual tokens, image-mode sequence 1046 tokens
+  image   1288x728 -> grid [1, 52, 92], 4784 patch rows, 1196 visual tokens, image-mode sequence 1218 tokens
+  image   5164x600 -> grid [1, 24, 210], 5040 patch rows, 1260 visual tokens, image-mode sequence 1282 tokens
+
+=== suite: text-lengths ===
+  python/GPU/int8_causal_vopt/32tok            text=43.8ms(43.8/emb) query=43.4ms(43.4/emb)
+  python/GPU/int4_causal_vopt/32tok            text=32.5ms(32.5/emb) query=32.1ms(32.1/emb)
+  python/GPU/int4_gs64_causal_vopt/32tok       text=36.6ms(36.6/emb) query=36.3ms(36.3/emb)
+  python/GPU/int8_causal_vopt/128tok           text=54.1ms(54.1/emb) query=53.5ms(53.5/emb)
+  python/GPU/int4_causal_vopt/128tok           text=40.3ms(40.3/emb) query=39.8ms(39.8/emb)
+  python/GPU/int4_gs64_causal_vopt/128tok      text=43.4ms(43.4/emb) query=42.9ms(42.9/emb)
+  python/GPU/int8_causal_vopt/512tok           text=128.6ms(128.6/emb) query=128.0ms(128.0/emb)
+  python/GPU/int4_causal_vopt/512tok           text=119.2ms(119.2/emb) query=119.0ms(119.0/emb)
+  python/GPU/int4_gs64_causal_vopt/512tok      text=139.3ms(139.3/emb) query=138.7ms(138.7/emb)
+  python/GPU/int8_causal_vopt/1024tok          text=260.9ms(260.9/emb) query=262.3ms(262.3/emb)
+  python/GPU/int4_causal_vopt/1024tok          text=225.5ms(225.5/emb) query=225.5ms(225.5/emb)
+  python/GPU/int4_gs64_causal_vopt/1024tok     text=240.4ms(240.4/emb) query=239.8ms(239.8/emb)
+
+=== suite: image-sizes ===
+  python/GPU/int8_causal_vopt/448x448(256vt)   image=285.1ms(285.1/emb) fused=284.5ms(284.5/emb)
+  python/GPU/int4_causal_vopt/448x448(256vt)   image=262.8ms(262.8/emb) fused=257.8ms(257.8/emb)
+  python/GPU/int4_gs64_causal_vopt/448x448(256vt) image=269.6ms(269.6/emb) fused=268.1ms(268.1/emb)
+  python/GPU/int8_causal_vopt/644x476(391vt)   image=446.6ms(446.6/emb) fused=447.0ms(447.0/emb)
+  python/GPU/int4_causal_vopt/644x476(391vt)   image=426.2ms(426.2/emb) fused=425.6ms(425.6/emb)
+  python/GPU/int4_gs64_causal_vopt/644x476(391vt) image=440.1ms(440.1/emb) fused=439.1ms(439.1/emb)
+  python/GPU/int8_causal_vopt/672x672(576vt)   image=675.2ms(675.2/emb) fused=672.6ms(672.6/emb)
+  python/GPU/int4_causal_vopt/672x672(576vt)   image=643.6ms(643.6/emb) fused=640.4ms(640.4/emb)
+  python/GPU/int4_gs64_causal_vopt/672x672(576vt) image=649.8ms(649.8/emb) fused=693.7ms(693.7/emb)
+  python/GPU/int8_causal_vopt/896x896(1024vt)  image=1404.6ms(1404.6/emb) fused=1422.5ms(1422.5/emb)
+  python/GPU/int4_causal_vopt/896x896(1024vt)  image=1343.7ms(1343.7/emb) fused=1349.2ms(1349.2/emb)
+  python/GPU/int4_gs64_causal_vopt/896x896(1024vt) image=1386.2ms(1386.2/emb) fused=1387.9ms(1387.9/emb)
+  python/GPU/int8_causal_vopt/1288x728(1196vt) image=1750.3ms(1750.3/emb) fused=1757.3ms(1757.3/emb)
+  python/GPU/int4_causal_vopt/1288x728(1196vt) image=1688.7ms(1688.7/emb) fused=1688.8ms(1688.8/emb)
+  python/GPU/int4_gs64_causal_vopt/1288x728(1196vt) image=1707.6ms(1707.6/emb) fused=1711.8ms(1711.8/emb)
+  python/GPU/int8_causal_vopt/logo(1260vt)     image=2050.6ms(2050.6/emb) fused=2049.6ms(2049.6/emb)
+  python/GPU/int4_causal_vopt/logo(1260vt)     image=1999.7ms(1999.7/emb) fused=1996.3ms(1996.3/emb)
+  python/GPU/int4_gs64_causal_vopt/logo(1260vt) image=2018.0ms(2018.0/emb) fused=2020.1ms(2020.1/emb)
+
+wrote /home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/r5_final_20260827/benchmark_text_image_matrix.json

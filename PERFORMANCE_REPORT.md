@@ -1,10 +1,14 @@
 # GME-Qwen2-VL-2B-Instruct OpenVINO 性能测试报告
 
-**状态：当前第四轮结果已完成，历史主表保留。** 本文件后面的原有章节是
+**状态：当前第五轮 final 结果已完成，历史主表保留。** 本文件后面的原有章节是
 2026-08-03 的 repeat=20 历史矩阵，使用旧的普通/masked visual precision；它们
 仍可用于 workload 对照，但不代表当前 package 默认值。当前结果使用
-`int8_vnomask` 和 `int4_causal_vnomask`，主要统计按 mean 解读，原始 JSON 见
-[`gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/`](gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/)。
+`int8_causal_vopt`、`int4_causal_vopt` 和 `int4_gs64_causal_vopt`，主要统计按
+mean 解读，原始 JSON 见
+[`gme-qwen2-vl-int4-hotspot-optimization/results/r5_final_20260827/`](gme-qwen2-vl-int4-hotspot-optimization/results/r5_final_20260827/)。
+
+document embedding 的最终三 precision 结果见
+[`document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round5_final_vopt_20260827.json`](document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round5_final_vopt_20260827.json)。
 
 历史主表的所有时延数据来自 `08_benchmark_matrix.py` 的 `repeat=20` 结果；
 原始 JSON 保存在 `artifacts/benchmark_matrix_*_r20*.json`。**不要**用
@@ -14,7 +18,7 @@
 本报告与 `GME_TECHNICAL_DETAILS.md` §9.1–§9.3 的关系：技术说明记录**固定参考 workload** 的历史结果（用于回归对比）；本报告覆盖
 **部署选型真正需要的维度**——指定 token 长度的文本、常见分辨率的图片、以及 batch 扩展性。
 
-## 当前第四轮 fresh rerun（2026-08-26）
+## 当前第五轮 final rerun（2026-08-27）
 
 本节是当前 package 的性能入口。测试使用同源 custom Python binding、OpenVINO
 core 和 GPU plugin，版本为
@@ -35,24 +39,27 @@ export OPENVINO_LIB_PATHS="$CUSTOM_LIB"
 export OPENVINO_PLUGIN_PATH="$CUSTOM_LIB"
 ```
 
-`int8_vnomask` 使用普通 INT8 language IR + mask-free INT8 visual IR；
-`int4_causal_vnomask` 使用 causal INT4 language IR + mask-free INT4 visual IR。
-两者都已有于 package，不需要重新导出。本次矩阵只启用 Python/GPU，先 warm
+`int8_causal_vopt` 使用 causal INT8 language IR + 第五轮最终 visual IR；
+`int4_causal_vopt` 使用 causal INT4 language IR + 第五轮最终 visual IR；
+`int4_gs64_causal_vopt` 使用 gs64 causal INT4 language IR + 同一最终 visual IR。
+三者都已有于 package，不需要重新导出。本次矩阵只启用 Python/GPU，先 warm
 后 repeat=5；它是当前 workload 的新基准，不与下方历史 repeat=20 数字混算。
 
 ### text/query（N=1，mean ms/call）
 
 | precision | 32 tokens text/query | 128 tokens text/query | 512 tokens text/query | 1024 tokens text/query |
 | --- | ---: | ---: | ---: | ---: |
-| `int8_vnomask` | 44.12 / 43.80 | 54.18 / 54.15 | 135.56 / 135.63 | 279.68 / 280.77 |
-| `int4_causal_vnomask` | 32.32 / 31.99 | 41.86 / 41.65 | 119.36 / 119.35 | 226.00 / 226.16 |
+| `int8_causal_vopt` | 43.75 / 43.37 | 54.13 / 53.53 | 128.60 / 127.97 | 260.95 / 262.29 |
+| `int4_causal_vopt` | 32.47 / 32.07 | 40.30 / 39.78 | 119.25 / 119.01 | 225.47 / 225.54 |
+| `int4_gs64_causal_vopt` | 36.64 / 36.27 | 43.42 / 42.92 | 139.35 / 138.66 | 240.39 / 239.83 |
 
 ### image/fused（N=1，mean ms/call）
 
 | precision | 448x448 / 256K | 644x476 / 391K | 672x672 / 576K | 896x896 / 1024K | 1288x728 / 1196K | logo / 1260K |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `int8_vnomask` | 310.53 / 306.94 | 486.84 / 484.11 | 729.97 / 728.56 | 1523.18 / 1521.81 | 1850.57 / 1850.86 | 2176.51 / 2170.73 |
-| `int4_causal_vnomask` | 296.37 / 296.43 | 470.46 / 468.91 | 699.25 / 694.68 | 1449.80 / 1449.04 | 1800.29 / 1795.29 | 2110.59 / 2114.97 |
+| `int8_causal_vopt` | 285.13 / 284.54 | 446.63 / 447.00 | 675.19 / 672.58 | 1404.58 / 1422.48 | 1750.35 / 1757.35 | 2050.55 / 2049.64 |
+| `int4_causal_vopt` | 262.76 / 257.84 | 426.25 / 425.61 | 643.63 / 640.44 | 1343.65 / 1349.16 | 1688.70 / 1688.79 | 1999.73 / 1996.27 |
+| `int4_gs64_causal_vopt` | 269.60 / 268.09 | 440.13 / 439.11 | 649.76 / 693.67 | 1386.19 / 1387.92 | 1707.59 / 1711.78 | 2017.99 / 2020.06 |
 
 ### batch（Python/GPU，text=128 tokens，image=448x448）
 
@@ -61,25 +68,28 @@ export OPENVINO_PLUGIN_PATH="$CUSTOM_LIB"
 
 | precision / mode / streams | N=1 | N=2 | N=4 | N=8 | N=16 | N=32 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `int8_vnomask` / per_sample / 1 | 54.70 (54.70) | 105.27 (52.64) | 204.46 (51.11) | 402.41 (50.30) | 798.05 (49.88) | 1584.76 (49.52) |
-| `int8_vnomask` / padded / 1 | 54.71 (54.71) | 73.12 (36.56) | 131.42 (32.85) | 259.72 (32.47) | 486.51 (30.41) | 1007.78 (31.49) |
-| `int4_causal_vnomask` / per_sample / 1 | 40.43 (40.43) | 75.74 (37.87) | 152.07 (38.02) | 287.73 (35.97) | 570.85 (35.68) | 1135.49 (35.48) |
-| `int4_causal_vnomask` / padded / 1 | 40.12 (40.12) | 60.82 (30.41) | 119.24 (29.81) | 221.12 (27.64) | 470.79 (29.42) | 890.09 (27.82) |
+| `int8_causal_vopt` / per_sample / 1 | 54.43 (54.43) | 104.74 (52.37) | 202.67 (50.67) | 402.69 (50.34) | 799.09 (49.94) | 1584.44 (49.51) |
+| `int8_causal_vopt` / padded / 1 | 54.78 (54.78) | 73.31 (36.66) | 128.06 (32.02) | 255.22 (31.90) | 479.89 (29.99) | 997.91 (31.18) |
+| `int4_causal_vopt` / per_sample / 1 | 40.29 (40.29) | 75.55 (37.77) | 145.30 (36.33) | 287.06 (35.88) | 569.44 (35.59) | 1133.01 (35.41) |
+| `int4_causal_vopt` / padded / 1 | 42.26 (42.26) | 62.41 (31.20) | 120.34 (30.08) | 220.27 (27.53) | 468.56 (29.29) | 889.14 (27.79) |
+| `int4_gs64_causal_vopt` / padded / 1 | 43.12 (43.12) | 68.10 (34.05) | 141.32 (35.33) | 234.76 (29.35) | 527.08 (32.94) | 993.90 (31.06) |
 
 对应的 image batch（只到 N=8）：
 
 | precision / mode / streams | N=1 | N=2 | N=4 | N=8 |
 | --- | ---: | ---: | ---: | ---: |
-| `int8_vnomask` / per_sample / 1 | 305.54 (305.54) | 605.65 (302.83) | 1199.44 (299.86) | 2382.24 (297.78) |
-| `int8_vnomask` / padded / 1 | 306.81 (306.81) | 579.71 (289.86) | 1146.85 (286.71) | 2275.64 (284.46) |
-| `int4_causal_vnomask` / per_sample / 1 | 286.99 (286.99) | 574.05 (287.03) | 1143.63 (285.91) | 2263.17 (282.90) |
-| `int4_causal_vnomask` / padded / 1 | 288.68 (288.68) | 555.45 (277.72) | 1112.75 (278.19) | 2237.67 (279.71) |
+| `int8_causal_vopt` / per_sample / 1 | 285.14 (285.14) | 560.03 (280.01) | 1115.30 (278.83) | 2236.65 (279.58) |
+| `int8_causal_vopt` / padded / 1 | 284.62 (284.62) | 536.18 (268.09) | 1051.05 (262.76) | 2084.37 (260.55) |
+| `int4_causal_vopt` / per_sample / 1 | 258.59 (258.59) | 509.02 (254.51) | 1013.03 (253.26) | 2026.55 (253.32) |
+| `int4_causal_vopt` / padded / 1 | 265.77 (265.77) | 502.14 (251.07) | 991.70 (247.93) | 1982.36 (247.79) |
+| `int4_gs64_causal_vopt` / padded / 1 | 268.65 (268.65) | 514.78 (257.39) | 1025.73 (256.43) | 2027.38 (253.42) |
 
 完整的 `streams=auto` 结果、workload shape、每个 cell 和 stdout/stderr 保留在：
 
-- [`benchmark_text_image_matrix.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/benchmark_text_image_matrix.json)
-- [`benchmark_batch_int8_vnomask.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/benchmark_batch_int8_vnomask.json)
-- [`benchmark_batch_int4_causal_vnomask.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/benchmark_batch_int4_causal_vnomask.json)
+- [`benchmark_text_image_matrix.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r5_final_20260827/benchmark_text_image_matrix.json)
+- [`benchmark_batch_int8_causal_vopt.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r5_final_20260827/benchmark_batch_int8_causal_vopt.json)
+- [`benchmark_batch_int4_causal_vopt.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r5_final_20260827/benchmark_batch_int4_causal_vopt.json)
+- [`benchmark_batch_int4_gs64_causal_vopt.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r5_final_20260827/benchmark_batch_int4_gs64_causal_vopt.json)
 
 当前矩阵可用下面的环境和命令复现（`batch` suite 的 precision 需要分别运行）：
 
@@ -99,20 +109,47 @@ env -i HOME="$HOME" PATH=/usr/bin:/bin \
   OPENVINO_LIB_PATHS="$CUSTOM_LIB" OPENVINO_PLUGIN_PATH="$CUSTOM_LIB" \
   "$PY" -u "$GME/08_benchmark_matrix.py" \
     --package "$GME/ov_models/gme-qwen2-vl-2b-instruct-openvino" \
-    --artifacts "$HOT/results/r4_rerun_20260826" \
+    --artifacts "$HOT/results/r5_final_20260827" \
     --backends python --devices GPU \
-    --precisions int8_vnomask,int4_causal_vnomask \
+    --precisions int8_causal_vopt,int4_causal_vopt,int4_gs64_causal_vopt \
     --suite text-lengths,image-sizes --text-lengths 32,128,512,1024 \
     --image-sizes 448x448,644x476,672x672,896x896,1288x728 \
     --include-logo --repeat 5 \
-    --output "$HOT/results/r4_rerun_20260826/benchmark_text_image_matrix.json"
+    --output "$HOT/results/r5_final_20260827/benchmark_text_image_matrix.json"
 ```
 
 `run_eval.py` 的当前 document embedding 命令和 custom binding 环境见
 [`document_embedding_eval_int8_int4_gpu/README.md`](document_embedding_eval_int8_int4_gpu/README.md)。
 
 下方原有章节统一视为**历史 repeat=20 参考矩阵**；其中的 `int8`、`int4` 和
-masked visual 结果不要替代本节的当前 vnomask 结果。
+masked/vnomask visual 结果不要替代本节的当前第五轮 vopt 结果。
+
+### 最初未优化 stock 对照（INT8，GPU/Python）
+
+最初完整矩阵来自 [`artifacts/benchmark_matrix_fresh_r1.json`](artifacts/benchmark_matrix_fresh_r1.json)。
+它是无 GME plugin patch、普通 `int8` language/visual IR 的早期 stock 测量，
+`repeat=1`，只作为累计优化幅度的方向性对照；当前 final 是 `repeat=5`，两者
+不是严格交错 A/B。document 评测中的最初 INT8/INT4 baseline 则单独保留在
+[`document_embedding_benchmark_before_optimized.json`](document_embedding_eval_int8_int4_gpu/results/document_embedding_benchmark_before_optimized.json)。
+
+| workload | 初始 stock INT8 | 第五轮 `int8_causal_vopt` | latency reduction | speedup |
+| --- | ---: | ---: | ---: | ---: |
+| text/query, 32 tokens | 51.55 / 49.41 ms | 43.75 / 43.37 ms | 15.1% / 12.2% | 1.178x / 1.139x |
+| text/query, 128 tokens | 64.07 / 62.74 ms | 54.13 / 53.53 ms | 15.5% / 14.7% | 1.184x / 1.172x |
+| text/query, 512 tokens | 144.65 / 139.36 ms | 128.60 / 127.97 ms | 11.1% / 8.2% | 1.125x / 1.089x |
+| text/query, 1024 tokens | 296.57 / 296.01 ms | 260.95 / 262.29 ms | 12.0% / 11.4% | 1.137x / 1.129x |
+| image/fused, 448x448 | 476.69 / 468.07 ms | 285.13 / 284.54 ms | 40.2% / 39.2% | 1.672x / 1.645x |
+| image/fused, 644x476 | 868.95 / 868.82 ms | 446.63 / 447.00 ms | 48.6% / 48.6% | 1.946x / 1.944x |
+| image/fused, 672x672 | 1372.30 / 1338.03 ms | 675.19 / 672.58 ms | 50.8% / 49.7% | 2.032x / 1.989x |
+| image/fused, 896x896 | 3233.41 / 3211.82 ms | 1404.58 / 1422.48 ms | 56.6% / 55.7% | 2.302x / 2.258x |
+| image/fused, 1288x728 | 4654.46 / 4600.58 ms | 1750.35 / 1757.35 ms | 62.4% / 61.8% | 2.659x / 2.618x |
+
+对 batch=128 tokens、`padded + streams=1`，最初 stock INT8 的 text N=8 为
+`280.27 ms/call`（`35.03 ms/embedding`），448x448 image 为
+`3539.70 ms/call`（`442.46 ms/embedding`）；第五轮 final `int8_causal_vopt`
+对应为 `255.22`（`31.90`）和 `2084.37`（`260.55`）。这组数据直观看出
+第五轮最终组合相对最初 stock 的 text 与 image 收益；完整 N sweep 保留在上述
+两个 JSON 文件中。
 
 ## PA / SDPA backend 适用性
 

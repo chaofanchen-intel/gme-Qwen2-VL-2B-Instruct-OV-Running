@@ -14,7 +14,7 @@
      **解锁 plugin 的 opt-3 INT4 权重重排**（它的第一道 guard 就是 `prim_input_size != 3`），
      `mlp.fc1` 单项快 **28–32%**。
 
-累计效果（视觉 IR，INT4，wall p50）：
+累计效果（视觉 IR，INT4，wall p50，历史阶段 profiling）：
 
 | grid | L | 第四轮之前 | 第四轮 mask-free | **本轮 `_vopt`** | 累计 |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -291,13 +291,60 @@ merger 的第一步是 `view(-1, hidden_size)`，会把前导轴自然抹掉。
 
 ---
 
+## 12.5.1 当前 final public benchmark（2026-08-27）
+
+上面的 stage-split `e2e_int4_causal_vopt.json` 是第五轮分析口径的 p50；当前最终
+部署性能以 `08_benchmark_matrix.py` 的 public API mean 为主，并且同时覆盖三个
+正式 precision。完整原始结果位于 [`results/r5_final_20260827/`](../results/r5_final_20260827/)。
+
+| workload | `int8_causal_vopt` | `int4_causal_vopt` | `int4_gs64_causal_vopt` |
+| --- | ---: | ---: | ---: |
+| text/query, 32 tokens (mean ms/call) | 43.75 / 43.37 | 32.47 / 32.07 | 36.64 / 36.27 |
+| text/query, 128 tokens (mean ms/call) | 54.13 / 53.53 | 40.30 / 39.78 | 43.42 / 42.92 |
+| text/query, 512 tokens (mean ms/call) | 128.60 / 127.97 | 119.25 / 119.01 | 139.35 / 138.66 |
+| text/query, 1024 tokens (mean ms/call) | 260.95 / 262.29 | 225.47 / 225.54 | 240.39 / 239.83 |
+| image/fused, 448x448 (mean ms/call) | 285.13 / 284.54 | 262.76 / 257.84 | 269.60 / 268.09 |
+| image/fused, 644x476 (mean ms/call) | 446.63 / 447.00 | 426.25 / 425.61 | 440.13 / 439.11 |
+| image/fused, 672x672 (mean ms/call) | 675.19 / 672.58 | 643.63 / 640.44 | 649.76 / 693.67 |
+| image/fused, 896x896 (mean ms/call) | 1404.58 / 1422.48 | 1343.65 / 1349.16 | 1386.19 / 1387.92 |
+| image/fused, 1288x728 (mean ms/call) | 1750.35 / 1757.35 | 1688.70 / 1688.79 | 1707.59 / 1711.78 |
+| image/fused, logo (1260 visual tokens, mean ms/call) | 2050.55 / 2049.64 | 1999.73 / 1996.27 | 2017.99 / 2020.06 |
+
+batch=128 tokens、`padded + streams=1` 的 N=8 为：
+
+| precision | text mean ms/call (ms/embedding) | image mean ms/call (ms/embedding) |
+| --- | ---: | ---: |
+| `int8_causal_vopt` | 255.22 (31.90) | 2084.37 (260.55) |
+| `int4_causal_vopt` | 220.27 (27.53) | 1982.36 (247.79) |
+| `int4_gs64_causal_vopt` | 234.76 (29.35) | 2027.38 (253.42) |
+
+### 12.5.2 最初 stock 到第五轮 final 的累计收益
+
+最初 stock INT8 的同 workload 数据来自
+[`../../artifacts/benchmark_matrix_fresh_r1.json`](../../artifacts/benchmark_matrix_fresh_r1.json)，
+无 GME plugin patch、普通 INT8 visual/language、repeat=1；第五轮 final 为
+repeat=5，因此这不是严格交错 A/B，只用于保留初始基线和显示累计方向。
+
+| workload | 初始 stock INT8 | 第五轮 `int8_causal_vopt` | reduction | speedup |
+| --- | ---: | ---: | ---: | ---: |
+| text/query, 32 tokens | 51.55 / 49.41 | 43.75 / 43.37 | 15.1% / 12.2% | 1.178x / 1.139x |
+| text/query, 128 tokens | 64.07 / 62.74 | 54.13 / 53.53 | 15.5% / 14.7% | 1.184x / 1.172x |
+| text/query, 512 tokens | 144.65 / 139.36 | 128.60 / 127.97 | 11.1% / 8.2% | 1.125x / 1.089x |
+| text/query, 1024 tokens | 296.57 / 296.01 | 260.95 / 262.29 | 12.0% / 11.4% | 1.137x / 1.129x |
+| image/fused, 448x448 | 476.69 / 468.07 | 285.13 / 284.54 | 40.2% / 39.2% | 1.672x / 1.645x |
+| image/fused, 1288x728 | 4654.46 / 4600.58 | 1750.35 / 1757.35 | 62.4% / 61.8% | 2.659x / 2.618x |
+
+最初未优化 INT4 的 document embedding batch baseline 也保留在
+`document_embedding_benchmark_before_optimized.json`；它与第五轮最终三种
+precision 的四表示对照见 `document_embedding_eval_int8_int4_gpu/REPORT.md`。
+
 ## 12.6 推荐配置
 
 | 场景 | precision key | 1024-token text | image 448x448 | image 1288x728 |
 | --- | --- | ---: | ---: | ---: |
-| **默认 / near-lossless** | **`int8_causal_vopt`** | **262.5** | — | — |
-| **低时延** | **`int4_causal_vopt`** | 221.4 | **256.6** | **1677.6** |
-| 精度优先 INT4 | `int4_gs64_causal_vopt` | 236.0 | — | — |
+| **默认 / near-lossless** | **`int8_causal_vopt`** | **260.95** | **285.13** | **1750.35** |
+| **低时延** | **`int4_causal_vopt`** | **225.47** | **262.76** | **1688.70** |
+| 精度优先 INT4 | `int4_gs64_causal_vopt` | 240.39 | 269.60 | 1707.59 |
 | 对照：本轮之前 | `int4_causal_vnomask` | 221.4 | 288.7 | 1798.3 |
 | 对照：第四轮之前 | `int4_causal` | 221.4 | 563.6 | 4494.4 |
 

@@ -2,7 +2,7 @@
 
 > 本文是 per-OC 语言塔的历史扩展实验。文中的“当前默认”指本实验时的
 > `int4`/gs128 语言基线，不是当前 package 的默认 precision。当前 package 默认
-> 为 `int8_vnomask`，低延迟组合为 `int4_causal_vnomask`；per-OC 结论仍保持为
+> 为 `int8_causal_vopt`，低延迟组合为 `int4_causal_vopt`；per-OC 结论仍保持为
 > “精度风险过大，不建议采纳”。
 
 docs/06 §6.3 的 oneDNN `gemm_probe` 把 `D_cab_per_oc`（group-128 → per-output-channel
@@ -234,7 +234,7 @@ gme-Qwen2-VL-2B-Instruct-Running/
 
 代码改动：`03_finalize.py`（新增两个 `compress()` 调用 + `precisions` 字典两条）、
 `dump_outputs.py` / `profile_ops.py`（`IR` 字典各加两条）、
-`profile_gme_int4_gpu.py`（新增 `--precision` 参数，当前默认 `int4_causal_vnomask`；历史
+`profile_gme_int4_gpu.py`（新增 `--precision` 参数，当前默认 `int4_causal_vopt`；历史
 per-OC 复现需显式传 precision）、
 `bench_ab.sh`（新增 `PRECISION` 环境变量，输出文件名加入精度字段，旧格式文件
 仍可被汇总脚本正确解析）。

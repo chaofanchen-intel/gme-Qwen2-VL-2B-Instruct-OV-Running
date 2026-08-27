@@ -1,10 +1,9 @@
 # 5. 试过但否掉的方案，以及后续方向
 
-> 本文的候选排序以第三轮结束时的语言塔为边界。第四轮已落地视觉塔
-> mask-free SDPA（见 [`docs/11`](11_round4_image_fused_optimization.md)）：
-> `int8_vnomask` 和 `int4_causal_vnomask` 是当前 image/fused precision，且本轮
-> 没有新增 plugin patch。下文保留历史否决数据；涉及当前默认的表述均按第三轮
-> 历史上下文理解。
+> 本文的候选排序以第三轮结束时的语言塔为边界。第四轮 mask-free 和第五轮
+> visual layout/causal 优化已经落地（见 [`docs/12`](12_round5_vision_layout_and_int8_causal.md)）：
+> `int8_causal_vopt`、`int4_causal_vopt` 和 `int4_gs64_causal_vopt` 是当前
+> precision。下文保留历史否决数据；涉及当前默认的表述均按历史上下文理解。
 
 ## 5.1 已试且**否掉**的方案（都有实测数据）
 

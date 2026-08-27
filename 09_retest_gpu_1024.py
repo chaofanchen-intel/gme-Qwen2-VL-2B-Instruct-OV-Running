@@ -53,7 +53,7 @@ DEFAULT_OPENVINO_INSTALL = HERE.parent / "benchmark" / "openvino" / "install"
 INSTRUCTION = "Find an image that matches the given text."
 
 # Calls needed to run past the boost->steady-state transition. Measured by hand:
-# inside one continuous process, the quantized vnomask paths flip after the 3rd call and never flip
+# inside one continuous process, the quantized vopt paths flip after the 3rd call and never flip
 # back across 20 further calls. But each FRESH PROCESS launch samples whatever
 # ambient GPU power state happens to exist at that instant -- which is not a pure
 # function of this process's own warmup count -- so no fixed warmup count forces
@@ -63,14 +63,16 @@ INSTRUCTION = "Find an image that matches the given text."
 # is left to the multi-round median/p10/p90 in the summary rather than assumed
 # away. fp32 calls are already ~1.7s, long enough that the transition happens
 # within a single call.
-STEADY_WARMUP = {"fp32": 3, "int8_vnomask": 12, "int4_causal_vnomask": 14}
+STEADY_WARMUP = {"fp32": 3, "int8_causal_vopt": 12, "int4_causal_vopt": 14,
+                 "int4_gs64_causal_vopt": 14}
 
 # (precision, session count, repeat per session, batch_mode override or None)
 PLAN = [
     ("fp32", 8, 2, None),
-    ("int8_vnomask", 15, 5, None),
-    ("int4_causal_vnomask", 15, 5, None),
-    ("int8_vnomask", 6, 5, "per_sample"),  # diagnostic: does forcing per_sample on GPU change the picture?
+    ("int8_causal_vopt", 15, 5, None),
+    ("int4_causal_vopt", 15, 5, None),
+    ("int4_gs64_causal_vopt", 15, 5, None),
+    ("int8_causal_vopt", 6, 5, "per_sample"),  # diagnostic: does forcing per_sample on GPU change the picture?
 ]
 
 

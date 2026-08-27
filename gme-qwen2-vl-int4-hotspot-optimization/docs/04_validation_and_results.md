@@ -4,12 +4,11 @@
 > 加上第二轮的 opt-3 之后精度结论有一处变化，记在 **§4.1b**，性能数字统一按
 > 第二轮重测（**§4.3**）。
 
-> **第四轮状态**：本文前面的 opt-1/2/3 验证和第三轮 image/fused 可运行性结果
-> 都是历史 masked visual 口径。第四轮没有新增 plugin 改动，而是新增
-> `gme_visual_*_nomask.xml`；当前 `int8_vnomask` / `int4_causal_vnomask` 的
-> fresh GPU 性能与 document embedding 结果见
-> [`docs/11`](11_round4_image_fused_optimization.md) 和
-> [`results/r4_rerun_20260826/`](../results/r4_rerun_20260826/)。
+> **第五轮状态**：本文前面的 opt-1/2/3 验证和第三、四轮 image/fused 结果都是
+> 历史口径。第四、五轮没有新增 plugin 改动；当前最终 precision 为
+> `int8_causal_vopt`、`int4_causal_vopt` 和 `int4_gs64_causal_vopt`，fresh GPU
+> 性能与 document embedding 结果见 [`docs/12`](12_round5_vision_layout_and_int8_causal.md)
+> 和 [`results/r5_final_20260827/`](../results/r5_final_20260827/)。
 
 ## 4.1 数值正确性（opt-1 + opt-2）：bit-identical
 
@@ -230,10 +229,10 @@ vtune -collect gpu-hotspots -result-dir results/vtune-gpu-hotspots-int4-1024-pat
    侧就能修的，两轮合计已拿到 **~17%** 的干净收益；再往前要么动 oneDNN kernel
    本身，要么动模型导出（§5.2）。
 
-## 4.6 第四轮当前结果入口
+## 4.6 第五轮当前结果入口
 
-第四轮 mask-free visual 优化已通过 FP32 逐位等价性和单图 visual batch contract
-验证；它只影响 image/fused 的 visual IR，不改变 text/query 的 language IR。当前
-部署应使用 `int8_vnomask` 或 `int4_causal_vnomask`，而不是把本文历史的
-`int8`/`int4_causal` masked visual 组合称为最新默认。完整的 text/query、image/fused
-和 batch fresh 数据见 [`../results/r4_rerun_20260826/`](../results/r4_rerun_20260826/)。
+第五轮 headfirst/rank3 visual 优化和 `int8_causal` 补漏已通过第五轮等价性、精度
+和性能验证；当前部署应使用 `int8_causal_vopt`、`int4_causal_vopt` 或
+`int4_gs64_causal_vopt`，而不是把本文历史的 masked/vnomask 组合称为最新默认。
+完整的 text/query、image/fused 和 batch fresh 数据见
+[`../results/r5_final_20260827/`](../results/r5_final_20260827/)。

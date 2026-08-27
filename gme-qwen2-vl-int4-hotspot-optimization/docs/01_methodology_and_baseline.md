@@ -1,9 +1,10 @@
 # 1. 方法论与基线
 
-> 本文记录语言塔优化第一轮/第二轮的历史基线。当前 package 已进入第四轮：
-> image/fused 默认使用 mask-free visual IR，当前 precision key 为
-> `int8_vnomask` 和 `int4_causal_vnomask`；本文的 `int4` 和旧 runtime 数字不要
-> 解释为当前默认视觉路径。当前完整重测见 [`results/r4_rerun_20260826/`](../results/r4_rerun_20260826/)。
+> 本文记录语言塔优化第一轮/第二轮的历史基线。当前 package 已进入第五轮：
+> image/fused 使用最终 `_vopt` visual IR，当前 precision key 为
+> `int8_causal_vopt`、`int4_causal_vopt` 和 `int4_gs64_causal_vopt`；本文的
+> `int4` 和旧 runtime 数字不要解释为当前默认视觉路径。当前完整重测见
+> [`results/r5_final_20260827/`](../results/r5_final_20260827/)。
 
 ## 1.1 问题陈述
 

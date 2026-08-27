@@ -65,7 +65,7 @@ def percentile(values: list[float], q: float = 50) -> float:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--precision", default="int4_causal_vnomask")
+    ap.add_argument("--precision", default="int4_causal_vopt")
     ap.add_argument("--device", default="GPU")
     ap.add_argument("--sizes", default=DEFAULT_SIZES,
                     help="comma-separated HxW list; multiples of 28 avoid processor rescaling")

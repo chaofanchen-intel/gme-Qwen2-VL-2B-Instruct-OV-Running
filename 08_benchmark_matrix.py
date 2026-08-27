@@ -77,7 +77,7 @@ BATCH_SIZES = [1, 2, 4, 8, 16, 32]
 # Images cost 10-100x a short text per sample, so the image batch sweep stops earlier.
 IMAGE_BATCH_SIZES = [1, 2, 4, 8]
 DEVICES = ["CPU", "GPU"]
-PRECISIONS = ["int8_vnomask", "int4_causal_vnomask"]
+PRECISIONS = ["int8_causal_vopt", "int4_causal_vopt", "int4_gs64_causal_vopt"]
 
 
 # --------------------------------------------------------------- workload setup
@@ -162,7 +162,7 @@ def build_workloads(
     instruction: str,
 ) -> dict:
     """Resolve every workload once, on CPU, so all backends measure the same input."""
-    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8_vnomask")
+    encoder = GmeOpenVINO(paths.package, device="CPU", precision="int8_causal_vopt")
     default_instruction = encoder._instruction(None, False)
     texts = {}
     for target in text_lengths:
@@ -220,7 +220,7 @@ def run_cpp(arguments: list[str], paths: MatrixPaths, timeout: int = 3600) -> di
 
 
 def available_devices(package: Path, devices: list[str]) -> list[str]:
-    present = GmeOpenVINO(package, device="CPU", precision="int8_vnomask").core.available_devices
+    present = GmeOpenVINO(package, device="CPU", precision="int8_causal_vopt").core.available_devices
     usable = [device for device in devices if device in present]
     for device in devices:
         if device not in present:
@@ -424,8 +424,8 @@ def parse_args() -> argparse.Namespace:
                         help="batch suite: which N also run the image mode (images are far more expensive)")
     parser.add_argument("--batch-modes", default="per_sample,padded")
     parser.add_argument("--streams", default="1,auto")
-    parser.add_argument("--batch-precision", default="int8_vnomask",
-                        help="batch suite precision; int8_vnomask keeps the sweep affordable")
+    parser.add_argument("--batch-precision", default="int8_causal_vopt",
+                        help="batch suite precision; int8_causal_vopt keeps the sweep affordable")
     parser.add_argument("--batch-text-length", type=int, default=128)
     parser.add_argument("--output", type=Path,
                         help="report path (default: <artifacts>/benchmark_matrix.json)")

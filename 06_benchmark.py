@@ -32,7 +32,7 @@ DEFAULT_OPENVINO_INSTALL = HERE.parent / "benchmark" / "openvino" / "install"
 TEXT = "What kind of car is this?"
 INSTR = "Find an image that matches the given text."
 DEVICES = ["CPU", "GPU"]
-PRECISIONS = ["int8_vnomask", "int4_causal_vnomask"]
+PRECISIONS = ["int8_causal_vopt", "int4_causal_vopt", "int4_gs64_causal_vopt"]
 REPEAT = 5
 
 

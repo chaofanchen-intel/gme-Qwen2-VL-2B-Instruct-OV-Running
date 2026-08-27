@@ -1,128 +1,146 @@
-# GME 文档 Embedding 评测报告：GPU mask-free INT8 / causal INT4
+# GME 文档 Embedding 评测报告：第五轮 final causal / visual optimized
 
-## 当前第四轮结果（2026-08-26）
+## 当前第五轮 final（2026-08-27）
 
-本节是当前 document embedding 结果的主入口。使用的原始文件为
-[`benchmark_gme_round4_vnomask_int8_int4_causal_20260826.json`](results/benchmark_gme_round4_vnomask_int8_int4_causal_20260826.json)。
-本次没有重新运行未优化 baseline；对照文件仍是
+本节是当前 document embedding 结果的主入口。原始文件为
+[`benchmark_gme_round5_final_vopt_20260827.json`](results/benchmark_gme_round5_final_vopt_20260827.json)。
+最初未优化的普通 INT8/INT4 baseline 没有重复运行，直接保留并引用
 [`document_embedding_benchmark_before_optimized.json`](results/document_embedding_benchmark_before_optimized.json)。
-上一轮 masked visual 的优化结果
-[`benchmark_gme_opt_int8_int4_causal_20260825.json`](results/benchmark_gme_opt_int8_int4_causal_20260825.json)
-也保留，用于拆分第四轮视觉收益。
+第四轮和更早结果也保留在本报告后部，作为中间阶段和 provenance。
 
 ### 运行时与模型组合
 
 | 项目 | 当前值 |
 | --- | --- |
-| OpenVINO source | `benchmark/openvino`，官方 base `8a17657b99` + GME opt1/opt2/opt3 |
+| OpenVINO source | `benchmark/openvino`，official base `8a17657b99` + GME opt1/opt2/opt3 |
 | core/plugin/Python binding | `2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`，三者同源 custom build |
 | device | GPU |
 | package | `ov_models/gme-qwen2-vl-2b-instruct-openvino` |
 | document | 14 pages, 375,895 bytes, 5,213 extracted characters |
 | page rendering | 150 DPI, 1500 x 1125 pixels |
 | batch sizes | 1, 4, 8, 14 |
-| measurement | 1 warm-up + 3 measured calls per cell，表格以 mean 为主，同时保留 p50/p95/min/max |
+| measurement | 1 warm-up + 3 measured calls per cell；mean 为主，同时保留 p50/p95/min/max |
 | embedding | 1536 dimensions, float32, L2 normalized |
 
-当前 precision 的实际映射如下：
+当前最终 precision 映射：
 
 | precision key | language IR | visual IR | 语义 |
 | --- | --- | --- | --- |
-| `int8_vnomask` | `gme_language_int8.xml` | `gme_visual_int8_nomask.xml` | 普通 INT8 language + mask-free INT8 visual |
-| `int4_causal_vnomask` | `gme_language_int4_causal.xml` | `gme_visual_int4_nomask.xml` | causal INT4 language + mask-free INT4 visual |
+| `int8_causal_vopt` | `gme_language_int8_causal.xml` | `gme_visual_int8_nomask_headfirst_rank3.xml` | causal INT8 language + 第五轮最终 visual |
+| `int4_causal_vopt` | `gme_language_int4_causal.xml` | `gme_visual_int4_nomask_headfirst_rank3.xml` | causal INT4 language + 第五轮最终 visual |
+| `int4_gs64_causal_vopt` | `gme_language_int4_gs64_causal.xml` | `gme_visual_int4_nomask_headfirst_rank3.xml` | 精度优先 INT4 + 第五轮最终 visual |
 
-`_vnomask` 只改变 visual IR。mask-free visual IR 对当前 runtime 的单图 image/fused
-路径去掉恒为全 True 的 rank-3 BOOL attention mask；visual FP32 已逐位等价验证。
-package 中没有 `int8_causal`，本次没有为不存在的模型做外推或重新导出。
+第五轮的 `_vopt` 在第四轮 mask-free visual 基础上加入 headfirst Q/K/V 布局和整塔
+rank-3 输入；后者使既有 plugin opt-3 能命中视觉 `mlp.fc1`。第五轮还补齐了之前
+漏掉的 `int8_causal`。本轮没有新增 GPU plugin 改动。
 
-### 性能摘要（mean）
+### 性能摘要（mean ms/call）
 
-| 表示 / batch | `int8_vnomask` mean ms | `int4_causal_vnomask` mean ms |
-| --- | ---: | ---: |
-| `page_text` / 1 | 956.107 | 597.904 |
-| `page_text` / 4 | 526.701 | 455.796 |
-| `page_text` / 8 | 515.698 | 444.465 |
-| `page_text` / 14 | 576.975 | 519.235 |
-| `text_chunk_256` / 1 | 793.292 | 609.459 |
-| `text_chunk_256` / 4 | 524.235 | 462.605 |
-| `text_chunk_256` / 8 | 513.616 | 442.226 |
-| `text_chunk_256` / 14 | 578.592 | 518.671 |
-| `page_image_150` / 1 | 27,898.644 | 27,212.842 |
-| `page_image_150` / 4 | 27,191.059 | 26,771.652 |
-| `page_image_150` / 8 | 27,109.498 | 26,738.608 |
-| `page_image_150` / 14 | 27,218.030 | 26,774.130 |
-| `page_fused_150` / 1 | 28,998.338 | 27,692.052 |
-| `page_fused_150` / 4 | 28,181.784 | 27,151.353 |
-| `page_fused_150` / 8 | 28,132.805 | 27,209.941 |
-| `page_fused_150` / 14 | 28,567.512 | 27,289.400 |
+| 表示 / batch | `int8_causal_vopt` | `int4_causal_vopt` | `int4_gs64_causal_vopt` |
+| --- | ---: | ---: | ---: |
+| `page_text` / 1 | 915.197 | 606.515 | 662.619 |
+| `page_text` / 4 | 512.863 | 457.144 | 523.786 |
+| `page_text` / 8 | 501.612 | 443.450 | 503.384 |
+| `page_text` / 14 | 558.613 | 519.118 | 587.220 |
+| `text_chunk_256` / 1 | 770.105 | 600.166 | 661.570 |
+| `text_chunk_256` / 4 | 512.260 | 464.533 | 519.343 |
+| `text_chunk_256` / 8 | 500.042 | 443.483 | 499.023 |
+| `text_chunk_256` / 14 | 558.726 | 520.500 | 611.374 |
+| `page_image_150` / 1 | 26,115.822 | 25,606.405 | 25,900.757 |
+| `page_image_150` / 4 | 25,440.547 | 25,049.039 | 25,459.527 |
+| `page_image_150` / 8 | 25,437.627 | 25,069.491 | 25,448.049 |
+| `page_image_150` / 14 | 25,469.491 | 25,068.985 | 25,418.578 |
+| `page_fused_150` / 1 | 26,577.032 | 26,091.805 | 26,355.902 |
+| `page_fused_150` / 4 | 25,999.614 | 25,410.562 | 25,845.653 |
+| `page_fused_150` / 8 | 25,827.996 | 25,490.157 | 25,910.498 |
+| `page_fused_150` / 14 | 25,822.423 | 25,561.208 | 25,936.868 |
 
-文本在 batch 8 的吞吐为 `27.1477 items/s`（INT8）和 `31.4985 items/s`
-（causal INT4）；image 为 `0.5164` 和 `0.5236 items/s`；fused 为
-`0.4976` 和 `0.5145 items/s`。图像 batch 的 visual 阶段仍逐图执行，所以
-batch 对 image/fused 的收益远小于 text。
+图像路径的 visual 阶段仍逐图执行，因此 batch 对 image/fused 的收益主要来自后续
+language/request 编排；不要把 image batch 当成真正的视觉 `[N,...]` padded batch。
 
-### `int8_vnomask` 完整性能矩阵
-
-| 表示 | batch | mean ms | p50 ms | p95 ms | min ms | max ms | items/s | tokens/s | peak RSS MB |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| page_text | 1 | 956.107 | 945.535 | 991.971 | 925.656 | 997.131 | 1.04643 | 1099.249 | 1181 |
-| page_text | 4 | 526.701 | 527.001 | 527.297 | 525.772 | 527.330 | 26.58055 | 1995.440 | 1192 |
-| page_text | 8 | 515.698 | 515.953 | 516.154 | 514.965 | 516.176 | 27.14766 | 2038.013 | 1193 |
-| page_text | 14 | 576.975 | 577.137 | 578.086 | 575.596 | 578.191 | 24.26450 | 1821.571 | 1194 |
-| text_chunk_256 | 1 | 793.292 | 790.806 | 798.632 | 789.568 | 799.502 | 1.25965 | 1324.859 | 1195 |
-| text_chunk_256 | 4 | 524.235 | 524.392 | 524.584 | 523.708 | 524.605 | 26.70559 | 2004.827 | 1195 |
-| text_chunk_256 | 8 | 513.616 | 513.351 | 514.558 | 512.804 | 514.692 | 27.25774 | 2046.277 | 1195 |
-| text_chunk_256 | 14 | 578.592 | 578.534 | 579.127 | 578.050 | 579.193 | 24.19666 | 1816.478 | 1195 |
-| page_image_150 | 1 | 27898.644 | 27898.140 | 27908.239 | 27888.431 | 27909.362 | 0.50182 | -- | 1400 |
-| page_image_150 | 4 | 27191.059 | 27198.178 | 27239.745 | 27130.635 | 27244.364 | 0.51488 | -- | 1643 |
-| page_image_150 | 8 | 27109.498 | 27114.599 | 27153.941 | 27055.582 | 27158.312 | 0.51642 | -- | 1714 |
-| page_image_150 | 14 | 27218.030 | 27230.957 | 27234.547 | 27188.188 | 27234.946 | 0.51436 | -- | 1931 |
-| page_fused_150 | 1 | 28998.338 | 28998.992 | 29014.893 | 28979.364 | 29016.659 | 0.48279 | -- | 1751 |
-| page_fused_150 | 4 | 28181.784 | 28161.459 | 28216.803 | 28160.942 | 28222.952 | 0.49677 | -- | 1810 |
-| page_fused_150 | 8 | 28132.805 | 28105.540 | 28205.080 | 28076.735 | 28216.140 | 0.49764 | -- | 1839 |
-| page_fused_150 | 14 | 28567.512 | 28574.401 | 28578.707 | 28548.951 | 28579.185 | 0.49007 | -- | 1942 |
-
-### `int4_causal_vnomask` 完整性能矩阵
+### `int8_causal_vopt` 完整性能矩阵
 
 | 表示 | batch | mean ms | p50 ms | p95 ms | min ms | max ms | items/s | tokens/s | peak RSS MB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| page_text | 1 | 597.904 | 596.910 | 600.297 | 596.129 | 600.673 | 1.67249 | 1757.807 | 1762 |
-| page_text | 4 | 455.796 | 455.152 | 457.291 | 454.708 | 457.529 | 30.71546 | 2305.854 | 1765 |
-| page_text | 8 | 444.465 | 444.651 | 444.782 | 443.949 | 444.796 | 31.49853 | 2364.640 | 1766 |
-| page_text | 14 | 519.235 | 519.279 | 519.728 | 518.647 | 519.778 | 26.96275 | 2024.132 | 1766 |
-| text_chunk_256 | 1 | 609.459 | 608.018 | 618.693 | 600.480 | 619.879 | 1.64079 | 1724.480 | 1767 |
-| text_chunk_256 | 4 | 462.605 | 464.597 | 465.492 | 457.626 | 465.591 | 30.26343 | 2271.919 | 1767 |
-| text_chunk_256 | 8 | 442.226 | 442.551 | 442.582 | 441.542 | 442.585 | 31.65802 | 2376.613 | 1767 |
-| text_chunk_256 | 14 | 518.671 | 518.694 | 519.252 | 518.006 | 519.314 | 26.99204 | 2026.331 | 1767 |
-| page_image_150 | 1 | 27212.842 | 27201.078 | 27244.794 | 27187.799 | 27249.651 | 0.51446 | -- | 1921 |
-| page_image_150 | 4 | 26771.652 | 26780.049 | 26780.216 | 26754.674 | 26780.234 | 0.52294 | -- | 1931 |
-| page_image_150 | 8 | 26738.608 | 26738.647 | 26748.302 | 26727.802 | 26749.375 | 0.52359 | -- | 2002 |
-| page_image_150 | 14 | 26774.130 | 26752.488 | 26814.926 | 26748.037 | 26821.864 | 0.52289 | -- | 2130 |
-| page_fused_150 | 1 | 27692.052 | 27685.965 | 27737.248 | 27647.245 | 27742.946 | 0.50556 | -- | 2003 |
-| page_fused_150 | 4 | 27151.353 | 27156.038 | 27174.400 | 27121.582 | 27176.440 | 0.51563 | -- | 1948 |
-| page_fused_150 | 8 | 27209.941 | 27190.124 | 27248.580 | 27184.624 | 27255.075 | 0.51452 | -- | 2014 |
-| page_fused_150 | 14 | 27289.400 | 27266.726 | 27348.547 | 27243.838 | 27357.637 | 0.51302 | -- | 2138 |
+| page_text | 1 | 915.197 | 916.369 | 917.167 | 911.968 | 917.255 | 15.29725 | 1148.386 | 1180 |
+| page_text | 4 | 512.863 | 512.997 | 513.207 | 512.361 | 513.230 | 27.29775 | 2049.281 | 1186 |
+| page_text | 8 | 501.612 | 501.759 | 501.869 | 501.194 | 501.882 | 27.91004 | 2095.247 | 1187 |
+| page_text | 14 | 558.613 | 557.402 | 561.229 | 556.782 | 561.654 | 25.06209 | 1881.447 | 1188 |
+| text_chunk_256 | 1 | 770.105 | 769.934 | 770.635 | 769.670 | 770.712 | 18.17933 | 1364.748 | 1188 |
+| text_chunk_256 | 4 | 512.260 | 511.674 | 513.317 | 511.605 | 513.499 | 27.32989 | 2051.694 | 1189 |
+| text_chunk_256 | 8 | 500.042 | 499.940 | 500.247 | 499.904 | 500.281 | 27.99766 | 2101.824 | 1189 |
+| text_chunk_256 | 14 | 558.726 | 558.552 | 559.131 | 558.433 | 559.195 | 25.05699 | 1881.064 | 1189 |
+| page_image_150 | 1 | 26115.822 | 26125.865 | 26126.748 | 26094.755 | 26126.847 | 0.53607 | -- | 1352 |
+| page_image_150 | 4 | 25440.547 | 25440.021 | 25474.024 | 25403.817 | 25477.802 | 0.55030 | -- | 1435 |
+| page_image_150 | 8 | 25437.627 | 25429.999 | 25450.652 | 25429.936 | 25452.947 | 0.55037 | -- | 1632 |
+| page_image_150 | 14 | 25469.491 | 25487.520 | 25495.605 | 25424.451 | 25496.503 | 0.54968 | -- | 1846 |
+| page_fused_150 | 1 | 26577.032 | 26576.665 | 26591.223 | 26561.591 | 26592.840 | 0.52677 | -- | 1698 |
+| page_fused_150 | 4 | 25999.614 | 26013.538 | 26047.545 | 25933.979 | 26051.324 | 0.53847 | -- | 1654 |
+| page_fused_150 | 8 | 25827.996 | 25819.548 | 25843.406 | 25818.383 | 25846.057 | 0.54205 | -- | 1749 |
+| page_fused_150 | 14 | 25822.423 | 25822.347 | 25857.201 | 25783.849 | 25861.074 | 0.54216 | -- | 1852 |
 
-### 与已有结果的对照（batch 8 mean）
+### `int4_causal_vopt` 完整性能矩阵
 
-| 表示 | 未优化普通 INT8 | 当前 `int8_vnomask` | 未优化普通 INT4 | 当前 `int4_causal_vnomask` | 历史 masked 优化 INT8 | 历史 masked 优化 causal INT4 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| page_text | 568.104 | 515.698 | 555.459 | 444.465 | 515.255 | 444.425 |
-| text_chunk_256 | 568.450 | 513.616 | 554.420 | 442.226 | 521.777 | 443.674 |
-| page_image_150 | 68,482.061 | 27,109.498 | 67,823.817 | 26,738.608 | 70,477.171 | 65,637.068 |
-| page_fused_150 | 71,149.129 | 28,132.805 | 68,941.041 | 27,209.941 | 71,514.594 | 66,165.529 |
+| 表示 | batch | mean ms | p50 ms | p95 ms | min ms | max ms | items/s | tokens/s | peak RSS MB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| page_text | 1 | 606.515 | 604.649 | 610.169 | 604.114 | 610.782 | 23.08269 | 1732.850 | 1661 |
+| page_text | 4 | 457.144 | 456.859 | 458.073 | 456.364 | 458.208 | 30.62494 | 2299.058 | 1669 |
+| page_text | 8 | 443.450 | 443.499 | 443.851 | 442.960 | 443.890 | 31.57065 | 2370.054 | 1669 |
+| page_text | 14 | 519.118 | 518.995 | 519.805 | 518.466 | 519.895 | 26.96880 | 2024.586 | 1671 |
+| text_chunk_256 | 1 | 600.166 | 600.950 | 601.408 | 598.090 | 601.459 | 23.32686 | 1751.181 | 1671 |
+| text_chunk_256 | 4 | 464.533 | 467.225 | 469.797 | 456.290 | 470.083 | 30.13782 | 2262.489 | 1671 |
+| text_chunk_256 | 8 | 443.483 | 443.662 | 444.202 | 442.524 | 444.262 | 31.56831 | 2369.878 | 1671 |
+| text_chunk_256 | 14 | 520.500 | 520.467 | 520.877 | 520.110 | 520.922 | 26.89723 | 2019.214 | 1672 |
+| page_image_150 | 1 | 25606.405 | 25591.013 | 25669.444 | 25550.044 | 25678.159 | 0.54674 | -- | 1731 |
+| page_image_150 | 4 | 25049.039 | 25045.412 | 25064.279 | 25035.331 | 25066.375 | 0.55890 | -- | 1787 |
+| page_image_150 | 8 | 25069.491 | 25064.577 | 25086.115 | 25055.388 | 25088.508 | 0.55845 | -- | 1851 |
+| page_image_150 | 14 | 25068.985 | 25070.647 | 25074.629 | 25061.237 | 25075.071 | 0.55846 | -- | 1983 |
+| page_fused_150 | 1 | 26091.805 | 26105.792 | 26132.681 | 26033.955 | 26135.668 | 0.53657 | -- | 1827 |
+| page_fused_150 | 4 | 25410.562 | 25432.714 | 25436.862 | 25361.648 | 25437.323 | 0.55095 | -- | 1807 |
+| page_fused_150 | 8 | 25490.157 | 25502.171 | 25543.435 | 25420.280 | 25548.020 | 0.54923 | -- | 1865 |
+| page_fused_150 | 14 | 25561.208 | 25581.427 | 25610.513 | 25488.453 | 25613.745 | 0.54770 | -- | 1990 |
 
-解读边界很重要：
+### `int4_gs64_causal_vopt` 完整性能矩阵
 
-1. 普通 INT8 baseline -> `int8_vnomask` 同时包含 opt1/opt2/opt3 plugin 优化和
-    masked -> mask-free visual 导出变化；文本路径的 language IR 相同，视觉路径不能
-    把全部差异解释成 plugin 收益。
-2. 普通 INT4 baseline -> `int4_causal_vnomask` 同时包含 plugin 优化、普通 -> causal
-    language 导出和 masked -> mask-free visual 导出，不能声称是 plugin-only 对比。
-3. 历史 masked optimized -> 当前 vnomask 只比较 visual IR（language IR 相同）：
-    batch 8 image/fused mean 从 70.477/71.515 s 降到 27.109/28.133 s（INT8），
-    causal INT4 从 65.637/66.166 s 降到 26.739/27.210 s，说明第四轮视觉优化是
-    document image/fused 端到端主要变化来源。
+| 表示 | batch | mean ms | p50 ms | p95 ms | min ms | max ms | items/s | tokens/s | peak RSS MB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| page_text | 1 | 662.619 | 662.200 | 665.076 | 660.261 | 665.396 | 21.12828 | 1586.130 | 1685 |
+| page_text | 4 | 523.786 | 521.776 | 530.812 | 517.767 | 531.816 | 26.72846 | 2006.543 | 1689 |
+| page_text | 8 | 503.384 | 502.298 | 505.279 | 502.243 | 505.610 | 27.81178 | 2087.870 | 1690 |
+| page_text | 14 | 587.220 | 586.964 | 588.488 | 586.039 | 588.658 | 23.84113 | 1789.788 | 1692 |
+| text_chunk_256 | 1 | 661.570 | 661.566 | 662.063 | 661.024 | 662.118 | 21.16180 | 1588.646 | 1692 |
+| text_chunk_256 | 4 | 519.343 | 520.121 | 521.745 | 515.984 | 521.925 | 26.95711 | 2023.709 | 1693 |
+| text_chunk_256 | 8 | 499.023 | 499.455 | 499.477 | 498.134 | 499.480 | 28.05482 | 2106.115 | 1693 |
+| text_chunk_256 | 14 | 611.374 | 596.213 | 645.327 | 587.126 | 650.784 | 22.89924 | 1719.079 | 1693 |
+| page_image_150 | 1 | 25900.757 | 25897.870 | 25934.610 | 25865.708 | 25938.692 | 0.54052 | -- | 1885 |
+| page_image_150 | 4 | 25459.527 | 25479.069 | 25481.729 | 25417.488 | 25482.024 | 0.54989 | -- | 1884 |
+| page_image_150 | 8 | 25448.049 | 25438.648 | 25481.131 | 25419.648 | 25485.851 | 0.55014 | -- | 1956 |
+| page_image_150 | 14 | 25418.578 | 25420.810 | 25471.953 | 25357.287 | 25477.636 | 0.55078 | -- | 2085 |
+| page_fused_150 | 1 | 26355.902 | 26345.371 | 26382.264 | 26335.971 | 26386.363 | 0.53119 | -- | 1957 |
+| page_fused_150 | 4 | 25845.653 | 25850.135 | 25871.569 | 25812.874 | 25873.951 | 0.54168 | -- | 1901 |
+| page_fused_150 | 8 | 25910.498 | 25920.178 | 25929.653 | 25880.610 | 25930.706 | 0.54032 | -- | 1967 |
+| page_fused_150 | 14 | 25936.868 | 25947.706 | 25966.019 | 25894.845 | 25968.054 | 0.53977 | -- | 2091 |
+
+### 初始未优化 baseline 对照（batch 8 mean）
+
+初始 document baseline 来自同一份 PDF、同一套 8-query/14-page probe，文件为
+[`document_embedding_benchmark_before_optimized.json`](results/document_embedding_benchmark_before_optimized.json)。
+以下只重新计算最终相对 baseline 的 speedup，没有重新运行 baseline。正值表示
+final 更快；INT8 与 INT4 的最终 language/visual 组合已经发生了 causal、mask-free
+和第五轮 layout 变化，表格表示累计收益，不把它解释成单一 plugin patch 的收益。
+
+| 表示 | 初始 INT8 | final INT8 causal | speedup | 初始 INT4 | final INT4 causal | speedup | final INT4 gs64 | speedup |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| page_text | 568.104 | 501.612 | 1.133x (-11.7%) | 555.459 | 443.450 | 1.253x (-20.2%) | 503.384 | 1.103x (-9.4%) |
+| text_chunk_256 | 568.450 | 500.042 | 1.137x (-12.0%) | 554.420 | 443.483 | 1.250x (-20.0%) | 499.023 | 1.111x (-10.0%) |
+| page_image_150 | 68,482.061 | 25,437.627 | 2.692x (-62.9%) | 67,823.817 | 25,069.491 | 2.705x (-63.0%) | 25,448.049 | 2.665x (-62.5%) |
+| page_fused_150 | 71,149.129 | 25,827.996 | 2.755x (-63.7%) | 68,941.041 | 25,490.157 | 2.705x (-63.0%) | 25,910.498 | 2.661x (-62.4%) |
+
+初始 baseline 的 batch 8 RSS 为 INT8 `1188/1189/1623/1744 MB`、INT4
+`2292/2293/2492/2495 MB`（按 page_text/chunk/image/fused）；第五轮 final
+相应值见上面三张完整矩阵。当前 final text batch 8 throughput 为
+`27.910`、`31.571`、`27.812 items/s`，image 为 `0.550`、`0.558`、
+`0.550 items/s`，顺序为 INT8 causal、INT4 causal、INT4 gs64 causal。
 
 ### 当前质量结果
 
@@ -130,36 +148,41 @@ batch 对 image/fused 的收益远小于 text。
 
 | precision | 表示 | Recall@1 | Recall@3 | Recall@5 | MRR |
 | --- | --- | ---: | ---: | ---: | ---: |
-| `int8_vnomask` | page_text | 12.5% | 50.0% | 75.0% | 0.4020 |
-| `int8_vnomask` | text_chunk_256 | 12.5% | 50.0% | 75.0% | 0.4020 |
-| `int8_vnomask` | page_image_150 | 25.0% | 75.0% | 87.5% | 0.5218 |
-| `int8_vnomask` | page_fused_150 | 12.5% | 75.0% | 87.5% | 0.4568 |
-| `int4_causal_vnomask` | page_text | 12.5% | 50.0% | 75.0% | 0.3996 |
-| `int4_causal_vnomask` | text_chunk_256 | 12.5% | 50.0% | 75.0% | 0.3996 |
-| `int4_causal_vnomask` | page_image_150 | 25.0% | 75.0% | 87.5% | 0.5193 |
-| `int4_causal_vnomask` | page_fused_150 | 12.5% | 75.0% | 75.0% | 0.4464 |
+| `int8_causal_vopt` | page_text | 12.5% | 50.0% | 75.0% | 0.4020 |
+| `int8_causal_vopt` | text_chunk_256 | 12.5% | 50.0% | 75.0% | 0.4020 |
+| `int8_causal_vopt` | page_image_150 | 25.0% | 75.0% | 87.5% | 0.5218 |
+| `int8_causal_vopt` | page_fused_150 | 12.5% | 75.0% | 87.5% | 0.4506 |
+| `int4_causal_vopt` | page_text | 12.5% | 50.0% | 75.0% | 0.3996 |
+| `int4_causal_vopt` | text_chunk_256 | 12.5% | 50.0% | 75.0% | 0.3996 |
+| `int4_causal_vopt` | page_image_150 | 25.0% | 75.0% | 87.5% | 0.5193 |
+| `int4_causal_vopt` | page_fused_150 | 12.5% | 75.0% | 75.0% | 0.4464 |
+| `int4_gs64_causal_vopt` | page_text | 12.5% | 62.5% | 75.0% | 0.4124 |
+| `int4_gs64_causal_vopt` | text_chunk_256 | 12.5% | 62.5% | 75.0% | 0.4124 |
+| `int4_gs64_causal_vopt` | page_image_150 | 37.5% | 87.5% | 87.5% | 0.5923 |
+| `int4_gs64_causal_vopt` | page_fused_150 | 12.5% | 75.0% | 87.5% | 0.4360 |
 
 对应页面的 cross-representation cosine：
 
 | precision | text vs image mean/min/max | text vs fused mean/min/max | image vs fused mean/min/max |
 | --- | --- | --- | --- |
-| `int8_vnomask` | 0.7029 / 0.4825 / 0.7730 | 0.8372 / 0.5607 / 0.8983 | 0.9102 / 0.8723 / 0.9348 |
-| `int4_causal_vnomask` | 0.7231 / 0.4968 / 0.7788 | 0.8353 / 0.5759 / 0.8945 | 0.9189 / 0.8805 / 0.9391 |
+| `int8_causal_vopt` | 0.7041 / 0.4889 / 0.7729 | 0.8373 / 0.5615 / 0.8984 | 0.9099 / 0.8729 / 0.9376 |
+| `int4_causal_vopt` | 0.7248 / 0.5188 / 0.7852 | 0.8357 / 0.5911 / 0.8928 | 0.9215 / 0.8839 / 0.9456 |
+| `int4_gs64_causal_vopt` | 0.7270 / 0.4931 / 0.7930 | 0.8394 / 0.6179 / 0.9006 | 0.9257 / 0.8977 / 0.9460 |
 
-这些 Recall/MRR 数字只是 8-query/14-page 的工程 probe，不能替代真实业务检索集。
-INT8 与历史普通 INT8 的质量基本保持同一量级；causal INT4 的普通 INT4 对比仍
-混合了 language causal 与 visual mask-free 两项图变化，因此质量差异不能单独归因
-于 plugin。
+这些 Recall/MRR 数字只是 8-query/14-page 工程 probe，不能替代真实业务检索集。
+第五轮没有观察到 document probe 的结构性质量退化；INT4 是否上线仍应由业务
+Recall@K、nDCG 和 Top-K 指标决定。
 
 ### Load、token 和内存
 
 | precision | load mean ms | page token mean/min/max | chunk token mean/min/max |
 | --- | ---: | --- | --- |
-| `int8_vnomask` | 7938.734 | 75.07 / 10 / 149 | 75.07 / 10 / 149 |
-| `int4_causal_vnomask` | 7710.813 | 75.07 / 10 / 149 | 75.07 / 10 / 149 |
+| `int8_causal_vopt` | 7589.058 | 75.07 / 10 / 149 | 75.07 / 10 / 149 |
+| `int4_causal_vopt` | 7471.177 | 75.07 / 10 / 149 | 75.07 / 10 / 149 |
+| `int4_gs64_causal_vopt` | 7353.288 | 75.07 / 10 / 149 | 75.07 / 10 / 149 |
 
-单次 load 会受 compile cache、GPU 状态和进程生命周期影响；不要把这两个 load 值
-当成通用冷启动 SLA。完整的 min/max、RSS 和每个 query 的 top pages 都在原始 JSON。
+单次 load 会受 compile cache、GPU 状态和进程生命周期影响，不能作为通用冷启动
+SLA；完整 min/max、RSS 和每个 query 的 top pages 都在原始 JSON。
 
 ### 当前复现命令
 
@@ -176,21 +199,28 @@ TBB=$OV/temp/Linux_x86_64/tbb/lib
 PY=/home/chaofan/envs/qwen_env/bin/python3
 
 env -i HOME="$HOME" PATH=/usr/bin:/bin \
-  PYTHONPATH="$CUSTOM_PY:$GME" \
-  LD_LIBRARY_PATH="$CUSTOM_LIB:$TBB" \
-  OPENVINO_LIB_PATHS="$CUSTOM_LIB" \
-  OPENVINO_PLUGIN_PATH="$CUSTOM_LIB" \
-  OUTPUT="$EVAL/results/benchmark_gme_round4_vnomask_int8_int4_causal_20260826.json" \
-  "$PY" -u "$EVAL/run_eval.py"
+    PYTHONPATH="$CUSTOM_PY:$GME" \
+    LD_LIBRARY_PATH="$CUSTOM_LIB:$TBB" \
+    OPENVINO_LIB_PATHS="$CUSTOM_LIB" \
+    OPENVINO_PLUGIN_PATH="$CUSTOM_LIB" \
+    OUTPUT="$EVAL/results/benchmark_gme_round5_final_vopt_20260827.json" \
+    PRECISIONS="int8_causal_vopt,int4_causal_vopt,int4_gs64_causal_vopt" \
+    "$PY" -u "$EVAL/run_eval.py"
 ```
 
-脚本默认 precision 是 `int8_vnomask,int4_causal_vnomask`。历史结果仍保留，
-不要用默认 fallback `results/benchmark.json` 覆盖它们。
+第五轮 final 原始矩阵和日志见
+[`gme-qwen2-vl-int4-hotspot-optimization/results/r5_final_20260827/`](../gme-qwen2-vl-int4-hotspot-optimization/results/r5_final_20260827/)。
+不要用 `results/benchmark.json` 覆盖历史结果。
 
-## 历史 masked visual 报告
+## 历史结果和中间阶段
+
+以下原有正文记录第四轮 masked/vnomask 阶段和未优化 baseline，保留用于实验
+provenance；当前最终结论以上面的第五轮章节为准。
+
+### 历史 masked visual 报告（第五轮之前）
 
 以下原有正文记录 2026-08-25 的 masked visual optimized run 和未优化 ordinary
-baseline。它保留用于实验 provenance 和纵向对照；当前结论以上面的第四轮章节为准。
+baseline。它保留用于实验 provenance 和纵向对照；当前结论以上面的第五轮章节为准。
 
 ## 1. 结论摘要
 
@@ -212,7 +242,7 @@ baseline。它保留用于实验 provenance 和纵向对照；当前结论以上
 1. **INT8**：未优化普通 `int8` 对 GME 全优化普通 `int8`，可用于观察 plugin 优化收益。
 2. **INT4**：未优化普通 `int4` 对 GME 全优化 `int4_causal`，同时包含 plugin 优化和 causal 导出收益，不能解释成纯 plugin 优化收益。
 
-package 中没有 `int8_causal` 导出，因此没有对 int8 causal 做外推，也没有重新导出不存在的模型。
+当时使用的历史 package 中没有 `int8_causal` 导出，因此第四轮没有对 int8 causal 做外推，也没有重新导出不存在的模型；第五轮 final 已补齐该导出。
 历史 `int4_causal` 只替换 language IR，visual IR 仍使用同一个 `gme_visual_int4.xml`。
 
 ### batch 8 主结果
@@ -256,10 +286,10 @@ package 中没有 `int8_causal` 导出，因此没有对 int8 causal 做外推�
 |---|---|---|---|
 | `int8` | `gme_language_int8.xml` | `gme_visual_int8.xml` | 普通 INT8 plugin 对比 |
 | `int4` baseline | `gme_language_int4.xml` | `gme_visual_int4.xml` | 未应用 patch 的已有基线 |
-| `int4_causal` optimized | `gme_language_int4_causal.xml` | `gme_visual_int4.xml` | GME 优化后的当前结果 |
+| `int4_causal` optimized | `gme_language_int4_causal.xml` | `gme_visual_int4.xml` | 第四轮历史优化结果 |
 
-package precision 配置中没有 `int8_causal`。因此 INT8 使用当前已有的普通模型即可，
-不重新导出；INT4 使用最新已有的 `int4_causal` 模型。
+第四轮历史 package precision 配置中没有 `int8_causal`，所以当时 INT8 使用普通模型，
+INT4 使用已有的 `int4_causal` 模型。当前第五轮配置见本报告顶部的三种 `_vopt` precision。
 
 ## 3. 性能指标定义
 
@@ -479,11 +509,12 @@ env -i HOME="$HOME" PATH=/usr/bin:/bin \
     LD_LIBRARY_PATH="$OV/bin/intel64/Release:$OV/temp/Linux_x86_64/tbb/lib" \
     OPENVINO_LIB_PATHS="$OV/bin/intel64/Release" \
     OPENVINO_PLUGIN_PATH="$OV/bin/intel64/Release" \
+    PRECISIONS="int8_vnomask,int4_causal_vnomask" \
     OUTPUT="$PWD/results/benchmark_gme_round4_vnomask_int8_int4_causal_20260826.json" \
     /home/chaofan/envs/qwen_env/bin/python3 -u run_eval.py
 ```
 
-当前脚本默认使用：
+第四轮历史脚本当时使用：
 
 ```text
 PRECISIONS=int8_vnomask,int4_causal_vnomask
@@ -493,7 +524,7 @@ REPEATS=3 measured calls per batch, with one warm-up call
 
 ## 10. 原始结果和边界
 
-- 当前第四轮结果：[results/benchmark_gme_round4_vnomask_int8_int4_causal_20260826.json](results/benchmark_gme_round4_vnomask_int8_int4_causal_20260826.json)
+- 历史第四轮结果：[results/benchmark_gme_round4_vnomask_int8_int4_causal_20260826.json](results/benchmark_gme_round4_vnomask_int8_int4_causal_20260826.json)
 - 历史 masked visual 优化结果：[results/benchmark_gme_opt_int8_int4_causal_20260825.json](results/benchmark_gme_opt_int8_int4_causal_20260825.json)
 - 未应用 patch 的已有基线：[results/document_embedding_benchmark_before_optimized.json](results/document_embedding_benchmark_before_optimized.json)
 - 旧的 `results/benchmark.json` 保留为历史结果，不作为本报告当前数据源。
@@ -502,7 +533,8 @@ REPEATS=3 measured calls per batch, with one warm-up call
 - 当前运行说明：[README.md](README.md)
 - GME 完整优化 patch：[../gme-qwen2-vl-int4-hotspot-optimization/patches/all_gme_int4_gpu_opts.patch](../gme-qwen2-vl-int4-hotspot-optimization/patches/all_gme_int4_gpu_opts.patch)
 
-当前第四轮结论见本报告顶部：在当前机器和这份 PDF 上，`int8_vnomask` 与
+第四轮历史结论见本报告上方的第五轮章节和本历史段：在当时的 package 上，`int8_vnomask` 与
 `int4_causal_vnomask` 已完成四表示和 batch 1/4/8/14 重测；旧的 plugin/causal
 收益结论仍保留在下方历史章节，且普通 INT4 -> causal INT4 的差异不能解释成
-plugin-only。`int8_causal` 不存在，也没有为它做外推或重新导出。
+plugin-only。当时的 `int8_causal` 尚不存在，也没有为它做外推或重新导出；第五轮已提供
+`int8_causal_vopt`。

@@ -3,10 +3,10 @@
 **汇报对象**：项目负责人、组内研发与部署同学  
 **测试环境**：Intel Core Ultra 7 356H / Intel iGPU / 当前 custom OpenVINO core/plugin
 
-**报告范围**：本文保留 2026-08-01 至 2026-08-03 的历史 `repeat=20` 汇报数据，并在末尾链接第四轮 fresh rerun。
+**报告范围**：本文保留历史 `repeat=20` 汇报数据，并在末尾链接第五轮 final rerun。
 
-**当前 package**：默认 `int8_vnomask`；低延迟推荐 `int4_causal_vnomask`。`_vnomask` 使用 mask-free visual IR，旧 masked visual 结果只作历史对照。
-**数据口径**：历史主表为 `repeat=20`；第四轮 fresh 矩阵为 Python/GPU `repeat=5`，以 mean 为主，完整原始 JSON 单独保存。
+**当前 package**：默认 `int8_causal_vopt`；低延迟推荐 `int4_causal_vopt`；精度优先 INT4 可选 `int4_gs64_causal_vopt`。`_vopt` 在 mask-free visual 上加入 headfirst/rank3，旧 masked/vnomask 结果只作历史对照。
+**数据口径**：历史主表为 `repeat=20`；第五轮 final 矩阵为 Python/GPU `repeat=5`，以 mean 为主，完整原始 JSON 单独保存。
 
 ---
 
@@ -29,42 +29,48 @@
 
 | 场景 | 推荐方案 | 原因 |
 | --- | --- | --- |
-| Intel GPU 生产默认 | `int8_vnomask` + `padded` | 文本精度接近 FP32，视觉路径使用 mask-free IR；batch 后吞吐最好 |
-| Intel GPU 低延迟文本 | `int4_causal_vnomask` + `padded` | text 延迟最低，模型体积更小；上线前必须完成业务 Recall@K/nDCG 验证 |
-| Intel CPU 生产默认 | `int8_vnomask` + `per_sample` + `streams="auto"` | CPU 上 padded 基本无收益，多 stream 能显著提升 batch 吞吐 |
+| Intel GPU 生产默认 | `int8_causal_vopt` + `padded` | near-lossless，已补 causal language，视觉路径使用第五轮最终 visual IR |
+| Intel GPU 低延迟文本/图像 | `int4_causal_vopt` + `padded` | text/image 延迟最低，模型体积更小；上线前必须完成业务 Recall@K/nDCG 验证 |
+| Intel CPU 生产默认 | `int8_causal_vopt` + `per_sample` + `streams="auto"` | CPU 上 padded 基本无收益，多 stream 能显著提升 batch 吞吐 |
 | Intel CPU 精度优先 | FP32 | 参考级精度，但延迟和内存成本最高 |
 | 严格图像精度场景 | Python INT8 或统一 Pillow 预处理后的 C++ | C++ OpenCV 与 Python Pillow 的 resize 存在可测差异 |
 
-**当前建议默认选择：`int8_vnomask`。** `int4_causal_vnomask` 适合作为 GPU 文本和轻量部署的低延迟选项，但不能只按性能上线，必须结合业务检索指标决策。
+**当前建议默认选择：`int8_causal_vopt`。** `int4_causal_vopt` 适合作为 GPU 文本和轻量部署的低延迟选项，但不能只按性能上线，必须结合业务检索指标决策。
 
 ### 1.3 关键性能结论
 
-- 当前 fresh GPU `int8_vnomask` 短文本 batch=1：约 `43.8–44.1 ms/call`；`int4_causal_vnomask`：约 `32.0–32.3 ms/call`。
-- 当前 fresh GPU `int8_vnomask` `448x448` image：`310.5 ms/call`；`int4_causal_vnomask`：`296.4 ms/call`。
-- 当前 fresh GPU `int8_vnomask` `1288x728` image：`1850.6 ms/call`；`int4_causal_vnomask`：`1800.3 ms/call`。
+- 当前 final GPU `int8_causal_vopt` 短文本 batch=1：约 `43.4–43.8 ms/call`；`int4_causal_vopt`：约 `32.1–32.5 ms/call`。
+- 当前 final GPU `int8_causal_vopt` `448x448` image：`285.1 ms/call`；`int4_causal_vopt`：`262.8 ms/call`。
+- 当前 final GPU `int8_causal_vopt` `1288x728` image：`1750.4 ms/call`；`int4_causal_vopt`：`1688.7 ms/call`。
 - 图片从 256 visual tokens 增加到 1260 visual tokens，GPU INT8 image 延迟约增加 9.9 倍。
 - 1024 token 文本相对 32 token 明显超线性增长，不能用短文本结果外推长文本 SLA。
 - CPU batch 吞吐主要依靠 `streams="auto"`；GPU batch 吞吐主要依靠 `padded`。
 
-### 1.4 第四轮 fresh rerun（2026-08-26）
+### 1.4 第五轮 final rerun（2026-08-27）
 
 当前结果来自 `benchmark/openvino/bin/intel64/Release` 的 matching custom Python
 binding/core/plugin，版本为 `2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`。
-完整原始矩阵见 [hotspot rerun results](gme-qwen2-vl-int4-hotspot-optimization/results/r4_rerun_20260826/)，
+完整原始矩阵见 [hotspot final results](gme-qwen2-vl-int4-hotspot-optimization/results/r5_final_20260827/)，
 document 四表示和质量结果见 [document REPORT](document_embedding_eval_int8_int4_gpu/REPORT.md)。
 
-| workload | `int8_vnomask` | `int4_causal_vnomask` |
-| --- | ---: | ---: |
-| text/query, 32 tokens (ms/call) | 44.12 / 43.80 | 32.32 / 31.99 |
-| text/query, 1024 tokens (ms/call) | 279.68 / 280.77 | 226.00 / 226.16 |
-| image/fused, 448x448 (ms/call) | 310.53 / 306.94 | 296.37 / 296.43 |
-| image/fused, 1288x728 (ms/call) | 1850.57 / 1850.86 | 1800.29 / 1795.29 |
+| workload | `int8_causal_vopt` | `int4_causal_vopt` | `int4_gs64_causal_vopt` |
+| --- | ---: | ---: | ---: |
+| text/query, 32 tokens (ms/call) | 43.75 / 43.37 | 32.47 / 32.07 | 36.64 / 36.27 |
+| text/query, 1024 tokens (ms/call) | 260.95 / 262.29 | 225.47 / 225.54 | 240.39 / 239.83 |
+| image/fused, 448x448 (ms/call) | 285.13 / 284.54 | 262.76 / 257.84 | 269.60 / 268.09 |
+| image/fused, 1288x728 (ms/call) | 1750.35 / 1757.35 | 1688.70 / 1688.79 | 1707.59 / 1711.78 |
 
-在 text=128 tokens 的 batch fresh sweep 中，`padded + streams=1` 的 N=8 为
-`32.47 ms/embedding`（INT8）和 `27.64 ms/embedding`（causal INT4）；
-448x448 image 的 N=8 为 `284.46` 和 `279.71 ms/embedding`。完整的
+在 text=128 tokens 的 batch final sweep 中，`padded + streams=1` 的 N=8 为
+`31.90`、`27.53`、`29.35 ms/embedding`（INT8 causal、INT4 causal、INT4 gs64 causal）；
+448x448 image 的 N=8 为 `260.55`、`247.79`、`253.42 ms/embedding`。完整的
 `per_sample`/`padded`、`streams=1/auto` 和 N=1/2/4/8/16/32 数据保留在上述 JSON，
 本轮主要统计按 mean 而非 p50 解读。
+
+初始未优化 stock INT8 的同 workload 作为累计对照保留在
+`artifacts/benchmark_matrix_fresh_r1.json`：1024-token text/query 为
+`296.57/296.01 ms`，第五轮 `int8_causal_vopt` 为 `260.95/262.29 ms`；
+448x448 image/fused 从 `476.69/468.07 ms` 降到 `285.13/284.54 ms`。
+document 评测则另外保留初始普通 INT8/INT4 baseline，不重新运行 baseline。
 
 ---
 
@@ -266,7 +272,7 @@ visual IR 是例外：图片始终逐图调用，`batch_mode` 只影响后续 la
 
 ---
 
-## 6. 性能结果
+## 6. 历史性能结果（第四轮及更早）
 
 ### 6.1 N=1 基准延迟
 
@@ -394,7 +400,7 @@ Python GPU image：
 
 ### 8.1 上线前必须完成
 
-1. 在真实 query/corpus/image 数据上比较 `int8_vnomask` 与 `int4_causal_vnomask` 的 Recall@K、nDCG、Top-K 命中率；
+1. 在真实 query/corpus/image 数据上比较 `int8_causal_vopt`、`int4_causal_vopt` 和 `int4_gs64_causal_vopt` 的 Recall@K、nDCG、Top-K 命中率；
 2. 根据线上文本长度和图片 token 分布重新设置 micro-batch 大小；
 3. 在目标并发下测试 P50/P95/P99，而不是只使用本报告平均值；
 4. 固定 GPU 电源策略和运行环境，补充长期稳定性测试；
@@ -405,15 +411,15 @@ Python GPU image：
 
 ```text
 GPU:
-     precision = int8_vnomask
+     precision = int8_causal_vopt
   batch_mode = padded
   streams = 1
   text micro-batch = 8~16
   image micro-batch = 4~8
-     low-latency text precision = int4_causal_vnomask
+     low-latency text precision = int4_causal_vopt
 
 CPU:
-     precision = int8_vnomask
+     precision = int8_causal_vopt
   batch_mode = per_sample
   streams = auto
   text micro-batch = 4~8
