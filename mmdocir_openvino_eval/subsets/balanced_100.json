@@ -1,0 +1,261 @@
+{
+    "format": 1,
+    "name": "balanced_100",
+    "description": "Deterministic 100-query screening subset: 10 queries from each of the 10 MMDocIR domains, stratified by question modality within a measured-cost document set.",
+    "dataset_revision": "bdcb36ecb3eee73667180ee3fb24fe433f6dd2a4",
+    "query_count": 100,
+    "selection_policy": {
+        "queries_per_domain": 10,
+        "document_policy": "Minimum estimated FP32 batch=1 page/text/fused encoding cost among document sets supplying at least 10 queries per domain.",
+        "query_policy": "Within selected documents, deterministic stratification approximating each domain's full question-modality distribution.",
+        "intended_use": "FP32/INT8/INT4 screening; not a replacement for the full 1658-query benchmark."
+    },
+    "domains": [
+        {
+            "domain": "Academic paper",
+            "query_ids": [
+                964,
+                965,
+                966,
+                967,
+                977,
+                978,
+                979,
+                980,
+                981,
+                982
+            ],
+            "category_counts": {
+                "layout_meta": 2,
+                "other": 8
+            },
+            "documents": [
+                "N18-2072.pdf",
+                "P18-4013.pdf"
+            ]
+        },
+        {
+            "domain": "Administration/Industry file",
+            "query_ids": [
+                429,
+                430,
+                431,
+                433,
+                434,
+                435,
+                436,
+                437,
+                438,
+                439
+            ],
+            "category_counts": {
+                "layout_meta": 3,
+                "text": 6,
+                "visual": 1
+            },
+            "documents": [
+                "a5879805d70c854ea4361e43a84e3bb2.pdf",
+                "3276a5b991c49cf5f9a4af0f7d6fce67.pdf"
+            ]
+        },
+        {
+            "domain": "Brochure",
+            "query_ids": [
+                237,
+                238,
+                240,
+                241,
+                242,
+                243,
+                643,
+                644,
+                645,
+                647
+            ],
+            "category_counts": {
+                "layout_meta": 3,
+                "table": 1,
+                "text": 1,
+                "visual": 5
+            },
+            "documents": [
+                "GPL-Graduate-Studies-Professional-Learning-Brochure-Jul-2021.pdf",
+                "PWC_opportunity_of_lifetime.pdf"
+            ]
+        },
+        {
+            "domain": "Financial report",
+            "query_ids": [
+                263,
+                264,
+                265,
+                266,
+                267,
+                268,
+                269,
+                270,
+                271,
+                272
+            ],
+            "category_counts": {
+                "other": 1,
+                "table": 4,
+                "text": 3,
+                "visual": 2
+            },
+            "documents": [
+                "afe620b9beac86c1027b96d31d396407.pdf"
+            ]
+        },
+        {
+            "domain": "Government",
+            "query_ids": [
+                1313,
+                1314,
+                1315,
+                1368,
+                1369,
+                1370,
+                1385,
+                1386,
+                1387,
+                1388
+            ],
+            "category_counts": {
+                "layout_meta": 2,
+                "other": 8
+            },
+            "documents": [
+                "USCOURTS-nmd-1_24-cr-00032-8.pdf",
+                "USCOURTS-laed-2_23-cv-06661-0.pdf",
+                "FBS_ECA_10JAN2022_PUBLIC.pdf"
+            ]
+        },
+        {
+            "domain": "Guidebook",
+            "query_ids": [
+                73,
+                74,
+                75,
+                76,
+                371,
+                372,
+                375,
+                376,
+                377,
+                378
+            ],
+            "category_counts": {
+                "layout_meta": 2,
+                "table": 2,
+                "text": 2,
+                "visual": 4
+            },
+            "documents": [
+                "watch_d.pdf",
+                "8dfc21ec151fb9d3578fc32d5c4e5df9.pdf"
+            ]
+        },
+        {
+            "domain": "Laws",
+            "query_ids": [
+                1464,
+                1465,
+                1466,
+                1467,
+                1507,
+                1508,
+                1510,
+                1511,
+                1512,
+                1513
+            ],
+            "category_counts": {
+                "layout_meta": 2,
+                "other": 8
+            },
+            "documents": [
+                "2023555933.pdf",
+                "2022666109.pdf"
+            ]
+        },
+        {
+            "domain": "News",
+            "query_ids": [
+                1530,
+                1544,
+                1560,
+                1575,
+                1590,
+                1604,
+                1618,
+                1620,
+                1635,
+                1650
+            ],
+            "category_counts": {
+                "layout_meta": 3,
+                "other": 7
+            },
+            "documents": [
+                "news_combined.pdf"
+            ]
+        },
+        {
+            "domain": "Research report / Introduction",
+            "query_ids": [
+                103,
+                104,
+                105,
+                106,
+                107,
+                183,
+                184,
+                185,
+                186,
+                187
+            ],
+            "category_counts": {
+                "layout_meta": 1,
+                "table": 5,
+                "text": 2,
+                "visual": 2
+            },
+            "documents": [
+                "efd88e41c5f2606c57929cac6c1c0605.pdf",
+                "8e7c4cb542ad160f80fb3d795ada35d8.pdf"
+            ]
+        },
+        {
+            "domain": "Tutorial/Workshop",
+            "query_ids": [
+                10,
+                11,
+                13,
+                14,
+                15,
+                590,
+                591,
+                592,
+                596,
+                597
+            ],
+            "category_counts": {
+                "other": 1,
+                "text": 2,
+                "visual": 7
+            },
+            "documents": [
+                "0e94b4197b10096b1f4c699701570fbf.pdf",
+                "c31e6580d0175ab3f9d99d1ff0bfa000.pdf"
+            ]
+        }
+    ],
+    "overall_category_counts": {
+        "other": 33,
+        "visual": 21,
+        "layout_meta": 18,
+        "text": 16,
+        "table": 12
+    }
+}

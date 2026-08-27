@@ -1,0 +1,9 @@
+.ov_cache/
+cache/
+results/
+results/**/per_query_*.jsonl
+results/**/logs/
+weekend_suite.out
+weekend_suite.pid
+__pycache__/
+*.pyc

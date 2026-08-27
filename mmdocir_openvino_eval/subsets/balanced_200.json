@@ -1,0 +1,393 @@
+{
+  "format": 1,
+  "name": "balanced_200",
+  "description": "Deterministic 200-query screening subset: 20 queries from each MMDocIR domain, stratified by question modality in a measured-cost document set.",
+  "dataset_revision": "bdcb36ecb3eee73667180ee3fb24fe433f6dd2a4",
+  "query_count": 200,
+  "selection_policy": {
+    "queries_per_domain": 20,
+    "document_policy": "Minimum estimated FP32 batch=1 page/text/fused encoding cost among document sets supplying the target query count in each domain.",
+    "query_policy": "Within selected documents, deterministic stratification approximating each domain's full question-modality distribution.",
+    "fp32_screening_rates": {
+      "page": 0.159,
+      "text": 3.532,
+      "fused": 0.112
+    },
+    "intended_use": "FP32/INT8/INT4 screening; not a replacement for the full benchmark."
+  },
+  "workload": {
+    "documents": 34,
+    "pages": 607,
+    "text_equation_layouts": 7363,
+    "image_table_layouts": 593,
+    "layouts": 7956,
+    "estimated_fp32_batch1_hours": 3.1102520851867794
+  },
+  "domains": [
+    {
+      "domain": "Academic paper",
+      "query_ids": [
+        813,
+        814,
+        815,
+        816,
+        817,
+        818,
+        819,
+        820,
+        894,
+        895,
+        896,
+        897,
+        898,
+        899,
+        977,
+        978,
+        979,
+        980,
+        981,
+        982
+      ],
+      "category_counts": {
+        "layout_meta": 3,
+        "other": 17
+      },
+      "documents": [
+        "W18-5713.pdf",
+        "D18-1034.pdf",
+        "P18-4013.pdf"
+      ]
+    },
+    {
+      "domain": "Administration/Industry file",
+      "query_ids": [
+        273,
+        274,
+        275,
+        276,
+        277,
+        278,
+        279,
+        280,
+        281,
+        429,
+        430,
+        431,
+        432,
+        433,
+        434,
+        435,
+        436,
+        437,
+        438,
+        439
+      ],
+      "category_counts": {
+        "layout_meta": 3,
+        "table": 1,
+        "text": 15,
+        "visual": 1
+      },
+      "documents": [
+        "f8d3a162ab9507e021d83dd109118b60.pdf",
+        "a5879805d70c854ea4361e43a84e3bb2.pdf",
+        "3276a5b991c49cf5f9a4af0f7d6fce67.pdf"
+      ]
+    },
+    {
+      "domain": "Brochure",
+      "query_ids": [
+        237,
+        238,
+        239,
+        240,
+        241,
+        242,
+        243,
+        490,
+        491,
+        492,
+        493,
+        571,
+        572,
+        574,
+        575,
+        643,
+        644,
+        645,
+        646,
+        647
+      ],
+      "category_counts": {
+        "layout_meta": 3,
+        "table": 4,
+        "text": 1,
+        "visual": 12
+      },
+      "documents": [
+        "GPL-Graduate-Studies-Professional-Learning-Brochure-Jul-2021.pdf",
+        "ISEP_student_handbook_2020.pdf",
+        "BRO-GL-MMONEY.pdf",
+        "PWC_opportunity_of_lifetime.pdf"
+      ]
+    },
+    {
+      "domain": "Financial report",
+      "query_ids": [
+        263,
+        264,
+        265,
+        266,
+        268,
+        269,
+        270,
+        271,
+        272,
+        657,
+        658,
+        659,
+        660,
+        662,
+        1234,
+        1235,
+        1236,
+        1237,
+        1238,
+        1239
+      ],
+      "category_counts": {
+        "layout_meta": 1,
+        "other": 7,
+        "table": 7,
+        "text": 3,
+        "visual": 2
+      },
+      "documents": [
+        "afe620b9beac86c1027b96d31d396407.pdf",
+        "f86d073b0d735ac873a65d906ba82758.pdf",
+        "ASX_AJY_2020.pdf"
+      ]
+    },
+    {
+      "domain": "Government",
+      "query_ids": [
+        1278,
+        1279,
+        1301,
+        1302,
+        1303,
+        1313,
+        1314,
+        1315,
+        1361,
+        1362,
+        1363,
+        1364,
+        1365,
+        1368,
+        1369,
+        1370,
+        1385,
+        1386,
+        1387,
+        1388
+      ],
+      "category_counts": {
+        "layout_meta": 5,
+        "other": 15
+      },
+      "documents": [
+        "FBS_S_ES_Public.pdf",
+        "FBS_IRF_Public.pdf",
+        "USCOURTS-nmd-1_24-cr-00032-8.pdf",
+        "JRS-AF_JRS_FINAL_Formatted_Public-Version.pdf",
+        "USCOURTS-laed-2_23-cv-06661-0.pdf",
+        "FBS_ECA_10JAN2022_PUBLIC.pdf"
+      ]
+    },
+    {
+      "domain": "Guidebook",
+      "query_ids": [
+        73,
+        74,
+        75,
+        76,
+        370,
+        371,
+        372,
+        373,
+        374,
+        375,
+        376,
+        377,
+        378,
+        625,
+        626,
+        627,
+        628,
+        629,
+        630,
+        631
+      ],
+      "category_counts": {
+        "layout_meta": 2,
+        "other": 1,
+        "table": 4,
+        "text": 4,
+        "visual": 9
+      },
+      "documents": [
+        "watch_d.pdf",
+        "8dfc21ec151fb9d3578fc32d5c4e5df9.pdf",
+        "mi_phone.pdf"
+      ]
+    },
+    {
+      "domain": "Laws",
+      "query_ids": [
+        1413,
+        1414,
+        1448,
+        1449,
+        1450,
+        1451,
+        1464,
+        1465,
+        1466,
+        1467,
+        1472,
+        1473,
+        1474,
+        1507,
+        1508,
+        1509,
+        1510,
+        1511,
+        1512,
+        1513
+      ],
+      "category_counts": {
+        "layout_meta": 5,
+        "other": 15
+      },
+      "documents": [
+        "2021687418.pdf",
+        "2023555932.pdf",
+        "2023555933.pdf",
+        "2023555902.pdf",
+        "2022666109.pdf"
+      ]
+    },
+    {
+      "domain": "News",
+      "query_ids": [
+        1526,
+        1533,
+        1540,
+        1547,
+        1549,
+        1556,
+        1563,
+        1571,
+        1579,
+        1586,
+        1593,
+        1600,
+        1607,
+        1614,
+        1623,
+        1630,
+        1632,
+        1638,
+        1646,
+        1653
+      ],
+      "category_counts": {
+        "layout_meta": 6,
+        "other": 14
+      },
+      "documents": [
+        "news_combined.pdf"
+      ]
+    },
+    {
+      "domain": "Research report / Introduction",
+      "query_ids": [
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        174,
+        175,
+        176,
+        177,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187
+      ],
+      "category_counts": {
+        "layout_meta": 2,
+        "table": 6,
+        "text": 5,
+        "visual": 7
+      },
+      "documents": [
+        "05-03-18-political-release.pdf",
+        "698bba535087fa9a7f9009e172a7f763.pdf",
+        "8e7c4cb542ad160f80fb3d795ada35d8.pdf"
+      ]
+    },
+    {
+      "domain": "Tutorial/Workshop",
+      "query_ids": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        379,
+        380,
+        381,
+        382,
+        383,
+        384,
+        385,
+        386,
+        590,
+        592,
+        593,
+        595,
+        596,
+        598
+      ],
+      "category_counts": {
+        "other": 1,
+        "table": 3,
+        "text": 4,
+        "visual": 12
+      },
+      "documents": [
+        "0e94b4197b10096b1f4c699701570fbf.pdf",
+        "measuringsuccessonfacebooktwitterlinkedin-160317142140_95.pdf",
+        "c31e6580d0175ab3f9d99d1ff0bfa000.pdf"
+      ]
+    }
+  ],
+  "overall_category_counts": {
+    "layout_meta": 30,
+    "other": 70,
+    "table": 25,
+    "text": 32,
+    "visual": 43
+  }
+}
