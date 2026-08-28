@@ -107,7 +107,7 @@ def main() -> None:
 
     print(f"precision={args.precision} device={args.device} seq={seq} "
           f"compile={compile_s:.1f}s wall_mean={np.mean(wall):.1f}ms "
-          f"wall_p50={np.percentile(wall, 50):.1f}ms profiled_sum={total:.1f}ms")
+            f"profiled_mean_sum={total:.1f}ms")
     print(f"\n{'ms/infer':>9} {'%':>6} {'calls':>7}  exec_type")
     for ms, calls, name in types[: args.top]:
         print(f"{ms:9.2f} {100 * ms / total:6.1f} {calls:7.0f}  {name}")

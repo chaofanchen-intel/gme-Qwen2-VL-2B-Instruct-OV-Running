@@ -1,0 +1,374 @@
+{
+  "precision": "int4_causal_vopt",
+  "language_ir": "gme_language_int4_causal.xml",
+  "visual_ir": "gme_visual_int4_nomask_headfirst_rank3.xml",
+  "device": "GPU",
+  "batch_mode": "padded",
+  "streams": "1",
+  "visual_dynamic_quantization_threshold": 0,
+  "warmup": 2,
+  "repeat": 5,
+  "fused_text_tokens": 32,
+  "rows": [
+    {
+      "mode": "image",
+      "size": "448x448",
+      "grid": [
+        [
+          1,
+          32,
+          32
+        ]
+      ],
+      "patches": 1024,
+      "tokens": 256,
+      "sequence": 281,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_mean_ms": 11.719,
+      "visual_mean_ms": 166.776,
+      "language_mean_ms": 71.678,
+      "stage_sum_mean_ms": 250.173,
+      "end_to_end_mean_ms": 249.984,
+      "preprocess_p50_ms": 10.578,
+      "visual_p50_ms": 166.843,
+      "language_p50_ms": 71.827,
+      "stage_sum_ms": 249.248,
+      "end_to_end_p50_ms": 250.246,
+      "end_to_end_min_ms": 249.035,
+      "end_to_end_max_ms": 250.763,
+      "samples_ms": {
+        "preprocess": [
+          12.651,
+          10.489,
+          14.341,
+          10.538,
+          10.578
+        ],
+        "visual": [
+          166.149,
+          166.224,
+          167.192,
+          166.843,
+          167.473
+        ],
+        "language": [
+          71.278,
+          71.497,
+          71.83,
+          71.827,
+          71.958
+        ],
+        "end_to_end": [
+          249.035,
+          249.626,
+          250.246,
+          250.249,
+          250.763
+        ]
+      }
+    },
+    {
+      "mode": "fused",
+      "size": "448x448",
+      "grid": [
+        [
+          1,
+          32,
+          32
+        ]
+      ],
+      "patches": 1024,
+      "tokens": 256,
+      "sequence": 305,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_mean_ms": 10.861,
+      "visual_mean_ms": 166.512,
+      "language_mean_ms": 74.821,
+      "stage_sum_mean_ms": 252.194,
+      "end_to_end_mean_ms": 252.641,
+      "preprocess_p50_ms": 10.874,
+      "visual_p50_ms": 166.517,
+      "language_p50_ms": 74.756,
+      "stage_sum_ms": 252.147,
+      "end_to_end_p50_ms": 252.573,
+      "end_to_end_min_ms": 252.349,
+      "end_to_end_max_ms": 253.11,
+      "samples_ms": {
+        "preprocess": [
+          10.964,
+          10.726,
+          10.874,
+          10.953,
+          10.788
+        ],
+        "visual": [
+          166.517,
+          166.567,
+          166.406,
+          166.75,
+          166.32
+        ],
+        "language": [
+          75.248,
+          74.817,
+          74.756,
+          74.732,
+          74.552
+        ],
+        "end_to_end": [
+          253.11,
+          252.573,
+          252.349,
+          252.655,
+          252.515
+        ]
+      }
+    },
+    {
+      "mode": "image",
+      "size": "672x672",
+      "grid": [
+        [
+          1,
+          48,
+          48
+        ]
+      ],
+      "patches": 2304,
+      "tokens": 576,
+      "sequence": 601,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_mean_ms": 24.075,
+      "visual_mean_ms": 458.924,
+      "language_mean_ms": 132.099,
+      "stage_sum_mean_ms": 615.098,
+      "end_to_end_mean_ms": 615.867,
+      "preprocess_p50_ms": 23.966,
+      "visual_p50_ms": 458.574,
+      "language_p50_ms": 132.149,
+      "stage_sum_ms": 614.689,
+      "end_to_end_p50_ms": 615.864,
+      "end_to_end_min_ms": 615.188,
+      "end_to_end_max_ms": 616.621,
+      "samples_ms": {
+        "preprocess": [
+          24.09,
+          24.913,
+          23.834,
+          23.569,
+          23.966
+        ],
+        "visual": [
+          458.574,
+          458.491,
+          459.065,
+          460.237,
+          458.252
+        ],
+        "language": [
+          131.966,
+          132.149,
+          132.252,
+          132.173,
+          131.955
+        ],
+        "end_to_end": [
+          615.864,
+          615.466,
+          616.621,
+          616.193,
+          615.188
+        ]
+      }
+    },
+    {
+      "mode": "fused",
+      "size": "672x672",
+      "grid": [
+        [
+          1,
+          48,
+          48
+        ]
+      ],
+      "patches": 2304,
+      "tokens": 576,
+      "sequence": 625,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_mean_ms": 24.202,
+      "visual_mean_ms": 455.518,
+      "language_mean_ms": 135.307,
+      "stage_sum_mean_ms": 615.027,
+      "end_to_end_mean_ms": 615.518,
+      "preprocess_p50_ms": 24.25,
+      "visual_p50_ms": 455.337,
+      "language_p50_ms": 135.138,
+      "stage_sum_ms": 614.725,
+      "end_to_end_p50_ms": 615.537,
+      "end_to_end_min_ms": 615.096,
+      "end_to_end_max_ms": 615.861,
+      "samples_ms": {
+        "preprocess": [
+          24.267,
+          24.25,
+          24.388,
+          24.054,
+          24.049
+        ],
+        "visual": [
+          455.337,
+          455.295,
+          455.872,
+          455.984,
+          455.105
+        ],
+        "language": [
+          135.72,
+          135.138,
+          134.842,
+          135.752,
+          135.085
+        ],
+        "end_to_end": [
+          615.794,
+          615.096,
+          615.861,
+          615.303,
+          615.537
+        ]
+      }
+    },
+    {
+      "mode": "image",
+      "size": "1288x728",
+      "grid": [
+        [
+          1,
+          92,
+          52
+        ]
+      ],
+      "patches": 4784,
+      "tokens": 1196,
+      "sequence": 1221,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_mean_ms": 56.824,
+      "visual_mean_ms": 1309.745,
+      "language_mean_ms": 277.439,
+      "stage_sum_mean_ms": 1644.008,
+      "end_to_end_mean_ms": 1646.989,
+      "preprocess_p50_ms": 57.467,
+      "visual_p50_ms": 1310.665,
+      "language_p50_ms": 277.726,
+      "stage_sum_ms": 1645.858,
+      "end_to_end_p50_ms": 1649.161,
+      "end_to_end_min_ms": 1640.42,
+      "end_to_end_max_ms": 1649.607,
+      "samples_ms": {
+        "preprocess": [
+          59.229,
+          54.857,
+          57.467,
+          58.295,
+          54.273
+        ],
+        "visual": [
+          1306.015,
+          1307.008,
+          1310.665,
+          1311.577,
+          1313.462
+        ],
+        "language": [
+          276.243,
+          277.726,
+          277.555,
+          277.783,
+          277.888
+        ],
+        "end_to_end": [
+          1640.42,
+          1646.172,
+          1649.583,
+          1649.607,
+          1649.161
+        ]
+      }
+    },
+    {
+      "mode": "fused",
+      "size": "1288x728",
+      "grid": [
+        [
+          1,
+          92,
+          52
+        ]
+      ],
+      "patches": 4784,
+      "tokens": 1196,
+      "sequence": 1245,
+      "shape": [
+        1,
+        1536
+      ],
+      "preprocess_mean_ms": 53.221,
+      "visual_mean_ms": 1312.352,
+      "language_mean_ms": 280.823,
+      "stage_sum_mean_ms": 1646.396,
+      "end_to_end_mean_ms": 1647.771,
+      "preprocess_p50_ms": 51.267,
+      "visual_p50_ms": 1311.152,
+      "language_p50_ms": 280.869,
+      "stage_sum_ms": 1643.288,
+      "end_to_end_p50_ms": 1648.222,
+      "end_to_end_min_ms": 1641.321,
+      "end_to_end_max_ms": 1652.314,
+      "samples_ms": {
+        "preprocess": [
+          51.267,
+          56.158,
+          50.963,
+          56.582,
+          51.135
+        ],
+        "visual": [
+          1311.152,
+          1313.276,
+          1310.746,
+          1310.917,
+          1315.666
+        ],
+        "language": [
+          281.324,
+          281.037,
+          280.869,
+          280.656,
+          280.231
+        ],
+        "end_to_end": [
+          1648.222,
+          1652.314,
+          1647.439,
+          1649.557,
+          1641.321
+        ]
+      }
+    }
+  ]
+}

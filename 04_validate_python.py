@@ -64,6 +64,8 @@ def main() -> None:
                         help="comma-separated OpenVINO devices to test (default: CPU,GPU)")
     parser.add_argument("--precisions",
                         help="comma-separated package precision keys (default: all package precisions)")
+    parser.add_argument("--visual-dq-threshold", type=int,
+                        help="GPU visual activation-row threshold; 0 enables MVN-to-DQ fusion")
     parser.add_argument("--output", type=Path,
                         help="validation JSON path (default: <artifacts>/openvino_full_validation.json)")
     args = parser.parse_args()
@@ -102,7 +104,16 @@ def main() -> None:
     for device in devices:
         report[device] = {}
         for prec in precisions:
-            enc = GmeOpenVINO(package, device=device, precision=prec)
+            # The threshold is a GPU-plugin property; a CPU/NPU entry in the same sweep
+            # would be rejected by its plugin, so it is only passed to GPU devices.
+            visual_dq = (args.visual_dq_threshold
+                         if GmeOpenVINO._is_gpu_device(device) else None)
+            enc = GmeOpenVINO(
+                package,
+                device=device,
+                precision=prec,
+                visual_dynamic_quantization_threshold=visual_dq,
+            )
             text = enc.get_text_embeddings(meta["texts"])                       # 5 rows, default instr
             query = enc.get_text_embeddings([meta["texts"][0]], instruction=meta["instruction"])
             image = enc.get_image_embeddings(meta["image"])                     # 1 row

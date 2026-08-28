@@ -18,12 +18,16 @@
 | **结果（第三轮，导出侧 SDPA causal，可叠加）** | 1024 token 再 **1.073x**（gs128 238.5 → **222.3 ms**）/ **1.072x**（gs64 252.9 → **236.0 ms**）；SDPA 单项 **2.24x**。累计相对最初 stock gs128 **1.273x**。见 [`docs/09`](docs/09_round3_further_latency_optimization.md) |
 | **结果（第四轮，导出侧 mask-free 视觉 SDPA）** | **image/fused 端到端 1.79–2.50x**（448x448 563.6 → **288.7 ms**；1288x728 4494.4 → **1798.3 ms**）；视觉 IR 单项 1.53–2.83x，收益随分辨率上升。见 [`docs/11`](docs/11_round4_image_fused_optimization.md) |
 | **结果（第五轮，视觉塔布局 + 补 int8_causal）** | image 端到端再 **1.07–1.13x**（448x448 288.7 → **256.6 ms**；1288x728 1798.3 → **1677.6 ms**），**累计 2.20–2.70x**；text/query 的 **`int8_causal` 补漏 −15.2 ms（1.058x）**。见 [`docs/12`](docs/12_round5_vision_layout_and_int8_causal.md) |
+| **结果（第六轮，DQ/RMS + image token cap）** | arithmetic mean：DQ reuse 140→112 calls；长序列 RMS→DQ opt-in 在 1024 token **220.28 → 211.63 ms（1.041x）**，129+ token 与 padded batch 对 control 逐位相同。显式 `max_image_tokens=768` 在超宽 logo 上 **1.94x**，MMDocIR `balanced_100` page/layout encoding **1.183x/1.460x**。见 [`docs/13`](docs/13_round6_rms_dq_and_image_token_cap.md) |
+| **结果（第七轮，视觉 MVN→DQ）** | arithmetic mean：INT4 视觉 IR **1.036–1.053x**；public image/fused 端到端 **1.027–1.039x**。63 个 block LayerNorm 融入 DQ，MVN 65→2 calls；四个 grid、真实 public API 和 cache reload 全部 **bit-identical**。见 [`docs/14`](docs/14_round7_visual_mvn_dq_fusion.md) |
+| **结果（第八轮，QKV transpose）** | arithmetic mean：专用 `permute_qkv_headfirst` 让 INT4 visual **1.005–1.020x**、public image/fused **1.004–1.017x**；INT8 visual **1.006–1.020x**。三精度四-grid、golden 和 cache reload 全部 bit-identical。INT8 grouped MVN→DQ 虽逐位正确但回归 1.7–3.7%，否决。见 [`docs/15`](docs/15_round8_qkv_permute_and_int8_grouped_mvn.md) |
 | **正确性** | text/语言 IR 结果见 §4；image-only 三尺寸 bit-identical；fused 仍可运行但部分尺寸有小幅稳定漂移，见 `docs/04_validation_and_results.md` §4.1c。第三轮 causal 改造在 FP32 上**逐位相同**（含不等长右 padding 批），docs/09 §9.2.5。第四轮 mask-free 视觉塔在 FP32 上**逐位相同**（5 个 grid，`max_abs_diff = 0.0`），docs/11 §11.3.3 |
 | **回归** | 有状态生成式模型 greedy 解码 token id、首步 logits SHA 与 top-8 逐位相同 |
-| **改动** | Intel GPU plugin，8 个文件，+390 −19，图结构/调度 + 权重 layout，无算术改动。**第三、四、五轮都没有新增 plugin 改动**，全部在导出侧 |
-| **改了什么** | ① GQA `repeat_kv` 的 Broadcast 消除放开到无状态模型；② 新增 SDPA 输出 Transpose 融合 + 修复 `sdpa_gen_micro` 的 dispatch bug；③ **宽 INT4 投影（`N ≥ 4K`）的权重重排成 N 连续**，让 oneDNN `jit:gemm` 走更快的 layout；④（第三轮，导出侧）**语言 SDPA 改成 `causal=true` 且不带 mask**，kernel 直接跳过上三角；⑤（第四轮，导出侧）**视觉塔 SDPA 去掉那张恒为全 True 的 rank-3 BOOL mask**，32 层注意力从手工分解的 MatMul+Softmax 变回 `ocl::sdpa::opt`；⑥（第五轮，导出侧）**视觉塔 Q/K/V 四趟搬运并成一趟**（`permute_ref` 128→32 calls）+ **给 ViT 投影加 batch 维让 ③ 的权重重排够得着 `mlp.fc1`**（−28~32%），另补上漏做的 **`int8_causal`** |
-| **推荐精度** | **第五轮起改用 `_vopt` 系**：package 默认/精度优先 **`int8_causal_vopt`**（1024-token text 262.5 ms）；低延迟/均衡 **`int4_causal_vopt`**（stage-split image 448x448 **256.6 ms**）；更高精度的 INT4 选 `int4_gs64_causal_vopt`。`_vnomask` 系（第四轮）仍保留可用。纯文本场景视觉塔无关，只看语言 IR 是否 `causal` |
-| **剩下的大头** | 文本侧 GEMM 占 GPU 时间 ~69%（causal 之后占比上升），下一轮首选 **RMS→DQ 融合**（~7 ms，docs/09 §9.4b）。图像侧第五轮后视觉塔只剩 **32 次 QKV 拆分 permute（导出侧已到极限）** 和 **不满足 `N≥4K` 的 fc2/qkv/proj GEMM**；`max_image_tokens` 的时延/精度对照表仍是最大未测项（docs/12 §12.8） |
+| **改动** | opt1–5 见 round-7 combined；第八轮另提供增量 `opt6_qkv_headfirst_permute.patch`（4 files）和 opt1–6 combined patch。第六至八轮包含 GPU plugin 与 Python 配置/测量入口 |
+| **改了什么** | ① GQA Broadcast；② SDPA Transpose；③ 宽 INT4 layout；④ language causal；⑤ visual mask-free；⑥ headfirst + rank3；⑦ DQ reuse；⑧ RMS→DQ；⑨ visual MVN→DQ；⑩ **QKV head-first 专用 half8 transpose kernel** |
+| **推荐精度** | package 默认 precision 是 **`int8_causal_vopt`**；低延迟/均衡用 **`int4_causal_vopt`**，更高精度的 INT4 选 `int4_gs64_causal_vopt`。当前 package `max_image_tokens=1280`；低时延可显式设 768 |
+| **推荐运行配置** | 默认 language threshold=64；512+ token 的独立 INT4 实例可设 `dynamic_quantization_threshold=0`。INT4 image/fused 实例设 `visual_dynamic_quantization_threshold=0` 启用本轮融合；它不影响 language。INT8 visual 是 group=128 + precomputed reduction，当前不触发 |
+| **剩下的大头** | 文本侧仍是 oneDNN INT4 GEMM。视觉 L=1024 主要是 GEMM/SDPA，L=5040 是全注意力 SDPA。普通 rank-4 QKV direct-write 已证实会掉出 compressed i8 路径；INT8 grouped MVN 已证实性能回归。下一步必须深入 oneDNN blocked QKV dst 或 SDPA，而不是继续图层面改写 |
 
 上表中的 plugin profiling 和 stage-split 数字属于历史轮次。当前 package 的独立
 第五轮 final rerun（2026-08-27，Python/GPU，repeat=5，主要看 mean）使用
@@ -31,6 +35,9 @@
 [`results/r5_final_20260827/`](results/r5_final_20260827/)。最初未优化 stock
 结果保留在 `results/base_ops_int4_1024.json`、`results/r4_20260826/` 和
 根目录 `artifacts/benchmark_matrix_fresh_r1.json`，用于累计对照。
+
+下面第一至四轮表格中的 `wall p50` 是旧报告的存档字段；第六轮起的重新测量、当前
+性能结论和新增 profiler 均使用 arithmetic mean，不再用 p50 判断优化收益。
 
 ## 优化前后的 GPU 时间构成（语言 IR，seq=1024，INT4/GPU）
 

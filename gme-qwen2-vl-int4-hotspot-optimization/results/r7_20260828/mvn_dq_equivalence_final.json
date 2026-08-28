@@ -1,0 +1,78 @@
+{
+  "device": "GPU",
+  "ir": "gme_visual_int4_nomask_headfirst_rank3.xml",
+  "control_dynamic_quantization_threshold": 64,
+  "fused_dynamic_quantization_threshold": 0,
+  "all_bit_identical": true,
+  "worst_max_abs_diff": 0.0,
+  "cases": [
+    {
+      "case": "square_448",
+      "grid": [
+        1,
+        32,
+        32
+      ],
+      "patches": 1024,
+      "tokens": 256,
+      "shape": [
+        256,
+        1536
+      ],
+      "cosine": 1.0000000000000002,
+      "max_abs_diff": 0.0,
+      "bit_identical": true
+    },
+    {
+      "case": "wide_cap768",
+      "grid": [
+        1,
+        18,
+        162
+      ],
+      "patches": 2916,
+      "tokens": 729,
+      "shape": [
+        729,
+        1536
+      ],
+      "cosine": 0.9999999999999998,
+      "max_abs_diff": 0.0,
+      "bit_identical": true
+    },
+    {
+      "case": "square_672",
+      "grid": [
+        1,
+        48,
+        48
+      ],
+      "patches": 2304,
+      "tokens": 576,
+      "shape": [
+        576,
+        1536
+      ],
+      "cosine": 1.0000000000000002,
+      "max_abs_diff": 0.0,
+      "bit_identical": true
+    },
+    {
+      "case": "logo_quality",
+      "grid": [
+        1,
+        24,
+        210
+      ],
+      "patches": 5040,
+      "tokens": 1260,
+      "shape": [
+        1260,
+        1536
+      ],
+      "cosine": 1.0,
+      "max_abs_diff": 0.0,
+      "bit_identical": true
+    }
+  ]
+}

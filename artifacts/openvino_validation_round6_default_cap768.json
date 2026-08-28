@@ -1,0 +1,18 @@
+{
+  "GPU": {
+    "int4_causal_vopt": {
+      "text_cos_min": 0.94173,
+      "query_cos": 0.955173,
+      "image_cos": 0.941129,
+      "fused_cos": 0.950249,
+      "fused_norm": 0.99989
+    },
+    "int8_causal_vopt": {
+      "text_cos_min": 0.997899,
+      "query_cos": 0.998784,
+      "image_cos": 0.971184,
+      "fused_cos": 0.979576,
+      "fused_norm": 1.00036
+    }
+  }
+}

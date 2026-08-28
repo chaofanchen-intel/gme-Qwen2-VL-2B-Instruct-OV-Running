@@ -157,16 +157,17 @@ def main() -> None:
             by_node[key].append(value)
         type_calls.update(calls)
 
-    med = lambda values: float(np.percentile(values, 50))
-    type_ms = {k: med(v) for k, v in by_type.items()}
-    node_ms = {k: med(v) for k, v in by_node.items()}
+    arithmetic_mean = lambda values: float(np.mean(values))
+    type_ms = {k: arithmetic_mean(v) for k, v in by_type.items()}
+    node_ms = {k: arithmetic_mean(v) for k, v in by_node.items()}
     profiled = sum(type_ms.values())
+    wall_mean = float(np.mean(samples))
     wall_p50 = float(np.percentile(samples, 50))
 
     print(f"ir={ir_name} device={args.device} grid={t},{h},{w} "
           f"patches(L)={patches} tokens(K)={tokens} compile={compile_s:.1f}s "
-          f"wall_mean={np.mean(samples):.1f}ms wall_p50={wall_p50:.1f}ms "
-          f"profiled_sum={profiled:.1f}ms host_gap={wall_p50 - profiled:.1f}ms")
+            f"wall_mean={wall_mean:.1f}ms "
+          f"profiled_mean_sum={profiled:.1f}ms host_gap_mean={wall_mean - profiled:.1f}ms")
 
     print(f"\n{'ms/infer':>9} {'%':>6} {'calls':>7}  exec_type")
     for key, value in sorted(type_ms.items(), key=lambda kv: -kv[1]):
@@ -189,10 +190,10 @@ def main() -> None:
             "warmup": args.warmup,
             "repeat": args.repeat,
             "compile_s": round(compile_s, 3),
-            "wall_mean_ms": round(float(np.mean(samples)), 3),
+            "wall_mean_ms": round(wall_mean, 3),
             "wall_p50_ms": round(wall_p50, 3),
             "profiled_sum_ms": round(profiled, 3),
-            "host_gap_ms": round(wall_p50 - profiled, 3),
+            "host_gap_ms": round(wall_mean - profiled, 3),
             "samples_ms": [round(s, 3) for s in samples],
             "by_exec_type": {k: round(v, 4) for k, v in sorted(type_ms.items(), key=lambda kv: -kv[1])},
             "calls_by_exec_type": {k: round(v / args.repeat, 2) for k, v in type_calls.items()},

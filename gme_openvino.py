@@ -302,6 +302,8 @@ class GmeOpenVINO:
         min_image_tokens: int | None = None,
         max_image_tokens: int | None = None,
         max_length: int | None = None,
+        dynamic_quantization_threshold: int | None = None,
+        visual_dynamic_quantization_threshold: int | None = None,
     ) -> None:
         """precision: one of the keys in the package config's ``precisions`` map
         (e.g. ``fp32``/``int8_causal_vopt``/``int4_causal_vopt``); defaults to the
@@ -327,16 +329,29 @@ class GmeOpenVINO:
         the single easiest latency win for anything that starts a fresh process.
         min_image_tokens, max_image_tokens: override the package's Qwen2-VL processor
         image-token bounds (default: the package's own values from
-        ``gme_openvino_config.json``, matching official's ``GmeQwen2VL.__init__``
-        defaults of 256/1280). This is the single most effective image/fused latency
-        knob: attention cost grows with the visual token count (README S6.4-6.5), so
-        capping ``max_image_tokens`` trades resolution for latency. Unlike
+        ``gme_openvino_config.json``). This is the single most effective image/fused
+        latency knob: attention cost grows with the visual token count (README S6.4-6.5),
+        so capping ``max_image_tokens`` trades resolution for latency. Unlike
         ``max_length`` below, this needs no re-export -- both language and visual IRs
         accept any sequence length.
         max_length: override the package's tokenizer truncation length (default: the
         package's own value, e.g. 1800). The language IR has a fully dynamic sequence
         dimension, so this can be raised or lowered freely with no re-export --
-        unlike the C++ runtime, where it is baked into a tokenizer IR at export time."""
+        unlike the C++ runtime, where it is baked into a tokenizer IR at export time.
+        dynamic_quantization_threshold: optional GPU activation-row threshold. Setting
+        it to 0 enables the plugin's long-context RMSNorm-to-DynamicQuantize fusion,
+        but also quantizes short rows that normally use the f16 pass-through. Use a
+        dedicated long-context instance; the default preserves short-query accuracy.
+        visual_dynamic_quantization_threshold: the corresponding visual-IR threshold.
+        Setting it to 0 enables visual MVN-to-DynamicQuantize fusion independently of
+        the language model, so text/query behavior remains unchanged. The fusion itself is
+        bit-exact (verified down to L=256 patch rows), but 0 also disables the same
+        short-row quantization bypass described above, and that part is only inert while
+        ``min_image_tokens >= 256`` keeps every image at ``L = 4K >= 1024`` rows -- which
+        the package default guarantees. Lowering ``min_image_tokens`` below 256 together
+        with this flag does change image/fused outputs. See docs/14 S14.3.2b.
+        Both thresholds are GPU-plugin properties: passing either to a non-GPU device
+        raises rather than being silently dropped."""
         self.model_dir = Path(model_dir)
         config_path = self.model_dir / "gme_openvino_config.json"
         if not config_path.exists():
@@ -395,6 +410,30 @@ class GmeOpenVINO:
             fp32_math = precision == "fp32"
         compile_config = {hint.inference_precision: ov.Type.f32} if fp32_math else {}
         compile_config.update(self._stream_config(streams))
+        language_compile_config = dict(compile_config)
+        visual_compile_config = dict(compile_config)
+        # GPU_DYNAMIC_QUANTIZATION_THRESHOLD only exists in the GPU plugin: the CPU plugin
+        # rejects it outright ("NotFound: Unsupported property"), so handing it over would
+        # turn an inapplicable tuning knob into a hard compile failure. Rejecting it here
+        # instead of dropping it silently keeps an explicitly requested knob from being
+        # ignored without the caller noticing. Callers that sweep several devices should
+        # pass the threshold only for the GPU ones (see 04_validate_python.py).
+        for name, value in (("dynamic_quantization_threshold", dynamic_quantization_threshold),
+                            ("visual_dynamic_quantization_threshold",
+                             visual_dynamic_quantization_threshold)):
+            if value is None:
+                continue
+            if value < 0:
+                raise ValueError(f"{name} must be non-negative")
+            if not self._is_gpu_device(device):
+                raise ValueError(
+                    f"{name} is a GPU-plugin property and cannot be applied to device "
+                    f"{device!r}; omit it for non-GPU devices"
+                )
+        if dynamic_quantization_threshold is not None:
+            language_compile_config["GPU_DYNAMIC_QUANTIZATION_THRESHOLD"] = dynamic_quantization_threshold
+        if visual_dynamic_quantization_threshold is not None:
+            visual_compile_config["GPU_DYNAMIC_QUANTIZATION_THRESHOLD"] = visual_dynamic_quantization_threshold
         self.streams = streams
         if batch_mode not in ("auto", "per_sample", "padded"):
             raise ValueError(f"batch_mode must be auto/per_sample/padded, got {batch_mode!r}")
@@ -410,8 +449,8 @@ class GmeOpenVINO:
             if batch_mode == "auto"
             else batch_mode
         )
-        self.language = self.core.compile_model(self.model_dir / language_model, device, compile_config)
-        self.visual = self.core.compile_model(self.model_dir / visual_model, device, compile_config)
+        self.language = self.core.compile_model(self.model_dir / language_model, device, language_compile_config)
+        self.visual = self.core.compile_model(self.model_dir / visual_model, device, visual_compile_config)
         self.language_pool = _RequestPool(self.language)
         self.visual_pool = _RequestPool(self.visual)
         self._no_images = np.empty((0, self.embedding_dim), dtype=np.float32)
@@ -432,6 +471,19 @@ class GmeOpenVINO:
         """
         base = device.split(":", 1)[0].split(".", 1)[0]
         return base in self.core.available_devices or base in _META_DEVICE_PREFIXES
+
+    @staticmethod
+    def _is_gpu_device(device: str) -> bool:
+        """True only for a plain GPU device string, e.g. ``"GPU"`` or ``"GPU.1"``.
+
+        Deliberately conservative and, like `batch_mode="auto"`, name-based rather than a
+        query of what a meta-device resolves to: ``"AUTO"`` may well pick the GPU, but the
+        property is forwarded to whichever plugin AUTO settles on, so treating it as GPU
+        would reintroduce exactly the CPU-plugin rejection this guards against. Anything
+        other than a plain GPU string must set the threshold on an explicit ``"GPU"``
+        instance instead.
+        """
+        return device.split(":", 1)[0].split(".", 1)[0].upper() == "GPU"
 
     @staticmethod
     def _stream_config(streams: int | str) -> dict:

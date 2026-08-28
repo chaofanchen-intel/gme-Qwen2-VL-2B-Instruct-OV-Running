@@ -1,0 +1,1560 @@
+diff --git a/src/plugins/intel_gpu/include/intel_gpu/primitives/dynamic_quantize.hpp b/src/plugins/intel_gpu/include/intel_gpu/primitives/dynamic_quantize.hpp
+index 8b301a0f24..d4b908ab67 100644
+--- a/src/plugins/intel_gpu/include/intel_gpu/primitives/dynamic_quantize.hpp
++++ b/src/plugins/intel_gpu/include/intel_gpu/primitives/dynamic_quantize.hpp
+@@ -42,9 +42,19 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
+ 
+     Attributes attrs;
+     size_t input_size;
++    bool fused_rms = false;
++    float rms_eps = 0.f;
++    bool fused_mvn = false;
++    float mvn_eps = 0.f;
++    bool mvn_eps_inside_sqrt = false;
+ 
+     size_t hash() const override {
+         size_t seed = primitive::hash();
++        seed = hash_combine(seed, fused_rms);
++        seed = hash_combine(seed, rms_eps);
++        seed = hash_combine(seed, fused_mvn);
++        seed = hash_combine(seed, mvn_eps);
++        seed = hash_combine(seed, mvn_eps_inside_sqrt);
+         seed = hash_range(seed, attrs.scales_zp_output_order.begin(), attrs.scales_zp_output_order.end());
+         seed = hash_range(seed, attrs.group_sizes.begin(), attrs.group_sizes.end());
+         seed = hash_combine(seed, attrs.quantization_type);
+@@ -74,6 +84,11 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
+                attrs.quantization_type == rhs_casted.attrs.quantization_type &&
+                attrs.precomputed_reduction == rhs_casted.attrs.precomputed_reduction &&
+                attrs.precomputed_reduction_dt == rhs_casted.attrs.precomputed_reduction_dt &&
++               fused_rms == rhs_casted.fused_rms &&
++               rms_eps == rhs_casted.rms_eps &&
++               fused_mvn == rhs_casted.fused_mvn &&
++               mvn_eps == rhs_casted.mvn_eps &&
++               mvn_eps_inside_sqrt == rhs_casted.mvn_eps_inside_sqrt &&
+                input_size == rhs_casted.input_size;
+     }
+ 
+@@ -89,6 +104,11 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
+         ob << attrs.scales_zp_output_order;
+         ob << attrs.group_sizes;
+         ob << attrs.precomputed_reduction;
++        ob << fused_rms;
++        ob << rms_eps;
++        ob << fused_mvn;
++        ob << mvn_eps;
++        ob << mvn_eps_inside_sqrt;
+         ob << input_size;
+     }
+ 
+@@ -104,6 +124,11 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
+         ib >> attrs.scales_zp_output_order;
+         ib >> attrs.group_sizes;
+         ib >> attrs.precomputed_reduction;
++        ib >> fused_rms;
++        ib >> rms_eps;
++        ib >> fused_mvn;
++        ib >> mvn_eps;
++        ib >> mvn_eps_inside_sqrt;
+         ib >> input_size;
+     }
+ };
+diff --git a/src/plugins/intel_gpu/include/intel_gpu/runtime/options.inl b/src/plugins/intel_gpu/include/intel_gpu/runtime/options.inl
+index 7ee8397127..8052287661 100644
+--- a/src/plugins/intel_gpu/include/intel_gpu/runtime/options.inl
++++ b/src/plugins/intel_gpu/include/intel_gpu/runtime/options.inl
+@@ -59,7 +59,7 @@ OV_CONFIG_RELEASE_INTERNAL_OPTION(ov::intel_gpu, max_kernels_per_batch, 8, "Cont
+ OV_CONFIG_RELEASE_INTERNAL_OPTION(ov::intel_gpu, impls_cache_capacity, 300, "Controls capacity of LRU implementations cache that is created for each program object for dynamic models")
+ OV_CONFIG_RELEASE_INTERNAL_OPTION(ov::intel_gpu, asym_dynamic_quantization, false, "Enforce asymmetric mode for dynamically quantized activations")
+ OV_CONFIG_RELEASE_INTERNAL_OPTION(ov::intel_gpu, could_use_flashattn_v2, true, "Enable/Disable SDPA primitive executing with FlashAttenV2 online softmax tricks.")
+-OV_CONFIG_RELEASE_INTERNAL_OPTION(ov::intel_gpu, dynamic_quantization_threshold, 64, "Apply dynamic quantization only when batch size is larger than this value in OneDNN")
++OV_CONFIG_RELEASE_OPTION(ov::intel_gpu, dynamic_quantization_threshold, 64, "Apply dynamic quantization only when batch size is larger than this value in OneDNN")
+ OV_CONFIG_RELEASE_INTERNAL_OPTION(ov::intel_gpu, dynamic_quantization_precomputed_reduction, true, "Precompute reduction of activation for faster dynamic quantization in case of asymmetric weight")
+ OV_CONFIG_RELEASE_INTERNAL_OPTION(ov::intel_gpu, allow_bypass_xattn, true, "Allow bypass xattn execution if threshold >= 1.0.")
+ OV_CONFIG_RELEASE_INTERNAL_OPTION(ov::intel_gpu, weightless_attr, nullptr, "Used to configure ov::WeightlessCacheAttribute for constants that are not loaded from a .bin file. This typically applies to non-IR inputs (e.g., ORT)")
+diff --git a/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp b/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp
+index 4d4442d4e8..ed618c227e 100644
+--- a/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp
++++ b/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp
+@@ -20,15 +20,20 @@ static bool should_skip_execution(const dynamic_quantize_node& node, const layou
+         return false; // Execute unconditionally for floating point types.
+     }
+ 
++    if (node.get_primitive()->fused_rms || node.get_primitive()->fused_mvn)
++        return false;
++
+     if (!node.is_runtime_skippable()
+         || !act_layout.is_static())
+         return false;
+ 
+-    // Do not skip dynamic quantization if next node is not fully connected.(such as SDPA)
+-    OPENVINO_ASSERT(node.get_users().size() == node.get_outputs_count(),
+-                    "Dynamic quantization is supposed to have only one user-node with duplicated connection: ", node.id());
+-    if (!(*node.get_users().begin())->is_type<fully_connected>())
+-        return false;
++    const size_t outputs_count = node.get_outputs_count();
++    OPENVINO_ASSERT(outputs_count > 0 && node.get_users().size() % outputs_count == 0,
++                    "Dynamic quantization users are not a whole multiple of its outputs: ", node.id());
++    for (const auto& user : node.get_users()) {
++        if (!user->is_type<fully_connected>())
++            return false;
++    }
+ 
+     // If batch size is 1, dynamic_quantize is disabled for performance reason
+     size_t input_batch = act_layout.batch();
+diff --git a/src/plugins/intel_gpu/src/graph/graph_optimizer/prepare_primitive_fusing.cpp b/src/plugins/intel_gpu/src/graph/graph_optimizer/prepare_primitive_fusing.cpp
+index a64fc77650..490d75d8bc 100644
+--- a/src/plugins/intel_gpu/src/graph/graph_optimizer/prepare_primitive_fusing.cpp
++++ b/src/plugins/intel_gpu/src/graph/graph_optimizer/prepare_primitive_fusing.cpp
+@@ -45,6 +45,7 @@
+ #include "group_normalization_inst.h"
+ #include "lora_inst.h"
+ #include "broadcast_inst.h"
++#include "dynamic_quantize_inst.h"
+ #include <vector>
+ #include <map>
+ #include <list>
+@@ -88,6 +89,176 @@ void prepare_primitive_fusing::run(program& p) {
+     fuse_simple_primitives(p);
+     fuse_constant_transposes(p);
+     optimize_fused_ops(p);
++    fuse_normalization_into_dynamic_quantize(p);
++}
++
++void prepare_primitive_fusing::fuse_normalization_into_dynamic_quantize(program& p) {
++    // A folded node cannot switch back to the f16 pass-through used below the runtime
++    // quantization threshold. Only fold when the caller has disabled that bypass.
++    if (p.get_config().get_dynamic_quantization_threshold() != 0)
++        return;
++    const bool supports_mvn_work_group = p.get_engine().get_device_info().max_work_group_size >= 256;
++
++    auto iterator = p.get_processing_order().begin();
++    while (iterator != p.get_processing_order().end()) {
++        auto node = *iterator++;
++        if (!node->is_type<dynamic_quantize>() || node->is_output())
++            continue;
++
++        auto& dq_node = node->as<dynamic_quantize>();
++        auto dq_primitive = std::const_pointer_cast<dynamic_quantize>(dq_node.get_primitive());
++        if (dq_primitive->fused_rms || dq_primitive->fused_mvn ||
++            dq_node.has_fused_primitives() || dq_node.get_dependencies().size() != 1)
++            continue;
++
++        auto& normalization_node = dq_node.get_dependency(0);
++        if (supports_mvn_work_group && normalization_node.is_type<mvn>()) {
++            auto& mvn_node = normalization_node.as<mvn>();
++            auto mvn_primitive = mvn_node.get_primitive();
++            const auto& fused_ops = mvn_node.get_fused_primitives();
++            if (mvn_node.is_output() || mvn_node.get_users().size() != 1 ||
++                mvn_node.get_dependencies().size() != 3 || fused_ops.size() != 2)
++                continue;
++
++            const auto& product = fused_ops[0];
++            const auto& sum = fused_ops[1];
++            if (!product.is_type<eltwise>() || !sum.is_type<eltwise>() ||
++                product.typed_desc<eltwise>()->mode != eltwise_mode::prod ||
++                sum.typed_desc<eltwise>()->mode != eltwise_mode::sum ||
++                product.inputs.size() != 2 || sum.inputs.size() != 2 ||
++                product.deps.size() != 1 || sum.deps.size() != 1 ||
++                product.outer_dep_start_idx != 1 || sum.outer_dep_start_idx != 2 ||
++                product.inputs[0].m_type != FusedInputType::ORIGINAL || product.inputs[0].m_idx != 0 ||
++                product.inputs[1].m_type != FusedInputType::EXTERNAL || product.inputs[1].m_idx != 1 ||
++                sum.inputs[0].m_type != FusedInputType::INTERNAL || sum.inputs[0].m_idx != 0 ||
++                sum.inputs[1].m_type != FusedInputType::EXTERNAL || sum.inputs[1].m_idx != 2)
++                continue;
++
++            auto& input_node = mvn_node.get_dependency(0);
++            auto& gamma_node = mvn_node.get_dependency(1);
++            auto& beta_node = mvn_node.get_dependency(2);
++            if (product.deps[0].first != gamma_node.id() || sum.deps[0].first != beta_node.id() ||
++                !gamma_node.is_constant() || !beta_node.is_constant())
++                continue;
++
++            const auto input_layout = mvn_node.get_input_layout(0);
++            const auto output_layout = mvn_node.get_output_layout();
++            const auto gamma_layout = gamma_node.get_output_layout();
++            const auto beta_layout = beta_node.get_output_layout();
++            const auto& input_shape = input_layout.get_partial_shape();
++            if (input_layout.data_type != data_types::f16 || output_layout.data_type != data_types::f16 ||
++                dq_node.get_input_layouts()[0].data_type != data_types::f16 ||
++                input_layout.format != format::bfyx || output_layout.format != format::bfyx ||
++                input_layout.data_padding || output_layout.data_padding ||
++                input_shape.rank().is_dynamic() || input_shape.size() != 3 || input_shape[2].is_dynamic() ||
++                input_shape[2].get_length() != 1280 || gamma_layout.is_dynamic() || beta_layout.is_dynamic() ||
++                gamma_layout.count() != 1280 || beta_layout.count() != 1280 ||
++                gamma_layout.data_type != data_types::f16 || beta_layout.data_type != data_types::f16 ||
++                gamma_layout.data_padding || beta_layout.data_padding)
++                continue;
++
++            if (!mvn_primitive->normalize_variance || mvn_primitive->reduction_axes.size() != 1)
++                continue;
++            auto reduction_axis = mvn_primitive->reduction_axes[0];
++            if (reduction_axis < 0)
++                reduction_axis += static_cast<int64_t>(input_shape.size());
++            if (reduction_axis != 2)
++                continue;
++
++            using QuantizationType = ov::op::internal::DynamicQuantize::QuantizationType;
++            const auto& attributes = dq_primitive->attrs;
++            if (attributes.group_sizes.empty())
++                continue;
++            if (attributes.quantization_type != QuantizationType::Symmetric ||
++                attributes.quantization_dt != data_types::i8 || attributes.precomputed_reduction ||
++                attributes.group_sizes.back() != UINT64_MAX ||
++                std::any_of(attributes.group_sizes.begin(), std::prev(attributes.group_sizes.end()),
++                            [](uint64_t group_size) { return group_size != 1; }))
++                continue;
++            bool identity_order = true;
++            for (size_t index = 0; index < attributes.scales_zp_output_order.size(); index++)
++                identity_order &= attributes.scales_zp_output_order[index] == index;
++            if (!identity_order)
++                continue;
++
++            dq_primitive->fused_mvn = true;
++            dq_primitive->mvn_eps = mvn_primitive->epsilon;
++            dq_primitive->mvn_eps_inside_sqrt = mvn_primitive->eps_inside_sqrt;
++            dq_primitive->input = {input_info(input_node.id()), input_info(gamma_node.id()), input_info(beta_node.id())};
++
++            p.remove_connection(mvn_node, dq_node);
++            p.add_connection(input_node, dq_node);
++            p.add_connection(gamma_node, dq_node);
++            p.add_connection(beta_node, dq_node);
++            if (p.remove_if_dangling(mvn_node))
++                p.add_optimized_primitive_info(mvn_primitive->id, {dq_primitive->id});
++            dq_node.recalc_output_layouts(false);
++            continue;
++        }
++
++        auto& rms_node = dq_node.get_dependency(0);
++        if (!rms_node.is_type<rms>() || rms_node.is_output() || rms_node.get_users().size() != 1)
++            continue;
++
++        auto rms_primitive = rms_node.as<rms>().get_primitive();
++        if (!rms_primitive->elementwise_affine || rms_node.get_dependencies().size() != 2)
++            continue;
++
++        if (rms_node.get_input_layouts()[0].data_type != data_types::f16 ||
++            rms_node.get_output_layout().data_type != data_types::f16 ||
++            dq_node.get_input_layouts()[0].data_type != data_types::f16)
++            continue;
++
++        using QuantizationType = ov::op::internal::DynamicQuantize::QuantizationType;
++        const auto& attributes = dq_primitive->attrs;
++        if (attributes.quantization_type != QuantizationType::Symmetric ||
++            attributes.quantization_dt != data_types::i8 ||
++            attributes.precomputed_reduction ||
++            attributes.group_sizes.empty() ||
++            attributes.group_sizes.back() != UINT64_MAX)
++            continue;
++
++        if (std::any_of(attributes.group_sizes.begin(),
++                        std::prev(attributes.group_sizes.end()),
++                        [](uint64_t group_size) { return group_size != 1; }))
++            continue;
++
++        if (!attributes.scales_zp_output_order.empty()) {
++            bool identity_order = true;
++            for (size_t index = 0; index < attributes.scales_zp_output_order.size(); index++)
++                identity_order &= attributes.scales_zp_output_order[index] == index;
++            if (!identity_order)
++                continue;
++        }
++
++        const auto& input_shape = rms_node.get_input_layouts()[0].get_partial_shape();
++        if (input_shape.rank().is_dynamic() || input_shape.size() == 0 ||
++            input_shape[input_shape.size() - 1].is_dynamic())
++            continue;
++
++        const auto row_size = static_cast<size_t>(input_shape[input_shape.size() - 1].get_length());
++        if (row_size != 1536)
++            continue;
++
++        auto& input_node = rms_node.get_dependency(0);
++        auto& gamma_node = rms_node.get_dependency(1);
++        const auto gamma_layout = gamma_node.get_output_layout();
++        if (gamma_layout.is_dynamic() || gamma_layout.count() != row_size ||
++            gamma_layout.data_type != data_types::f16)
++            continue;
++
++        dq_primitive->fused_rms = true;
++        dq_primitive->rms_eps = rms_primitive->epsilon;
++        dq_primitive->input = {input_info(input_node.id()), input_info(gamma_node.id())};
++
++        p.remove_connection(rms_node, dq_node);
++        p.add_connection(input_node, dq_node);
++        p.add_connection(gamma_node, dq_node);
++        if (p.remove_if_dangling(rms_node))
++            p.add_optimized_primitive_info(rms_primitive->id, {dq_primitive->id});
++
++        dq_node.recalc_output_layouts(false);
++    }
+ }
+ 
+ static std::optional<size_t> find_eltwise_const_dep_idx(const eltwise_node& node) {
+diff --git a/src/plugins/intel_gpu/src/graph/impls/ocl/dynamic_quantize.cpp b/src/plugins/intel_gpu/src/graph/impls/ocl/dynamic_quantize.cpp
+index 826f892410..b5382257b4 100644
+--- a/src/plugins/intel_gpu/src/graph/impls/ocl/dynamic_quantize.cpp
++++ b/src/plugins/intel_gpu/src/graph/impls/ocl/dynamic_quantize.cpp
+@@ -59,6 +59,23 @@ struct dynamic_quantize_impl : typed_primitive_impl_ocl<dynamic_quantize> {
+         params.use_asymmetric_quantization = desc->attrs.quantization_type == ov::op::internal::DynamicQuantize::QuantizationType::Asymmetric;
+         params.combine_scales_and_zp = desc->attrs.output_storage_type != ov::op::internal::DynamicQuantize::OutputStorageType::Planar;
+         params.generate_precomputed_reduction = desc->attrs.precomputed_reduction;
++        params.fused_rms = desc->fused_rms;
++        params.rms_eps = desc->rms_eps;
++        params.fused_mvn = desc->fused_mvn;
++        params.mvn_eps = desc->mvn_eps;
++        params.mvn_eps_inside_sqrt = desc->mvn_eps_inside_sqrt;
++        if (desc->fused_rms) {
++            OPENVINO_ASSERT(impl_param.input_layouts.size() == 2,
++                            "[GPU] dynamic_quantize with fused RMSNorm must have exactly two inputs: ",
++                            impl_param.desc->id);
++            params.inputs.push_back(convert_data_tensor(impl_param.get_input_layout(1)));
++        } else if (desc->fused_mvn) {
++            OPENVINO_ASSERT(impl_param.input_layouts.size() == 3,
++                            "[GPU] dynamic_quantize with fused MVN must have exactly three inputs: ",
++                            impl_param.desc->id);
++            params.inputs.push_back(convert_data_tensor(impl_param.get_input_layout(1)));
++            params.inputs.push_back(convert_data_tensor(impl_param.get_input_layout(2)));
++        }
+ 
+         return params;
+     }
+diff --git a/src/plugins/intel_gpu/src/graph/impls/ocl_v2/sdpa/sdpa_gen_micro.cpp b/src/plugins/intel_gpu/src/graph/impls/ocl_v2/sdpa/sdpa_gen_micro.cpp
+index e786e30fe0..41ba4657b0 100644
+--- a/src/plugins/intel_gpu/src/graph/impls/ocl_v2/sdpa/sdpa_gen_micro.cpp
++++ b/src/plugins/intel_gpu/src/graph/impls/ocl_v2/sdpa/sdpa_gen_micro.cpp
+@@ -143,6 +143,22 @@ inline size_t micro_get_num_heads(const kernel_impl_params& params, size_t qkv_i
+     return -1;
+ }
+ 
++// [batch, num_heads] of the SDPA result in logical (untransposed) order.
++//
++// The output layout already has output_transpose_order baked into it, so reading dims 0 and 1 off
++// it positionally only happens to be correct for the default order. Anything that sizes the
++// dispatch or the micro-kernel batch has to go through the order, exactly like the input side does.
++inline std::pair<int64_t, int64_t> micro_get_output_batch_and_num_heads(const kernel_impl_params& params) {
++    const auto& out = params.output_layouts[0];
++    if (params.is_type<scaled_dot_product_attention>()) {
++        const auto desc = params.typed_desc<scaled_dot_product_attention>();
++        const auto order = extend_order_in_num_heads_dim(desc->output_transpose_order);
++        return {get_batch_size(out, order), get_num_heads(out, order)};
++    }
++    const auto& out_ps = out.get_partial_shape();
++    return {out_ps[0].get_length(), out_ps[1].get_length()};
++}
++
+ inline size_t micro_get_head_size(const kernel_impl_params& params, size_t qkv_idx) {
+     if (params.is_type<paged_attention>()) {
+         const auto desc = params.typed_desc<paged_attention>();
+@@ -1038,14 +1054,14 @@ JitConstants SDPAMicroGenerator::get_jit_constants(const kernel_impl_params& par
+     const auto& K = (config.is_paged_attention && !m_is_prefill) ? params.input_layouts[3] : params.input_layouts[1];
+     const auto& V = (config.is_paged_attention && !m_is_prefill) ? params.input_layouts[4] : params.input_layouts[2];
+     const auto& out = params.output_layouts[0];
+-    const auto& out_ps = out.get_partial_shape();
+ 
+     const auto head_size = micro_get_head_size(params, 0);
+     const auto k_head_size = micro_get_head_size(params, 1);
+     const auto v_head_size = micro_get_head_size(params, 2);
+ 
+     const auto d_max = get_d_max(k_head_size);
+-    const auto batch = out_ps[0] * out_ps[1];
++    const auto out_batch_heads = micro_get_output_batch_and_num_heads(params);
++    const auto batch = ov::Dimension(out_batch_heads.first) * ov::Dimension(out_batch_heads.second);
+ 
+     auto ldq = k_head_size * ov::element::Type(Q.data_type).size();
+     auto ldk = k_head_size * ov::element::Type(K.data_type).size();
+@@ -1416,15 +1432,16 @@ DispatchDataFunc SDPAMicroGenerator::get_dispatch_data_func() const {
+         scalars.clear();
+         scalars.reserve(3);
+ 
+-        auto params = impl_param;
++        // The stage was built from canonicalized (rank-4) shapes in SDPAOptImpl, but execute_stage
++        // hands the dispatch function the instance's raw params, which stay rank 3 for a headless
++        // SDPA. Everything below indexes layouts through a rank-4 transpose order, so canonicalize
++        // here the same way SDPAOptGenerator*::get_dispatch_data_func() does.
++        auto params = SDPABase::requires_shape_canonicalization(impl_param) ? SDPABase::static_canonicalize_shapes(impl_param) : impl_param;
+         if (!params.is_dynamic()) {
+             const auto& device_info = params.get_device_info();
+             const auto& gemms = kd.micro_kernels;
+             const auto& gemm_kq = gemms[kq_id]->p;
+ 
+-            const auto& out = params.output_layouts[0];
+-            const auto& out_ps = out.get_partial_shape();
+-
+             const auto v_head_size = micro_get_head_size(params, 2);
+             auto head_num = micro_get_num_heads(params, 0);
+ 
+@@ -1448,8 +1465,9 @@ DispatchDataFunc SDPAMicroGenerator::get_dispatch_data_func() const {
+                 wgs.global[1] *= head_num;
+                 wgs.global[2] *= 1;
+             } else {
+-                wgs.global[1] *= out_ps[1].get_length();
+-                wgs.global[2] *= out_ps[0].get_length();
++                const auto out_batch_heads = micro_get_output_batch_and_num_heads(params);
++                wgs.global[1] *= out_batch_heads.second;
++                wgs.global[2] *= out_batch_heads.first;
+             }
+ 
+             auto to_int32 = [](size_t value) {
+@@ -1499,8 +1517,6 @@ void SDPAMicroGenerator::init_microkernels(const kernel_impl_params& params,
+     const auto& Q = params.input_layouts[0];
+     const auto& K = (is_paged_attention && !is_prefill) ? params.input_layouts[3] : params.input_layouts[1];
+     const auto& V = (is_paged_attention && !is_prefill) ? params.input_layouts[4] : params.input_layouts[2];
+-    auto& out = params.output_layouts[0];
+-    const auto& out_ps = out.get_partial_shape();
+     const auto& device_info = params.get_device_info();
+ 
+     const auto k_head_size = micro_get_head_size(params, 1);
+@@ -1510,7 +1526,8 @@ void SDPAMicroGenerator::init_microkernels(const kernel_impl_params& params,
+     const ov::Dimension n_keys = micro_get_seq_length(params, 1);
+     const ov::Dimension n_queries = micro_get_seq_length(params, 0);
+     const ov::Dimension n_values = ov::Dimension(v_head_size);
+-    const auto batch = out_ps[0] * out_ps[1];
++    const auto out_batch_heads = micro_get_output_batch_and_num_heads(params);
++    const auto batch = ov::Dimension(out_batch_heads.first) * ov::Dimension(out_batch_heads.second);
+ 
+     GPU_DEBUG_TRACE_DETAIL << "\nconfiguration.is_kv_compressed = " << configuration.is_kv_compressed << std::endl;
+     GPU_DEBUG_TRACE_DETAIL << "k_head_size = " << k_head_size << ", v_head_size = " << v_head_size << ", d_max = " << d_max << ", batch = " << batch << "\n";
+diff --git a/src/plugins/intel_gpu/src/graph/impls/onednn/fully_connected_onednn.cpp b/src/plugins/intel_gpu/src/graph/impls/onednn/fully_connected_onednn.cpp
+index 92cc2bdb1c..47c87bb267 100644
+--- a/src/plugins/intel_gpu/src/graph/impls/onednn/fully_connected_onednn.cpp
++++ b/src/plugins/intel_gpu/src/graph/impls/onednn/fully_connected_onednn.cpp
+@@ -98,6 +98,72 @@ protected:
+         return args;
+     }
+ 
++    // Compressed 4-bit weights arrive as a plain row-major [N, K] constant, which the matmul
++    // below describes as K-contiguous (`acb`).  When N is much larger than K the jit:gemm
++    // kernel is measurably faster with N-contiguous weights instead, so those are described as
++    // `abc` and transposed once by get_weights_reorder().
++    //
++    // The N >> K restriction is not cosmetic - the change is a clear loss outside it.  Measured
++    // per-matmul on a Qwen2-VL-2B INT4 prefill of 1024 tokens (Panther Lake iGPU, oneDNN
++    // verbose timings, cab -> abc):
++    //
++    //     wei 1536x8960   N/K 5.83    2.293 -> 1.798 ms   and   1.747 -> 1.293 ms
++    //     wei 1536x2048   N/K 1.33    0.474 -> 1.141 ms
++    //     wei 1536x1536   N/K 1.00    0.419 -> 0.486 ms
++    //
++    // The 4x threshold sits in the gap between the fastest measured win and the slowest
++    // measured loss; shapes below it keep the layout they arrive in.
++    //
++    // The same end-to-end sweep also shows the win is conditional on the row count, which is
++    // why the row check below exists (wall time, same model, layout on vs off):
++    //
++    //     32 rows 0.84x   64 rows 0.85x   128 rows 1.08x   256 rows 1.16x   1024 rows 1.11x
++    //
++    // The decision deliberately does not look at the weights *format*: get_weights_reorder()
++    // changes that format, and the primitive descriptor built afterwards has to agree with the
++    // one built before, or the matmul would read the reordered buffer with the old strides.
++    static bool use_n_contiguous_weights(const kernel_impl_params& impl_params,
++                                         size_t prim_input_size,
++                                         bool weights_transposed) {
++        if (prim_input_size != 3 || !weights_transposed)
++            return false;
++
++        const auto& weights_layout = impl_params.get_input_layout(1);
++        if (weights_layout.data_type != data_types::i4 && weights_layout.data_type != data_types::u4)
++            return false;
++        if (weights_layout.data_padding)
++            return false;
++
++        const auto& pshape = weights_layout.get_partial_shape();
++        if (pshape.size() != 2 || pshape.is_dynamic())
++            return false;
++
++        const auto N = pshape[0].get_length();
++        const auto K = pshape[1].get_length();
++        if (N < 4 * K)
++            return false;
++
++        // The layout only pays off once there are enough rows to amortize it; below that the
++        // original layout wins and the reorder is skipped entirely, so no second copy of the
++        // weights is allocated either.  The row count is taken as count()/K because the same
++        // projection is dispatched both as `1 x M x K` and as `M x 1 x K` depending on the
++        // node, and both mean M rows.
++        const auto& input_layout = impl_params.get_input_layout(0);
++        if (input_layout.is_dynamic())
++            return false;
++        constexpr int64_t min_rows = 128;
++        return static_cast<int64_t>(input_layout.count()) / K >= min_rows;
++    }
++
++    static std::shared_ptr<WeightsReorderParams> get_weights_reorder(const kernel_impl_params& impl_params) {
++        const auto& source_layout = impl_params.get_input_layout(1);
++        // Same logical [N, K] shape, only the physical order of the two axes changes:
++        // oiyx is K-innermost (what the constant already is), ioyx is N-innermost.
++        auto in_layout = layout(source_layout.get_partial_shape(), source_layout.data_type, format::oiyx);
++        auto out_layout = layout(source_layout.get_partial_shape(), source_layout.data_type, format::ioyx);
++        return std::make_shared<WeightsReorderParams>(in_layout, out_layout);
++    }
++
+     static std::shared_ptr<dnnl::matmul::primitive_desc>
+         get_matmul_primitive_descriptor(const kernel_impl_params& impl_params,
+                                         cldnn::engine& engine,
+@@ -162,7 +228,16 @@ protected:
+         }
+ 
+         dnnl::memory::desc weights_md;
+-        if (weights_layout.data_padding
++        if (use_n_contiguous_weights(impl_params, prim_input_size, weights_transposed)) {
++            // get_weights_reorder() transposes the [N, K] constant to be N-innermost, which is
++            // exactly a dense `abc` descriptor over the (batch, K, N) matmul weights dims.
++            const auto& pshape = impl_params.get_input_layout(1).get_partial_shape();
++            const dnnl::memory::dim N = pshape[0].get_length();
++            const dnnl::memory::dim K = pshape[1].get_length();
++            weights_md = dnnl::memory::desc({1, K, N},
++                                            onednn::convert_data_type(weights_layout.data_type),
++                                            dnnl::memory::format_tag::abc);
++        } else if (weights_layout.data_padding
+             && format::is_default_format(weights_layout.format)
+             && (weights_layout.data_type == data_types::i4 || weights_layout.data_type == data_types::u4)) {
+             weights_md = onednn::layout_to_memory_desc_strides(weights_layout, weights_fmt);
+@@ -354,6 +429,12 @@ public:
+         dnnl::memory::data_type dzp_data_type = dnnl::memory::data_type::undef;
+         int idx = !arg.bias_term() ? 1 : 2;
+ 
++        // Must be decided from the same inputs as the matmul descriptor: the reorder rewrites
++        // the weights layout, so the two have to be kept in agreement.
++        std::shared_ptr<WeightsReorderParams> weights_reorder = nullptr;
++        if (use_n_contiguous_weights(impl_params, prim->input_size, prim->weights_transposed))
++            weights_reorder = get_weights_reorder(impl_params);
++
+         if (prim->compressed_weights) {
+             const auto input_dt = impl_params.get_input_layout(0).data_type;
+             const bool is_dyn_quan_input = cldnn::one_of(input_dt, {data_types::i8, data_types::u8, data_types::f8e4m3, data_types::f8e5m2});
+@@ -444,7 +525,7 @@ public:
+             auto prim_desc = get_matmul_primitive_descriptor(impl_params, impl_params.prog->get_engine(),
+                                                              prim->input_size, prim->weights_rank, prim->bias.is_valid(), *attr);
+ 
+-            auto prim_onednn = std::make_unique<fully_connected_onednn>(engine, config, attr, *prim_desc);
++            auto prim_onednn = std::make_unique<fully_connected_onednn>(engine, config, attr, *prim_desc, weights_reorder);
+             prim_onednn->_ds_group_size = group_size;
+             prim_onednn->_ds_data_type = ds_data_type;
+             prim_onednn->_dzp_data_type = dzp_data_type;
+@@ -453,7 +534,7 @@ public:
+             auto prim_desc = get_matmul_primitive_descriptor(impl_params, impl_params.prog->get_engine(),
+                                                              prim->input_size, prim->weights_rank, prim->bias.is_valid(), *attr);
+ 
+-            return std::make_unique<fully_connected_onednn>(engine, config, attr, *prim_desc);
++            return std::make_unique<fully_connected_onednn>(engine, config, attr, *prim_desc, weights_reorder);
+         }
+     }
+ };
+diff --git a/src/plugins/intel_gpu/src/graph/include/pass_manager.h b/src/plugins/intel_gpu/src/graph/include/pass_manager.h
+index 215b971282..eee3620522 100644
+--- a/src/plugins/intel_gpu/src/graph/include/pass_manager.h
++++ b/src/plugins/intel_gpu/src/graph/include/pass_manager.h
+@@ -158,6 +158,7 @@ private:
+     void fuse_constant_transposes(program &p);
+     void optimize_fused_ops(program &p);
+     void remove_redundant_reshape(program &p);
++    void fuse_normalization_into_dynamic_quantize(program &p);
+ };
+ 
+ class pre_replace_deconv : public base_pass {
+diff --git a/src/plugins/intel_gpu/src/graph/primitive_inst.cpp b/src/plugins/intel_gpu/src/graph/primitive_inst.cpp
+index 95cb7470fd..e42315a34e 100644
+--- a/src/plugins/intel_gpu/src/graph/primitive_inst.cpp
++++ b/src/plugins/intel_gpu/src/graph/primitive_inst.cpp
+@@ -542,7 +542,9 @@ void primitive_inst::update_shape() {
+         auto &layout = _impl_params->get_output_layout(0);
+         OPENVINO_ASSERT(one_of(layout.data_type, {data_types::f16, data_types::i8, data_types::u8, data_types::f8e4m3, data_types::f8e5m2}),
+             "[GPU] Unsupported data type of dynamic_quantize: ", layout.data_type);
+-        if (layout.data_type == data_types::f16)
++        const auto dq_primitive = get_node().as<dynamic_quantize>().get_primitive();
++        const bool fused_normalization = dq_primitive->fused_rms || dq_primitive->fused_mvn;
++        if (layout.data_type == data_types::f16 && !fused_normalization)
+             set_can_be_optimized(true);
+         else
+             set_can_be_optimized(false);
+diff --git a/src/plugins/intel_gpu/src/graph/scaled_dot_product_attention.cpp b/src/plugins/intel_gpu/src/graph/scaled_dot_product_attention.cpp
+index 828ddff651..3b01a06f16 100644
+--- a/src/plugins/intel_gpu/src/graph/scaled_dot_product_attention.cpp
++++ b/src/plugins/intel_gpu/src/graph/scaled_dot_product_attention.cpp
+@@ -46,6 +46,12 @@ layout scaled_dot_product_attention_inst::calc_output_layout(scaled_dot_product_
+     auto v_shape = transpose_shape(input2_layout.get_partial_shape(),
+                                 desc->input_v_transpose_order);
+     output_shape[output_shape.size() - 1] = v_shape[v_shape.size() - 1];
++    // output_transpose_order describes the permutation the SDPA applies on the way out, so the
++    // layout has to describe the permuted shape, exactly as calc_output_layouts() does through
++    // ov::intel_gpu::op::shape_infer(). Skipping it here left the legacy (static shape inference)
++    // path reporting the un-permuted shape, from which the SDPA implementations then read
++    // batch/num_heads off the wrong axes.
++    output_shape = transpose_shape(output_shape, desc->output_transpose_order);
+ 
+     return { layout{output_shape, output_type, output_format, desc->output_paddings[0]} };
+ }
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/dynamic_quantize_gpu_opt.cl b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/dynamic_quantize_gpu_opt.cl
+index 80bed3e059..5bb390847c 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/dynamic_quantize_gpu_opt.cl
++++ b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/dynamic_quantize_gpu_opt.cl
+@@ -299,11 +299,30 @@ KERNEL(dynamic_quantize_gpu_opt)(
+ #if GENERATE_PRECOMPUTED_REDUCTION != 0
+ #error "UNIMPLMENTED: precomputed_reduction generation"
+ #endif
++#if FUSE_RMS && (ASYMMETRIC_QUANTIZATION != 0 || IS_F8 != 0 || IS_MXFP != 0)
++#error "FUSE_RMS requires per-token symmetric int8 quantization"
++#endif
++#if FUSE_MVN && (ASYMMETRIC_QUANTIZATION != 0 || IS_F8 != 0 || IS_MXFP != 0)
++#error "FUSE_MVN requires per-token symmetric int8 quantization"
++#endif
++#if FUSE_RMS && FUSE_MVN
++#error "Only one normalization can be fused into DynamicQuantize"
++#endif
+ 
++#if FUSE_MVN
++__attribute__((reqd_work_group_size(256, 1, 1)))
++#else
+ REQD_SUB_GROUP_SIZE(SIMD)
++#endif
+ KERNEL(dynamic_quantize_gpu_opt)(
+     OPTIONAL_SHAPE_INFO_ARG
+     const __global INPUT0_TYPE* input,
++#if FUSE_RMS || FUSE_MVN
++    const __global INPUT1_TYPE* gamma,
++#endif
++#if FUSE_MVN
++    const __global INPUT2_TYPE* beta,
++#endif
+     __global OUTPUT_TYPE* output,
+     __global OUTPUT1_TYPE* output_scale
+ #if ASYMMETRIC_QUANTIZATION
+@@ -311,6 +330,164 @@ KERNEL(dynamic_quantize_gpu_opt)(
+ #endif
+     )
+ {
++#if FUSE_RMS
++    const uint bf = (uint)get_global_id(2);
++    const uint lane = get_sub_group_local_id();
++    const uint sub_group = (uint)get_local_id(1);
++#if OUTPUT_DIMS == 2
++    const uint row_offset = bf * INPUT0_BATCH_PITCH;
++#else
++    const uint row_offset = bf * INPUT0_FEATURE_PITCH;
++#endif
++    const uint sub_group_offset = sub_group * SIMD * RMS_ITEMS_NUM;
++
++    float rms_accumulator = 0.0f;
++    float rms_data[RMS_ITEMS_NUM];
++    half normalized[RMS_ITEMS_NUM];
++    __local float rms_slm[RMS_SUB_GROUP_NUM];
++    __local half range_max_slm[RMS_SUB_GROUP_NUM];
++    __local half range_min_slm[RMS_SUB_GROUP_NUM];
++
++    unroll_for (uint item = 0; item < RMS_ITEMS_NUM; item++) {
++        const uint index = sub_group_offset + lane + item * SIMD;
++        float value = convert_float(input[row_offset + index]);
++        rms_data[item] = value;
++        rms_accumulator += native_powr(value, 2);
++    }
++
++    rms_accumulator = sub_group_reduce_add(rms_accumulator);
++    if (lane == 0)
++        rms_slm[sub_group] = rms_accumulator;
++    barrier(CLK_LOCAL_MEM_FENCE);
++
++    const uint flat_local_id = sub_group * SIMD + lane;
++    for (uint offset = RMS_SUB_GROUP_NUM / 2; offset > 0; offset /= 2) {
++        if (flat_local_id < offset)
++            rms_slm[flat_local_id] += rms_slm[flat_local_id + offset];
++        barrier(CLK_LOCAL_MEM_FENCE);
++    }
++
++    if (flat_local_id == 0) {
++        float mean_square = rms_slm[0] / RMS_DATA_SIZE;
++        rms_slm[0] = native_powr(sqrt(mean_square + convert_float(RMS_EPSILON)), -1);
++    }
++    barrier(CLK_LOCAL_MEM_FENCE);
++
++    half local_max = ACT_MIN_VAL;
++    half local_min = ACT_MIN_VAL;
++    unroll_for (uint item = 0; item < RMS_ITEMS_NUM; item++) {
++        const uint index = sub_group_offset + lane + item * SIMD;
++        normalized[item] = convert_half(rms_slm[0] * rms_data[item] * convert_float(gamma[index]));
++#if ASYMMETRIC_QUANTIZATION
++        local_max = fmax(local_max, normalized[item]);
++        local_min = fmin(local_min, normalized[item]);
++#else
++        local_max = fmax(local_max, fabs(normalized[item]));
++#endif
++    }
++
++    local_max = sub_group_reduce_max(local_max);
++#if ASYMMETRIC_QUANTIZATION
++    local_min = sub_group_reduce_min(local_min);
++#endif
++    if (lane == 0) {
++        range_max_slm[sub_group] = local_max;
++#if ASYMMETRIC_QUANTIZATION
++        range_min_slm[sub_group] = local_min;
++#endif
++    }
++    barrier(CLK_LOCAL_MEM_FENCE);
++
++    if (sub_group == 0) {
++        half row_max = sub_group_reduce_max(range_max_slm[lane]);
++#if ASYMMETRIC_QUANTIZATION
++        half row_min = sub_group_reduce_min(range_min_slm[lane]);
++#endif
++        if (lane == 0) {
++            range_max_slm[0] = row_max;
++#if ASYMMETRIC_QUANTIZATION
++            range_min_slm[0] = row_min;
++#endif
++        }
++    }
++    barrier(CLK_LOCAL_MEM_FENCE);
++
++#if ASYMMETRIC_QUANTIZATION
++    OUTPUT1_TYPE scale = (OUTPUT1_TYPE)((CHAR_MAX - CHAR_MIN) / (range_max_slm[0] - range_min_slm[0]));
++    OUTPUT2_TYPE zp = (OUTPUT2_TYPE)(-range_min_slm[0] * scale);
++#else
++    SCALE_TYPE scale = TO_SCALE_TYPE(OUTPUT_VAL_MAX) / range_max_slm[0];
++#endif
++
++    unroll_for (uint item = 0; item < RMS_ITEMS_NUM; item++) {
++        const uint index = sub_group_offset + lane + item * SIMD;
++#if ASYMMETRIC_QUANTIZATION
++        output[row_offset + index] = convert_uchar_rte(normalized[item] * scale + zp);
++#else
++        output[row_offset + index] = convert_char_rte(normalized[item] * scale);
++#endif
++    }
++
++    if (flat_local_id == 0) {
++        output_scale[bf] = 1.0h / scale;
++#if ASYMMETRIC_QUANTIZATION
++        output_zp[bf] = convert_uchar_rte(zp);
++#endif
++    }
++#elif FUSE_MVN
++    const uint bf = (uint)get_global_id(2);
++    const uint local_id = (uint)get_local_id(0);
++#if OUTPUT_DIMS == 2
++    const uint input_row_offset = bf * INPUT0_BATCH_PITCH;
++    const uint output_row_offset = bf * OUTPUT_BATCH_PITCH;
++#else
++    const uint input_row_offset = bf * INPUT0_FEATURE_PITCH;
++    const uint output_row_offset = bf * OUTPUT_FEATURE_PITCH;
++#endif
++
++    float mean = 0.0f;
++    unroll_for (uint item = 0; item < MVN_ITEMS_NUM; item++) {
++        const uint index = local_id + item * 256;
++        mean += convert_float(input[input_row_offset + index]);
++    }
++    mean = work_group_reduce_add(mean) / MVN_DATA_SIZE;
++
++    float variance = 0.0f;
++    unroll_for (uint item = 0; item < MVN_ITEMS_NUM; item++) {
++        const uint index = local_id + item * 256;
++        float value = convert_float(input[input_row_offset + index]);
++        value -= mean;
++        variance = fma(value, value, variance);
++    }
++    variance = work_group_reduce_add(variance);
++    if (local_id == 0) {
++#if MVN_EPS_INSIDE_SQRT
++        variance = native_powr(variance / MVN_DATA_SIZE + convert_float(MVN_EPSILON), -0.5f);
++#else
++        variance = native_powr(native_sqrt(variance / MVN_DATA_SIZE) + convert_float(MVN_EPSILON), -1.0f);
++#endif
++    }
++    variance = work_group_broadcast(variance, 0);
++
++    half shifted[MVN_ITEMS_NUM];
++    half local_max = ACT_MIN_VAL;
++    unroll_for (uint item = 0; item < MVN_ITEMS_NUM; item++) {
++        const uint index = local_id + item * 256;
++        half normalized = (convert_half(input[input_row_offset + index]) - convert_half(mean)) * convert_half(variance);
++        half scaled = convert_half(normalized * gamma[index]);
++        shifted[item] = convert_half(scaled + beta[index]);
++        local_max = fmax(local_max, fabs(shifted[item]));
++    }
++
++    half row_max = work_group_reduce_max(local_max);
++    SCALE_TYPE scale = TO_SCALE_TYPE(OUTPUT_VAL_MAX) / row_max;
++    unroll_for (uint item = 0; item < MVN_ITEMS_NUM; item++) {
++        const uint index = local_id + item * 256;
++        output[output_row_offset + index] = convert_char_rte(shifted[item] * scale);
++    }
++    if (local_id == 0)
++        output_scale[bf] = 1.0h / scale;
++#else
+     const uint bf = (uint)get_global_id(2);
+     const uint sglid = get_sub_group_local_id();
+     const uint local_id = (uint)get_local_id(1);
+@@ -340,6 +517,12 @@ KERNEL(dynamic_quantize_gpu_opt)(
+             continue;
+ 
+         val[i] = AS_INPUT_TYPE_N(VLOAD_N(0, input + offset + ((local_id * iteration + i) * block_size)));
++    }
++
++    unroll_for(int i = 0; i < iteration; ++i) {
++        if ((local_id * iteration + i) >= TOTAL_BLOCK_NUM)
++            continue;
++
+ #if ASYMMETRIC_QUANTIZATION
+         unroll_for (int j = 0; j < VEC_SIZE; j++) {
+             max_value = fmax(max_value, val[i][j]);
+@@ -408,6 +591,7 @@ KERNEL(dynamic_quantize_gpu_opt)(
+         output_zp[bf] = convert_uchar_rte(zp);
+ #endif
+     }
++#endif
+ }
+ 
+ #else   // DYNAMIC_QUANTIZAION_IMPL_MODE
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/permute_qkv_headfirst.cl b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/permute_qkv_headfirst.cl
+new file mode 100644
+index 0000000000..f05f51b895
+--- /dev/null
++++ b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/permute_qkv_headfirst.cl
+@@ -0,0 +1,28 @@
++// Copyright (C) 2018-2026 Intel Corporation
++// SPDX-License-Identifier: Apache-2.0
++//
++
++#define VEC_SIZE 8
++#define X_BLOCKS 10
++
++__attribute__((reqd_work_group_size(16, 1, 1)))
++KERNEL(permute_qkv_headfirst)(
++    OPTIONAL_SHAPE_INFO_ARG
++    const __global INPUT0_TYPE* input,
++    __global OUTPUT_TYPE* output)
++{
++    const uint x_block = (uint)get_global_id(0);
++    if (x_block >= X_BLOCKS)
++        return;
++
++    const uint out_y = (uint)get_global_id(1);
++    const uint out_bf = (uint)get_global_id(2);
++    const uint out_b = out_bf / OUTPUT_FEATURE_NUM;
++    const uint out_f = out_bf % OUTPUT_FEATURE_NUM;
++    const uint x = x_block * VEC_SIZE;
++
++    const uint input_offset = INPUT0_GET_INDEX(out_y, out_b, out_f, x);
++    const uint output_offset = OUTPUT_GET_INDEX(out_b, out_f, out_y, x);
++    const half8 value = vload8(0, input + input_offset);
++    vstore8(value, 0, output + output_offset);
++}
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/reorder_weights_int4.cl b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/reorder_weights_int4.cl
+index 9332c491b3..0388a46b77 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/reorder_weights_int4.cl
++++ b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/reorder_weights_int4.cl
+@@ -49,6 +49,32 @@ KERNEL(reorder_weights_int4)(const __global INPUT0_TYPE* input, __global OUTPUT_
+     INPUT0_TYPE in0 = (input[input0_offset / 2] >> input0_idx*4) & 0x0F;
+     INPUT0_TYPE in1 = (input[input1_offset / 2] >> input1_idx*4) & 0x0F;
+ 
++    OUTPUT_TYPE out = in0 | (in1 << 4);
++    output[out_byte_offset] = out;
++#elif defined(INPUT0_LAYOUT_OIYX) && defined(OUTPUT_LAYOUT_IOYX)
++    // Mirror of the ioyx -> oiyx case above: transpose an unblocked 4-bit weight
++    // constant so that the output-feature axis becomes the innermost one.
++    const uint out_byte_offset = get_global_id(0);
++
++    const uint offset0 = out_byte_offset * 2 + 0;
++    const uint offset1 = out_byte_offset * 2 + 1;
++
++    // ioyx is o-innermost, so a flat output index decomposes as i * OFM + o.
++    const uint o0 = offset0 % OUTPUT_OFM_NUM;
++    const uint o1 = offset1 % OUTPUT_OFM_NUM;
++
++    const uint i0 = offset0 / OUTPUT_OFM_NUM;
++    const uint i1 = offset1 / OUTPUT_OFM_NUM;
++
++    const uint input0_offset = GET_FILTER_INDEX(INPUT0, 0, o0, i0, 0, 0);
++    const uint input1_offset = GET_FILTER_INDEX(INPUT0, 0, o1, i1, 0, 0);
++
++    const uint input0_idx = input0_offset % 2;
++    const uint input1_idx = input1_offset % 2;
++
++    INPUT0_TYPE in0 = (input[input0_offset / 2] >> input0_idx*4) & 0x0F;
++    INPUT0_TYPE in1 = (input[input1_offset / 2] >> input1_idx*4) & 0x0F;
++
+     OUTPUT_TYPE out = in0 | (in1 << 4);
+     output[out_byte_offset] = out;
+ #elif defined(OUTPUT_LAYOUT_OS_IYX_OSV16)
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt.cpp
+index 987ae930c4..3c84f095bb 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt.cpp
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt.cpp
+@@ -100,8 +100,21 @@ JitConstants DynamicQuantizeKernelOpt::GetJitConstants(const dynamic_quantize_pa
+     jit.AddConstant(MakeJitConstant("IS_MXFP", params.outputs[1].GetDType() == Datatype::F8E8M0 ? 1 : 0));
+     jit.Merge(GetTensorFriendlyWorkGroupsJit(params.outputs[0]));
+     jit.AddConstant(MakeJitConstant("TOTAL_BLOCK_NUM", total_block_num));
+-    size_t block_num = (total_block_num > 32) ? 32 : total_block_num;
++    size_t block_num = params.fused_rms ? 16 : ((total_block_num > 32) ? 32 : total_block_num);
+     jit.AddConstant(MakeJitConstant("BLOCK_NUM", block_num));
++    jit.AddConstant(MakeJitConstant("FUSE_RMS", params.fused_rms));
++    jit.AddConstant(MakeJitConstant("FUSE_MVN", params.fused_mvn));
++    if (params.fused_rms) {
++        jit.AddConstant(MakeJitConstant("RMS_EPSILON", params.rms_eps));
++        jit.AddConstant(MakeJitConstant("RMS_DATA_SIZE", bf_size.second));
++        jit.AddConstant(MakeJitConstant("RMS_ITEMS_NUM", 6));
++        jit.AddConstant(MakeJitConstant("RMS_SUB_GROUP_NUM", 16));
++    } else if (params.fused_mvn) {
++        jit.AddConstant(MakeJitConstant("MVN_EPSILON", params.mvn_eps));
++        jit.AddConstant(MakeJitConstant("MVN_EPS_INSIDE_SQRT", params.mvn_eps_inside_sqrt));
++        jit.AddConstant(MakeJitConstant("MVN_DATA_SIZE", bf_size.second));
++        jit.AddConstant(MakeJitConstant("MVN_ITEMS_NUM", 5));
++    }
+ 
+     if (mode == DynQuanMode::PER_TOKEN)  {
+         size_t aligned_block_num = (total_block_num > 32) ? Align(total_block_num, 32) : total_block_num;
+@@ -115,6 +128,19 @@ CommonDispatchData DynamicQuantizeKernelOpt::SetDefault(const dynamic_quantize_p
+     CommonDispatchData dispatchData;
+     auto mode = get_dynamic_quantize_mode(params);
+ 
++    if (params.fused_rms) {
++        auto bf_size = get_input_bf_size(params);
++        dispatchData.gws = {simd, 16, bf_size.first};
++        dispatchData.lws = {simd, 16, 1};
++        return dispatchData;
++    }
++    if (params.fused_mvn) {
++        auto bf_size = get_input_bf_size(params);
++        dispatchData.gws = {256, 1, bf_size.first};
++        dispatchData.lws = {256, 1, 1};
++        return dispatchData;
++    }
++
+     if (mode == DynQuanMode::SMALL_GS) {
+         auto bf_size = get_input_bf_size(params);
+         dispatchData.gws = {bf_size.first, bf_size.second / params.group_sizes.back(), 1};
+@@ -185,7 +211,7 @@ KernelsData DynamicQuantizeKernelOpt::GetKernelsData(const Params& params) const
+                      EXE_MODE_DEFAULT,
+                      false,
+                      false,
+-                     1,
++                     static_cast<int>(prim_params.inputs.size()),
+                      GetFusedPrimitiveInputsCount(params),
+                      static_cast<int>(prim_params.outputs.size()),
+                      prim_params.is_shape_agnostic);
+@@ -234,6 +260,38 @@ bool DynamicQuantizeKernelOpt::Validate(const Params& params) const {
+     if (dq_params.append_axis != -1)
+         DO_NOT_USE_THIS_KERNEL(params.layerID);
+ 
++    if (dq_params.fused_rms) {
++        if (dq_params.inputs.size() != 2 ||
++            get_dynamic_quantize_mode(dq_params) != DynQuanMode::PER_TOKEN ||
++            dq_params.use_asymmetric_quantization ||
++            dq_params.generate_precomputed_reduction)
++            DO_NOT_USE_THIS_KERNEL(params.layerID);
++
++        if (dq_params.outputs[0].GetDType() != Datatype::INT8)
++            DO_NOT_USE_THIS_KERNEL(params.layerID);
++
++        auto vec_size = get_match_vector_size(dq_params);
++        auto bf = get_input_bf_size(dq_params);
++        if (vec_size != 8 || bf.second != 1536 || dq_params.inputs[1].LogicalSize() != bf.second)
++            DO_NOT_USE_THIS_KERNEL(params.layerID);
++    }
++
++    if (dq_params.fused_mvn) {
++        if (dq_params.inputs.size() != 3 ||
++            get_dynamic_quantize_mode(dq_params) != DynQuanMode::PER_TOKEN ||
++            dq_params.use_asymmetric_quantization || dq_params.generate_precomputed_reduction ||
++            dq_params.outputs[0].GetDType() != Datatype::INT8 ||
++            params.engineInfo.maxWorkGroupSize < 256)
++            DO_NOT_USE_THIS_KERNEL(params.layerID);
++
++        auto vec_size = get_match_vector_size(dq_params);
++        auto bf = get_input_bf_size(dq_params);
++        if (vec_size != 8 || bf.second != 1280 ||
++            dq_params.inputs[1].LogicalSize() != bf.second ||
++            dq_params.inputs[2].LogicalSize() != bf.second)
++            DO_NOT_USE_THIS_KERNEL(params.layerID);
++    }
++
+     for (size_t i = 0; i < dq_params.group_sizes.size() - 1; i++) {
+         if (dq_params.group_sizes[i] != 1)
+             DO_NOT_USE_THIS_KERNEL(params.layerID);
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt_kv_cache.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt_kv_cache.cpp
+index c0a47c23dc..d166e65161 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt_kv_cache.cpp
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt_kv_cache.cpp
+@@ -269,6 +269,9 @@ bool DynamicQuantizeKernelKVCache::Validate(const Params& params) const {
+     if (dq_params.generate_precomputed_reduction)
+         DO_NOT_USE_THIS_KERNEL(params.layerID);
+ 
++    if (dq_params.fused_rms || dq_params.fused_mvn)
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++
+     if (non_compressed_dims_number == group_sizes.size())
+         DO_NOT_USE_THIS_KERNEL(params.layerID);
+ 
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.cpp
+index 4b36c2eded..7821fa5c63 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.cpp
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.cpp
+@@ -167,6 +167,9 @@ bool DynamicQuantizeKernelRef::Validate(const Params& params) const {
+         DO_NOT_USE_THIS_KERNEL(params.layerID);
+     }
+ 
++    if (dq_params.fused_rms || dq_params.fused_mvn)
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++
+     return true;
+ }
+ }  // namespace kernel_selector
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.h b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.h
+index 6b7985aef2..2bff8f25d5 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.h
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.h
+@@ -22,6 +22,11 @@ struct dynamic_quantize_params : public base_params {
+     bool combine_scales_and_zp = false;
+     bool generate_precomputed_reduction = false;
+     bool is_int4_compressed = false;
++    bool fused_rms = false;
++    float rms_eps = 0.f;
++    bool fused_mvn = false;
++    float mvn_eps = 0.f;
++    bool mvn_eps_inside_sqrt = false;
+ };
+ 
+ class DynamicQuantizeKernelRef : public KernelBaseOpenCL {
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_qkv_headfirst.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_qkv_headfirst.cpp
+new file mode 100644
+index 0000000000..30817b970d
+--- /dev/null
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_qkv_headfirst.cpp
+@@ -0,0 +1,71 @@
++// Copyright (C) 2018-2026 Intel Corporation
++// SPDX-License-Identifier: Apache-2.0
++//
++
++#include "permute_kernel_qkv_headfirst.h"
++
++namespace kernel_selector {
++
++namespace {
++constexpr size_t kVectorSize = 8;
++constexpr size_t kHeadSize = 80;
++constexpr size_t kHeads = 16;
++constexpr size_t kQKV = 3;
++
++bool IsQKVHeadfirstOrder(const std::vector<uint16_t>& order) {
++    return order == std::vector<uint16_t>({1, 3, 2, 0});
++}
++}  // namespace
++
++ParamsKey PermuteKernelQKVHeadfirst::GetSupportedKey() const {
++    ParamsKey key;
++    key.EnableInputDataType(Datatype::F16);
++    key.EnableOutputDataType(Datatype::F16);
++    key.EnableInputLayout(DataLayout::bfyx);
++    key.EnableOutputLayout(DataLayout::bfyx);
++    key.EnableTensorOffset();
++    key.EnableTensorPitches();
++    key.EnableBatching();
++    key.EnableDynamicShapesSupport();
++    return key;
++}
++
++CommonDispatchData PermuteKernelQKVHeadfirst::SetDefault(const permute_params& params) const {
++    CommonDispatchData dispatch;
++    const auto sequence = params.outputs[0].Y().v;
++    dispatch.gws = {16, sequence, kQKV * kHeads};
++    dispatch.lws = {16, 1, 1};
++    return dispatch;
++}
++
++bool PermuteKernelQKVHeadfirst::Validate(const Params& params) const {
++    if (!Parent::Validate(params))
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++
++    const auto& permute_params = static_cast<const kernel_selector::permute_params&>(params);
++    const auto& input = permute_params.inputs[0];
++    const auto& output = permute_params.outputs[0];
++    if (!IsQKVHeadfirstOrder(permute_params.order) || !permute_params.fused_ops.empty())
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++    if (input.GetLayout() != DataLayout::bfyx || output.GetLayout() != DataLayout::bfyx ||
++        input.GetDType() != Datatype::F16 || output.GetDType() != Datatype::F16)
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++    if (input.PitchesDifferFromLogicalDims() || output.PitchesDifferFromLogicalDims() ||
++        input.GetPaddedVal() != 0 || output.GetPaddedVal() != 0)
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++    if (input.Feature().is_dynamic || input.Y().is_dynamic || input.X().is_dynamic ||
++        output.Batch().is_dynamic || output.Feature().is_dynamic || output.X().is_dynamic)
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++    if (input.Feature().v != kQKV || input.Y().v != kHeads || input.X().v != kHeadSize ||
++        output.Batch().v != kQKV || output.Feature().v != kHeads || output.X().v != kHeadSize ||
++        kHeadSize % kVectorSize != 0)
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++
++    return true;
++}
++
++KernelsPriority PermuteKernelQKVHeadfirst::GetKernelsPriority(const Params&) const {
++    return FORCE_PRIORITY_1;
++}
++
++}  // namespace kernel_selector
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_qkv_headfirst.h b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_qkv_headfirst.h
+new file mode 100644
+index 0000000000..58b39bcbb9
+--- /dev/null
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_qkv_headfirst.h
+@@ -0,0 +1,25 @@
++// Copyright (C) 2018-2026 Intel Corporation
++// SPDX-License-Identifier: Apache-2.0
++//
++
++#pragma once
++
++#include "permute_kernel_base.h"
++
++namespace kernel_selector {
++
++class PermuteKernelQKVHeadfirst : public PermuteKernelBase {
++public:
++    using Parent = PermuteKernelBase;
++
++    PermuteKernelQKVHeadfirst() : PermuteKernelBase("permute_qkv_headfirst") {}
++
++    ParamsKey GetSupportedKey() const override;
++    CommonDispatchData SetDefault(const permute_params& params) const override;
++    KernelsPriority GetKernelsPriority(const Params& params) const override;
++
++protected:
++    bool Validate(const Params& params) const override;
++};
++
++}  // namespace kernel_selector
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_selector.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_selector.cpp
+index 6e81864879..1a166629d0 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_selector.cpp
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_selector.cpp
+@@ -9,6 +9,7 @@
+ #include "permute_kernel_bfzyx_to_bfyxz.h"
+ #include "permute_kernel_f_y_axes.h"
+ #include "permute_kernel_xy_swap.h"
++#include "permute_kernel_qkv_headfirst.h"
+ 
+ namespace kernel_selector {
+ 
+@@ -19,6 +20,7 @@ permute_kernel_selector::permute_kernel_selector() {
+     Attach<PermuteKernel_bfzyx_to_bfyxz>();
+     Attach<PermuteKernel_f_y_axes>();
+     Attach<PermuteKernel_xy_swap>();
++    Attach<PermuteKernelQKVHeadfirst>();
+ }
+ 
+ KernelsData permute_kernel_selector::GetBestKernels(const Params& params) const {
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/reorder/reorder_weights_int4.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/reorder/reorder_weights_int4.cpp
+index 079da26f0a..325849b617 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/kernels/reorder/reorder_weights_int4.cpp
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/reorder/reorder_weights_int4.cpp
+@@ -24,6 +24,7 @@ ParamsKey ReorderWeightsKernelInt4::GetSupportedKey() const {
+     k.EnableOutputWeightsLayout(WeightsLayout::os_iyx_osv64);
+     k.EnableOutputWeightsLayout(WeightsLayout::os_is_yx_osv64_isv2);
+     k.EnableOutputWeightsLayout(WeightsLayout::oiyx);
++    k.EnableOutputWeightsLayout(WeightsLayout::ioyx);
+     k.EnableTensorOffset();
+     k.EnableTensorPitches();
+     return k;
+@@ -60,6 +61,9 @@ ReorderWeightsKernelInt4::DispatchData ReorderWeightsKernelInt4::SetDefault(cons
+         } else {
+             dispatchData.gws = { CeilDiv(output.LogicalSize(), 2), 1, 1 };
+         }
++    } else if (output.GetLayout() == WeightsLayout::ioyx) {
++        // One work item per output byte, i.e. per pair of packed 4-bit values.
++        dispatchData.gws = { CeilDiv(output.LogicalSize(), 2), 1, 1 };
+     }
+     dispatchData.lws = GetOptimalLocalWorkGroupSizes(dispatchData.gws, params.engineInfo);
+ 
+@@ -132,6 +136,7 @@ bool ReorderWeightsKernelInt4::Validate(const Params& params) const {
+     supported_case |= input.GetLayout() == WeightsLayout::oiyx && output.GetLayout() == WeightsLayout::os_iyx_osv64;
+     supported_case |= input.GetLayout() == WeightsLayout::oiyx && output.GetLayout() == WeightsLayout::os_is_yx_osv64_isv2;
+     supported_case |= input.GetLayout() == WeightsLayout::ioyx && output.GetLayout() == WeightsLayout::oiyx;
++    supported_case |= input.GetLayout() == WeightsLayout::oiyx && output.GetLayout() == WeightsLayout::ioyx;
+     supported_case |= input.GetLayout() == WeightsLayout::ioyx && output.GetLayout() == WeightsLayout::os_iyx_osv32;
+     return supported_case;
+ }
+diff --git a/src/plugins/intel_gpu/src/plugin/plugin.cpp b/src/plugins/intel_gpu/src/plugin/plugin.cpp
+index 2941627f49..d2a1f96f5a 100644
+--- a/src/plugins/intel_gpu/src/plugin/plugin.cpp
++++ b/src/plugins/intel_gpu/src/plugin/plugin.cpp
+@@ -726,6 +726,7 @@ std::vector<ov::PropertyName> Plugin::get_caching_properties() const {
+         ov::PropertyName{ov::hint::execution_mode.name(), PropertyMutability::RW},
+         ov::PropertyName{ov::hint::performance_mode.name(), PropertyMutability::RW},
+         ov::PropertyName{ov::hint::dynamic_quantization_group_size.name(), PropertyMutability::RW},
++        ov::PropertyName{ov::intel_gpu::dynamic_quantization_threshold.name(), PropertyMutability::RW},
+         ov::PropertyName{ov::hint::activations_scale_factor.name(), PropertyMutability::RW},
+     };
+ 
+@@ -781,6 +782,7 @@ std::vector<ov::PropertyName> Plugin::get_supported_properties() const {
+         ov::PropertyName{ov::hint::enable_cpu_reservation.name(), PropertyMutability::RW},
+         ov::PropertyName{ov::device::id.name(), PropertyMutability::RW},
+         ov::PropertyName{ov::hint::dynamic_quantization_group_size.name(), PropertyMutability::RW},
++        ov::PropertyName{ov::intel_gpu::dynamic_quantization_threshold.name(), PropertyMutability::RW},
+         ov::PropertyName{ov::hint::activations_scale_factor.name(), PropertyMutability::RW},
+         ov::PropertyName{ov::weights_path.name(), PropertyMutability::RW},
+         ov::PropertyName{ov::cache_encryption_callbacks.name(), PropertyMutability::WO},
+diff --git a/src/plugins/intel_gpu/src/plugin/transformations/dynamic_quantize_fully_connected.cpp b/src/plugins/intel_gpu/src/plugin/transformations/dynamic_quantize_fully_connected.cpp
+index 58ed3e3834..476637c6f8 100644
+--- a/src/plugins/intel_gpu/src/plugin/transformations/dynamic_quantize_fully_connected.cpp
++++ b/src/plugins/intel_gpu/src/plugin/transformations/dynamic_quantize_fully_connected.cpp
+@@ -18,6 +18,47 @@
+ 
+ namespace ov::intel_gpu {
+ 
++namespace {
++bool output_orders_equal(const std::vector<uint64_t>& lhs, const std::vector<uint64_t>& rhs) {
++    if (lhs == rhs)
++        return true;
++
++    const auto is_identity = [](const std::vector<uint64_t>& order) {
++        for (size_t index = 0; index < order.size(); index++) {
++            if (order[index] != index)
++                return false;
++        }
++        return true;
++    };
++    return (lhs.empty() && is_identity(rhs)) || (rhs.empty() && is_identity(lhs));
++}
++
++bool dq_attrs_equal(const ov::op::internal::DynamicQuantize::Attributes& lhs,
++                    const ov::op::internal::DynamicQuantize::Attributes& rhs) {
++    return lhs.quantization_type == rhs.quantization_type &&
++           lhs.quantization_dt == rhs.quantization_dt &&
++           lhs.scale_dt == rhs.scale_dt &&
++           lhs.zp_dt == rhs.zp_dt &&
++           lhs.precomputed_reduction == rhs.precomputed_reduction &&
++           lhs.precomputed_reduction_dt == rhs.precomputed_reduction_dt &&
++           lhs.output_storage_type == rhs.output_storage_type &&
++           output_orders_equal(lhs.scales_zp_output_order, rhs.scales_zp_output_order) &&
++           lhs.group_sizes == rhs.group_sizes;
++}
++
++std::shared_ptr<ov::op::internal::DynamicQuantize> find_reusable_dq(
++    const ov::Output<ov::Node>& activation,
++    const ov::op::internal::DynamicQuantize::Attributes& config) {
++    for (const auto& target_input : activation.get_target_inputs()) {
++        auto candidate = ov::as_type_ptr<ov::op::internal::DynamicQuantize>(
++            target_input.get_node()->shared_from_this());
++        if (candidate && dq_attrs_equal(candidate->get_attrs(), config))
++            return candidate;
++    }
++    return nullptr;
++}
++}  // namespace
++
+ // precomputed_reduction is providing partial reduction of activation from dynamic quantization into onednn for faster computation
+ // It is used for asymmetric weight.
+ DynamicQuantizeFullyConnected::DynamicQuantizeFullyConnected(uint64_t group_size,
+@@ -116,7 +157,9 @@ DynamicQuantizeFullyConnected::DynamicQuantizeFullyConnected(uint64_t group_size
+             config.zp_dt = element::u8; // it supports u8 only now
+         }
+ 
+-        std::shared_ptr<ov::op::internal::DynamicQuantize> dyn_quan = std::make_shared<ov::op::internal::DynamicQuantize>(m_fc->input_value(0), config);
++        auto dyn_quan = find_reusable_dq(m_fc->input_value(0), config);
++        if (!dyn_quan)
++            dyn_quan = std::make_shared<ov::op::internal::DynamicQuantize>(m_fc->input_value(0), config);
+ 
+         int dyn_quan_output_idx = 2;
+         auto optional_a_zp = config.quantization_type == QuantizationType::Symmetric ?
+diff --git a/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.cpp b/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.cpp
+index 11ec247ffa..868d6a51ec 100644
+--- a/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.cpp
++++ b/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.cpp
+@@ -3,6 +3,7 @@
+ //
+ 
+ #include "intel_gpu/op/gemm.hpp"
++#include "intel_gpu/op/indirect_sdpa.hpp"
+ #include "intel_gpu/op/sdpa.hpp"
+ #include "intel_gpu/runtime/utils.hpp"
+ #include "openvino/core/node_vector.hpp"
+@@ -77,6 +78,7 @@ bool has_optimized_version(const ov::Output<ov::Node>& output, bool supports_imm
+ TransposeFusion::TransposeFusion(bool supports_immad) {
+     add_matcher<TransposeMatMulTransposeMatcher>(supports_immad);
+     add_matcher<TransposeMatMulMatcher>(supports_immad);
++    add_matcher<TransposeSDPATransposeMatcher>(supports_immad);
+     add_matcher<TransposeSDPAMatcher>();
+     add_matcher<TransposeVLSDPAMatcher>();
+ }
+@@ -310,6 +312,221 @@ TransposeSDPAMatcher::TransposeSDPAMatcher() {
+     this->register_matcher(m, callback);
+ }
+ 
++// Same as TransposeSDPAMatcher, but additionally absorbs the Transpose that consumes the SDPA
++// output into the SDPA's output_transpose_order. The micro SDPA kernel remaps the destination
++// strides from that order (convert_strides("DST", ...) in sdpa_gen_micro.cpp), so writing the
++// attention result out in the transposed layout is free there, whereas the standalone Transpose is
++// a full extra read+write of the [batch, heads, seq_len, head_size] tensor through a `permute_ref`
++// kernel. The canonical LLM/embedding attention block ends with exactly this
++// `SDPA -> Transpose(0, 2, 1, 3) -> Reshape -> o_proj` sequence.
++//
++// IMPORTANT: only the micro kernel honours output_transpose_order. sdpa_opt.cl and sdpa_ref.cl
++// write through OUTPUT_GET_INDEX(b, h, seq, head_size) with no OUTPUT_DIMS_ORDER remapping (unlike
++// the input side, which has INPUT{0,1,2}_DIMS_ORDER), so for them a non-default output order is
++// silently ignored and the result lands in the wrong place. The fusion is therefore restricted to
++// SDPAs that will run on the micro kernel -- see the guards in the callback below.
++TransposeSDPATransposeMatcher::TransposeSDPATransposeMatcher(bool supports_immad) {
++    auto is_fp_type = [](const ov::Output<ov::Node>& output) -> bool {
++        switch (output.get_element_type()) {
++            case ov::element::f16:
++            case ov::element::f32: return true;
++            default: return false;
++        }
++    };
++    auto not_transpose = [is_fp_type](const ov::Output<ov::Node>& output) -> bool {
++        return ov::as_type_ptr<ov::op::v1::Transpose>(output.get_node_shared_ptr()) == nullptr
++               && is_fp_type(output);
++    };
++
++    auto input_q_m = any_input(not_transpose);
++    auto input_k_m = any_input(not_transpose);
++    auto input_v_m = any_input(not_transpose);
++    auto input_attn_mask = any_input(not_transpose);
++    auto input_scale = any_input(not_transpose);
++    auto transpose_q_order_m = wrap_type<ov::op::v0::Constant>(consumers_count(1));
++    auto transpose_k_order_m = wrap_type<ov::op::v0::Constant>(consumers_count(1));
++    auto transpose_v_order_m = wrap_type<ov::op::v0::Constant>(consumers_count(1));
++    auto transpose_q_m = wrap_type<ov::op::v1::Transpose>({input_q_m, transpose_q_order_m}, is_fp_type);
++    auto transpose_k_m = wrap_type<ov::op::v1::Transpose>({input_k_m, transpose_k_order_m}, is_fp_type);
++    auto transpose_v_m = wrap_type<ov::op::v1::Transpose>({input_v_m, transpose_v_order_m}, is_fp_type);
++
++    auto sdpa_in_q = std::make_shared<Or>(OutputVector{input_q_m, transpose_q_m});
++    auto sdpa_in_k = std::make_shared<Or>(OutputVector{input_k_m, transpose_k_m});
++    auto sdpa_in_v = std::make_shared<Or>(OutputVector{input_v_m, transpose_v_m});
++
++    auto sdpa_without_attn_mask_m =
++        wrap_type<ov::op::v13::ScaledDotProductAttention>({ sdpa_in_q, sdpa_in_k, sdpa_in_v }, consumers_count(1));
++    auto sdpa_with_attn_mask_m =
++        wrap_type<ov::op::v13::ScaledDotProductAttention>({ sdpa_in_q, sdpa_in_k, sdpa_in_v, input_attn_mask }, consumers_count(1));
++    auto sdpa_with_attn_mask_and_scale_m =
++        wrap_type<ov::op::v13::ScaledDotProductAttention>({ sdpa_in_q, sdpa_in_k, sdpa_in_v, input_attn_mask, input_scale },
++                                                          consumers_count(1));
++
++    auto sdpa_m = std::make_shared<Or>(OutputVector{sdpa_without_attn_mask_m, sdpa_with_attn_mask_m, sdpa_with_attn_mask_and_scale_m});
++    auto transpose_out_order_m = wrap_type<ov::op::v0::Constant>(consumers_count(1));
++    auto transpose_out_m = wrap_type<ov::op::v1::Transpose>({sdpa_m, transpose_out_order_m}, is_fp_type);
++
++    ov::matcher_pass_callback callback = [OV_CAPTURE_CPY_AND_THIS](Matcher& m) {
++        const auto& pattern_map = m.get_pattern_value_map();
++
++        std::shared_ptr<ov::op::v13::ScaledDotProductAttention> sdpa;
++        for (const auto& sdpa_pattern : {sdpa_without_attn_mask_m, sdpa_with_attn_mask_m, sdpa_with_attn_mask_and_scale_m}) {
++            auto it = pattern_map.find(sdpa_pattern);
++            if (it != pattern_map.end()) {
++                sdpa = ov::as_type_ptr<ov::op::v13::ScaledDotProductAttention>(it->second.get_node_shared_ptr());
++                break;
++            }
++        }
++
++        if (!sdpa || transformation_callback(sdpa)) {
++            return false;
++        }
++
++        // Only the micro SDPA kernel reads output_transpose_order, and it is available on XMX
++        // devices only -- everywhere else SDPAOpt::supports_micro_sdpa() is false and every stage
++        // runs sdpa_opt, which would ignore the folded order.
++        if (!supports_immad) {
++            return false;
++        }
++
++        // SDPAOpt::supports_micro_sdpa() rejects a 3D SDPA outright ("Known limitation: In vision
++        // encoding model of qwen-vl ... restricted to execute with sdpa_opt kernel"), so a headless
++        // attention block -- the Qwen-VL / Qwen3-VL vision tower, whose SDPA is
++        // [num_heads, seq_len, head_size] -- can never honour a folded output order.
++        if (sdpa->get_output_partial_shape(0).size() != 4) {
++            return false;
++        }
++
++        // ov::intel_gpu::op::SDPA derives from ov::op::v13::ScaledDotProductAttention, and
++        // WrapType matches derived types, so the pattern above also matches an SDPA that a
++        // previous matcher already rewrote. This is the normal case: the SDPA node precedes its
++        // output Transpose in topological order, so TransposeSDPAMatcher has already run and has
++        // already absorbed the Q/K/V transposes into order_q/k/v. Those orders must be carried
++        // over -- rebuilding from default_order() while keeping the (already un-transposed)
++        // inputs silently reinterprets Q/K/V with the batch and seq_len axes swapped.
++        auto fused_sdpa = ov::as_type_ptr<op::SDPA>(sdpa);
++
++        // The 6-argument op::SDPA constructor below carries neither the beam table + indirect
++        // axis of IndirectSDPA nor the KV-cache quantization attributes and their scale/zp
++        // inputs, so those two shapes cannot be rebuilt faithfully. They are the stateful
++        // KV-cache paths, where the output Transpose is not on the critical path anyway.
++        if (ov::as_type_ptr<op::IndirectSDPA>(sdpa) || (fused_sdpa && fused_sdpa->get_kv_compressed())) {
++            return false;
++        }
++
++        auto order_q = fused_sdpa ? fused_sdpa->get_input0_transpose_order()
++                                  : op::SDPA::default_order(sdpa->get_input_partial_shape(0).size());
++        auto order_k = fused_sdpa ? fused_sdpa->get_input1_transpose_order()
++                                  : op::SDPA::default_order(sdpa->get_input_partial_shape(1).size());
++        auto order_v = fused_sdpa ? fused_sdpa->get_input2_transpose_order()
++                                  : op::SDPA::default_order(sdpa->get_input_partial_shape(2).size());
++        size_t input_q_output_idx = sdpa->get_input_source_output(0).get_index();
++        size_t input_k_output_idx = sdpa->get_input_source_output(1).get_index();
++        size_t input_v_output_idx = sdpa->get_input_source_output(2).get_index();
++
++        auto process_transpose = [](const std::shared_ptr<Node>& transpose_node,
++                                    const std::shared_ptr<Node>& transpose_order_const_node,
++                                    std::vector<int64_t>& order,
++                                    size_t& output_idx) {
++            auto transpose_order_const = ov::as_type_ptr<ov::op::v0::Constant>(transpose_order_const_node);
++
++            order = transpose_order_const->cast_vector<int64_t>();
++            // Allow any transposes without head_size dim position change
++            if (order.back() != static_cast<int64_t>(order.size() - 1))
++                return false;
++
++            auto transpose = ov::as_type_ptr<ov::op::v1::Transpose>(transpose_node);
++            output_idx = transpose->get_input_source_output(0).get_index();
++
++            return true;
++        };
++
++        bool can_fuse_transposes = true;
++        if (pattern_map.count(transpose_q_m) > 0)
++            can_fuse_transposes &= process_transpose(pattern_map.at(transpose_q_m).get_node_shared_ptr(),
++                                                     pattern_map.at(transpose_q_order_m).get_node_shared_ptr(),
++                                                     order_q, input_q_output_idx);
++
++        if (pattern_map.count(transpose_k_m) > 0)
++            can_fuse_transposes &= process_transpose(pattern_map.at(transpose_k_m).get_node_shared_ptr(),
++                                                     pattern_map.at(transpose_k_order_m).get_node_shared_ptr(),
++                                                     order_k, input_k_output_idx);
++
++        if (pattern_map.count(transpose_v_m) > 0)
++            can_fuse_transposes &= process_transpose(pattern_map.at(transpose_v_m).get_node_shared_ptr(),
++                                                     pattern_map.at(transpose_v_order_m).get_node_shared_ptr(),
++                                                     order_v, input_v_output_idx);
++
++        auto transpose_order =
++            ov::as_type_ptr<ov::op::v0::Constant>(pattern_map.at(transpose_out_order_m).get_node_shared_ptr())->cast_vector<int64_t>();
++        // Compose with the order the SDPA already emits instead of overwriting it. The node
++        // currently writes P[i] = L[prev[i]] for the logical BHLS result L, and the Transpose then
++        // produces R[i] = P[transpose_order[i]], so the fused order is prev[transpose_order[i]].
++        // prev is the identity unless this SDPA already had an output transpose folded in.
++        auto prev_order_output = fused_sdpa ? fused_sdpa->get_output_transpose_order()
++                                            : op::SDPA::default_order(sdpa->get_output_partial_shape(0).size());
++        std::vector<int64_t> order_output(transpose_order.size());
++        if (transpose_order.size() != prev_order_output.size() ||
++            transpose_order.size() != sdpa->get_output_partial_shape(0).size()) {
++            can_fuse_transposes = false;
++        } else {
++            for (size_t i = 0; i < transpose_order.size(); i++)
++                order_output[i] = prev_order_output[transpose_order[i]];
++        }
++
++        // The kernels index the destination by head_size-contiguous rows, so only orders that keep
++        // head_size as the innermost dimension can be folded into the output strides.
++        if (can_fuse_transposes && order_output.back() != static_cast<int64_t>(order_output.size() - 1))
++            can_fuse_transposes = false;
++
++        // convert_strides("DST", "OUTPUT", order) in the SDPA generators reads the destination
++        // strides as DST_S[i] = OUTPUT_pitch[order[i]], i.e. it treats the order as mapping the
++        // logical axis to the physical one, whereas shape_infer() applies it the other way round.
++        // The two agree only for self-inverse permutations -- which every real attention block
++        // uses, since it just swaps num_heads and seq_len -- so reject anything else rather than
++        // fold an order the kernels would then read backwards.
++        if (can_fuse_transposes) {
++            for (size_t i = 0; i < order_output.size(); i++) {
++                if (order_output[static_cast<size_t>(order_output[i])] != static_cast<int64_t>(i)) {
++                    can_fuse_transposes = false;
++                    break;
++                }
++            }
++        }
++
++        if (!can_fuse_transposes)
++            return false;
++
++        OutputVector inputs;
++        inputs.push_back(ov::Output<Node>(pattern_map.at(input_q_m).get_node_shared_ptr(), input_q_output_idx));
++        inputs.push_back(ov::Output<Node>(pattern_map.at(input_k_m).get_node_shared_ptr(), input_k_output_idx));
++        inputs.push_back(ov::Output<Node>(pattern_map.at(input_v_m).get_node_shared_ptr(), input_v_output_idx));
++
++        if (pattern_map.find(sdpa_with_attn_mask_m) != pattern_map.end()) {
++            inputs.push_back(sdpa->get_input_source_output(3));
++        } else if (pattern_map.find(sdpa_with_attn_mask_and_scale_m) != pattern_map.end()) {
++            inputs.push_back(sdpa->get_input_source_output(3));
++            inputs.push_back(sdpa->get_input_source_output(4));
++        }
++
++        auto sdpa_new = std::make_shared<op::SDPA>(inputs,
++                                                   sdpa->get_causal(),
++                                                   order_q,
++                                                   order_k,
++                                                   order_v,
++                                                   order_output,
++                                                   fused_sdpa ? fused_sdpa->get_output_type() : ov::element::dynamic);
++
++        sdpa_new->set_friendly_name(m.get_match_root()->get_friendly_name());
++        ov::copy_runtime_info(m.get_matched_nodes(), sdpa_new);
++        ov::replace_node(m.get_match_root(), sdpa_new);
++        return true;
++    };
++
++    auto m = std::make_shared<ov::pass::pattern::Matcher>(transpose_out_m, "TransposeSDPATransposeMatcher");
++    this->register_matcher(m, callback);
++}
++
+ TransposeMatMulMatcher::TransposeMatMulMatcher(bool supports_immad) {
+     auto not_transpose = [](const ov::Output<ov::Node>& output) -> bool {
+         return ov::as_type_ptr<ov::op::v1::Transpose>(output.get_node_shared_ptr()) == nullptr
+diff --git a/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.hpp b/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.hpp
+index 2f0b45db43..2b2d4f5e76 100644
+--- a/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.hpp
++++ b/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.hpp
+@@ -32,6 +32,12 @@ public:
+     TransposeSDPAMatcher();
+ };
+ 
++class TransposeSDPATransposeMatcher : public ov::pass::MatcherPass {
++public:
++    OPENVINO_MATCHER_PASS_RTTI("TransposeSDPATransposeMatcher");
++    TransposeSDPATransposeMatcher(bool supports_immad);
++};
++
+ class TransposeVLSDPAMatcher : public ov::pass::MatcherPass {
+ public:
+     OPENVINO_MATCHER_PASS_RTTI("TransposeVLSDPAMatcher");
+diff --git a/src/plugins/intel_gpu/src/plugin/transformations/unsqueeze_broadcast_reshape_sdpa_fusion.cpp b/src/plugins/intel_gpu/src/plugin/transformations/unsqueeze_broadcast_reshape_sdpa_fusion.cpp
+index 6e92271998..c16d7c72ff 100644
+--- a/src/plugins/intel_gpu/src/plugin/transformations/unsqueeze_broadcast_reshape_sdpa_fusion.cpp
++++ b/src/plugins/intel_gpu/src/plugin/transformations/unsqueeze_broadcast_reshape_sdpa_fusion.cpp
+@@ -5,7 +5,6 @@
+ #include "unsqueeze_broadcast_reshape_sdpa_fusion.hpp"
+ 
+ #include "intel_gpu/op/sdpa.hpp"
+-#include "intel_gpu/op/kv_cache.hpp"
+ 
+ #include "openvino/core/rt_info.hpp"
+ #include "openvino/op/broadcast.hpp"
+@@ -40,8 +39,17 @@ UnsqueezeBroadcastReshapeSDPAFusion::UnsqueezeBroadcastReshapeSDPAFusion() {
+     auto input_a_m = any_input();
+     auto input_attn_mask_m = any_input();
+     auto input_scale_m = any_input();
+-    auto input_b_kvcache_m = wrap_type<ov::intel_gpu::op::KVCache>({any_input(), any_input()});
+-    auto input_c_kvcache_m = wrap_type<ov::intel_gpu::op::KVCache>({any_input(), any_input()});
++    // The producer of the GQA repeat_kv expansion is a KVCache only in stateful generative
++    // models. A stateless graph -- an embedding/encoder forward pass, or any model compiled
++    // without a KV cache -- feeds the Unsqueeze straight from RoPE / Transpose / FullyConnected,
++    // so restricting it to KVCache leaves the whole Unsqueeze->Broadcast->Reshape chain in the
++    // runtime graph. The chain is materialized as a real `broadcast` primitive that writes an
++    // (num_heads / num_kv_heads)x larger K and V, which SDPA can broadcast internally for free.
++    // Everything the fusion actually depends on is verified in the callback below (bidirectional
++    // broadcast on exactly one axis, identical target shape for K and V), so the producer type
++    // itself carries no information and is left unconstrained.
++    auto input_b_kv_producer_m = any_input();
++    auto input_c_kv_producer_m = any_input();
+ 
+     auto input_b_rope_m = wrap_type<ov::op::internal::RoPE>({any_input(), any_input(), any_input()});
+     auto concat_b_m = optional<ov::op::v0::Concat>({any_input(), any_input()});
+@@ -55,8 +63,8 @@ UnsqueezeBroadcastReshapeSDPAFusion::UnsqueezeBroadcastReshapeSDPAFusion() {
+     auto axes_const_b_m = wrap_type<ov::op::v0::Constant>();
+     auto axes_const_c_m = wrap_type<ov::op::v0::Constant>();
+ 
+-    auto unsqueeze_b_m = wrap_type<ov::op::v0::Unsqueeze>({input_b_kvcache_m, axes_const_b_m}, unsqueeze_predicate);
+-    auto unsqueeze_c_m = wrap_type<ov::op::v0::Unsqueeze>({input_c_kvcache_m, axes_const_c_m}, unsqueeze_predicate);
++    auto unsqueeze_b_m = wrap_type<ov::op::v0::Unsqueeze>({input_b_kv_producer_m, axes_const_b_m}, unsqueeze_predicate);
++    auto unsqueeze_c_m = wrap_type<ov::op::v0::Unsqueeze>({input_c_kv_producer_m, axes_const_c_m}, unsqueeze_predicate);
+ 
+     auto pre_reshape_b_m = wrap_type<ov::op::v1::Reshape>({pre_reshape_input_b_m, any_input()}, unsqueeze_predicate);
+     auto pre_reshape_c_m = wrap_type<ov::op::v1::Reshape>({pre_reshape_input_c_m, any_input()}, unsqueeze_predicate);

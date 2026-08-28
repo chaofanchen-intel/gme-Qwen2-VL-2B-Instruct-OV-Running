@@ -63,6 +63,10 @@ def percentile(values: list[float], q: float = 50) -> float:
     return round(float(np.percentile(values, q)), 3)
 
 
+def mean(values: list[float]) -> float:
+    return round(float(np.mean(values)), 3)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--precision", default="int4_causal_vopt")
@@ -73,6 +77,8 @@ def main() -> None:
     ap.add_argument("--warmup", type=int, default=3)
     ap.add_argument("--repeat", type=int, default=6)
     ap.add_argument("--streams", default="1")
+    ap.add_argument("--visual-dq-threshold", type=int, default=None,
+                    help="GPU visual activation-row threshold; 0 enables MVN-to-DQ fusion")
     ap.add_argument("--output", type=Path, default=None)
     args = ap.parse_args()
 
@@ -81,7 +87,8 @@ def main() -> None:
 
     streams: int | str = "auto" if args.streams == "auto" else int(args.streams)
     encoder = GmeOpenVINO(GME_PACKAGE, device=args.device, precision=args.precision,
-                          streams=streams)
+                          streams=streams,
+                          visual_dynamic_quantization_threshold=args.visual_dq_threshold)
     config = encoder.config["precisions"][args.precision]
     print(f"precision={args.precision} language={config['language']} visual={config['visual']} "
           f"device={args.device} batch_mode={encoder.batch_mode}")
@@ -151,6 +158,11 @@ def main() -> None:
                 "tokens": tokens,
                 "sequence": seq,
                 "shape": list(np.asarray(result).shape),
+                "preprocess_mean_ms": mean(pre_ms),
+                "visual_mean_ms": mean(vis_ms),
+                "language_mean_ms": mean(lang_ms),
+                "stage_sum_mean_ms": round(mean(pre_ms) + mean(vis_ms) + mean(lang_ms), 3),
+                "end_to_end_mean_ms": mean(e2e_ms),
                 "preprocess_p50_ms": percentile(pre_ms),
                 "visual_p50_ms": percentile(vis_ms),
                 "language_p50_ms": percentile(lang_ms),
@@ -159,14 +171,20 @@ def main() -> None:
                 "end_to_end_p50_ms": percentile(e2e_ms),
                 "end_to_end_min_ms": round(float(np.min(e2e_ms)), 3),
                 "end_to_end_max_ms": round(float(np.max(e2e_ms)), 3),
+                                "samples_ms": {
+                                        "preprocess": [round(value, 3) for value in pre_ms],
+                                        "visual": [round(value, 3) for value in vis_ms],
+                                        "language": [round(value, 3) for value in lang_ms],
+                                        "end_to_end": [round(value, 3) for value in e2e_ms],
+                                },
             }
             rows.append(row)
             print(f"{mode:<6} {row['size']:<9} L={patches:<5} K={tokens:<5} S={seq:<5} "
-                  f"preproc={row['preprocess_p50_ms']:8.1f} "
-                  f"visual={row['visual_p50_ms']:9.1f} "
-                  f"language={row['language_p50_ms']:8.1f} "
-                  f"sum={row['stage_sum_ms']:9.1f} "
-                  f"e2e={row['end_to_end_p50_ms']:9.1f}")
+                                    f"preproc_mean={row['preprocess_mean_ms']:8.1f} "
+                                    f"visual_mean={row['visual_mean_ms']:9.1f} "
+                                    f"language_mean={row['language_mean_ms']:8.1f} "
+                                    f"sum_mean={row['stage_sum_mean_ms']:9.1f} "
+                                    f"e2e_mean={row['end_to_end_mean_ms']:9.1f}")
 
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -177,6 +195,7 @@ def main() -> None:
             "device": args.device,
             "batch_mode": encoder.batch_mode,
             "streams": args.streams,
+            "visual_dynamic_quantization_threshold": args.visual_dq_threshold,
             "warmup": args.warmup,
             "repeat": args.repeat,
             "fused_text_tokens": 32,
