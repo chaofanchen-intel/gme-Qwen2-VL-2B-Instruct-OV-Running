@@ -117,6 +117,21 @@ opt-5 同样只在 visual compile 显式设置 threshold=0 时触发。Python ru
 `visual_dynamic_quantization_threshold=0`，只作用于视觉 IR，不改变短 text/query。
 完整分析见 [`../docs/14_round7_visual_mvn_dq_fusion.md`](../docs/14_round7_visual_mvn_dq_fusion.md)。
 
+第九轮使用当前 package/runtime 做了完整 public API、batch、FP32 cosine 和 document
+embedding 复测；`visual_dynamic_quantization_threshold=0` 的透传、MMDocIR cache
+identity 和结果摘要见 [`../docs/16_round9_final_rebenchmark.md`](../docs/16_round9_final_rebenchmark.md)。
+当前 formal 三 precision 的性能表只引用 round-9 arithmetic mean；新增的
+`int4_causal_vnomask_qkvfused`/`int4_visint8` 只完成 smoke，其中后者的大图 fused
+路径触发 `CL_OUT_OF_RESOURCES`，不作为 accepted deployment precision。
+
+与最初 baseline 的统一 arithmetic-mean 对比见
+[`../results/r9_latest/baseline_vs_round9_comparison.json`](../results/r9_latest/baseline_vs_round9_comparison.json)：
+INT8 在 1024-token text/query 加速 `1.171x/1.170x`、448x448 image/fused 加速
+`1.732x/1.687x`；INT4 在 1024-token text/query 加速 `1.345x/1.293x`，最早可比
+pre-vopt 448x448 image/fused 加速 `1.224x/1.226x`。document batch=8 的 INT8
+page_text/page_image/page_fused 加速为 `1.150x/2.714x/2.774x`，INT4 为
+`1.269x/2.796x/2.795x`。
+
 ## 收益（Intel Panther Lake-P iGPU，gme-Qwen2-VL-2B-Instruct，INT4，GPU）
 
 `bench_ab.sh` 交替 A/B，stock 2026.3 wheel vs 三个 patch 全开，3 轮取中位：

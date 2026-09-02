@@ -259,10 +259,17 @@ def main() -> None:
     precisions = tuple(p.strip() for p in precisions_env.split(",")) if precisions_env else (
         "int8_causal_vopt", "int4_causal_vopt", "int4_gs64_causal_vopt"
     )
+    visual_dq_env = os.environ.get("VISUAL_DQ_THRESHOLD")
+    visual_dq_threshold = int(visual_dq_env) if visual_dq_env else None
     default_output = precisions == (
         "int8_causal_vopt", "int4_causal_vopt", "int4_gs64_causal_vopt"
     )
-    output_path = Path(os.environ.get("OUTPUT", RESULTS / "benchmark_gme_round5_final_vopt_20260827.json")) if default_output else \
+    default_filename = (
+        "benchmark_gme_round9_vopt_vdq0_20260829.json"
+        if visual_dq_threshold == 0
+        else "benchmark_gme_round5_final_vopt_20260827.json"
+    )
+    output_path = Path(os.environ.get("OUTPUT", RESULTS / default_filename)) if default_output else \
         Path(os.environ.get("OUTPUT", RESULTS / f"benchmark_{'_'.join(precisions)}.json"))
 
     RESULTS.mkdir(parents=True, exist_ok=True)
@@ -270,12 +277,24 @@ def main() -> None:
     page_texts, pdf_stats = extract_pdf()
     page_images, render_stats = render_pages()
     parse_ms = (time.perf_counter() - text_start) * 1000
-    all_results: dict[str, Any] = {"pdf": pdf_stats, "render": render_stats, "parse_and_render_ms": parse_ms, "precisions": {}}
+    all_results: dict[str, Any] = {
+        "pdf": pdf_stats,
+        "render": render_stats,
+        "parse_and_render_ms": parse_ms,
+        "visual_dynamic_quantization_threshold": visual_dq_threshold,
+        "precisions": {},
+    }
 
     for precision in precisions:
         print(f"Loading {precision} on GPU", flush=True)
         t0 = time.perf_counter()
-        encoder = GmeOpenVINO(PACKAGE, device="GPU", precision=precision, batch_mode="auto")
+        encoder = GmeOpenVINO(
+            PACKAGE,
+            device="GPU",
+            precision=precision,
+            batch_mode="auto",
+            visual_dynamic_quantization_threshold=visual_dq_threshold,
+        )
         load_ms = (time.perf_counter() - t0) * 1000
         inputs = make_inputs(page_texts, page_images, encoder)
         representations = {}
@@ -289,6 +308,7 @@ def main() -> None:
         all_results["precisions"][precision] = {
             "device": "GPU",
             "model_package": str(PACKAGE),
+            "visual_dynamic_quantization_threshold": visual_dq_threshold,
             "load_ms": load_ms,
             "embedding_dim": 1536,
             "token_stats": inputs["token_stats"],

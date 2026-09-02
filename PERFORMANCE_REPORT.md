@@ -1,14 +1,14 @@
 # GME-Qwen2-VL-2B-Instruct OpenVINO 性能测试报告
 
-**状态：当前第五轮 final 结果已完成，历史主表保留。** 本文件后面的原有章节是
+**状态：当前第九轮 latest package/runtime 结果已完成，历史主表保留。** 本文件后面的原有章节是
 2026-08-03 的 repeat=20 历史矩阵，使用旧的普通/masked visual precision；它们
 仍可用于 workload 对照，但不代表当前 package 默认值。当前结果使用
 `int8_causal_vopt`、`int4_causal_vopt` 和 `int4_gs64_causal_vopt`，主要统计按
 mean 解读，原始 JSON 见
-[`gme-qwen2-vl-int4-hotspot-optimization/results/r5_final_20260827/`](gme-qwen2-vl-int4-hotspot-optimization/results/r5_final_20260827/)。
+[`gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md`](gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md)。
 
-document embedding 的最终三 precision 结果见
-[`document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round5_final_vopt_20260827.json`](document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round5_final_vopt_20260827.json)。
+document embedding 的最新三 precision 结果见
+[`document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round9_vopt_vdq0_20260829.json`](document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round9_vopt_vdq0_20260829.json)。
 
 历史主表的所有时延数据来自 `08_benchmark_matrix.py` 的 `repeat=20` 结果；
 原始 JSON 保存在 `artifacts/benchmark_matrix_*_r20*.json`。**不要**用
@@ -18,9 +18,42 @@ document embedding 的最终三 precision 结果见
 本报告与 `GME_TECHNICAL_DETAILS.md` §9.1–§9.3 的关系：技术说明记录**固定参考 workload** 的历史结果（用于回归对比）；本报告覆盖
 **部署选型真正需要的维度**——指定 token 长度的文本、常见分辨率的图片、以及 batch 扩展性。
 
-## 当前第五轮 final rerun（2026-08-27）
+## 当前第九轮 latest package/runtime rerun（2026-08-29）
 
-本节是当前 package 的性能入口。测试使用同源 custom Python binding、OpenVINO
+完整矩阵、batch、FP32 cosine、document embedding 和 MMDocIR smoke 见
+[`docs/16_round9_final_rebenchmark.md`](gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md)。
+本轮使用 OpenVINO `2026.3.0-22455-2080527e54b-qwen-ttft-optimizations`，GPU
+visual threshold=0，所有性能结论均为 arithmetic mean。
+
+| workload | `int8_causal_vopt` | `int4_causal_vopt` | `int4_gs64_causal_vopt` |
+| --- | ---: | ---: | ---: |
+| text/query, 1024 tokens (ms/call) | 253.36 / 252.94 | **216.73 / 217.05** | 231.18 / 231.32 |
+| image/fused, 448x448 (ms/call) | 275.23 / 277.43 | **242.23 / 241.77** | 253.20 / 252.83 |
+| image/fused, 1288x728 (ms/call) | 1728.10 / 1731.73 | **1618.10 / 1623.11** | 1657.60 / 1658.56 |
+
+### 与最初 baseline 的对比
+
+最初 INT8 public baseline 是无 patch 的 `benchmark_matrix_fresh_r1.json`；最初
+INT4 text/query baseline 是三轮 stock raw-run mean 的平均值。对比结果和来源统一
+保存在 [`baseline_vs_round9_comparison.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r9_latest/baseline_vs_round9_comparison.json)。
+
+| workload | INT8 baseline -> round 9 | INT8 speedup | INT4 baseline -> round 9 | INT4 speedup |
+| --- | ---: | ---: | ---: | ---: |
+| text/query, 128 tokens | 64.07/62.74 -> 50.60/49.02 | 1.266x/1.280x | 56.967/46.514 -> 35.48/35.10 | 1.606x/1.325x |
+| text/query, 512 tokens | 144.65/139.36 -> 122.90/123.04 | 1.177x/1.133x | 157.318/146.188 -> 114.36/114.15 | 1.376x/1.281x |
+| text/query, 1024 tokens | 296.57/296.01 -> 253.36/252.94 | 1.171x/1.170x | 291.443/280.598 -> 216.73/217.05 | 1.345x/1.293x |
+| image/fused, 448x448 | 476.69/468.07 -> 275.23/277.43 | 1.732x/1.687x | pre-vopt 296.37/296.43 -> 242.23/241.77 | 1.224x/1.226x |
+| image/fused, 672x672 | 1372.30/1338.03 -> 661.96/658.72 | 2.073x/2.031x | pre-vopt 699.25/694.68 -> 595.29/592.59 | 1.175x/1.172x |
+| image/fused, 1288x728 | 4654.46/4600.58 -> 1728.10/1731.73 | 2.693x/2.657x | pre-vopt 1800.29/1795.29 -> 1618.10/1623.11 | 1.113x/1.106x |
+
+INT4 image 的 `pre-vopt` 是最早保存的完整 arithmetic-mean public 矩阵
+(`int4_causal_vnomask`)；绝对最初 masked INT4 e2e 文件只有 p50，因此不混入
+mean 对比。document embedding 则有完整的最初 INT8/INT4 baseline，见其报告的
+当前第九轮章节。
+
+## 历史第五轮 final rerun（2026-08-27）
+
+本节记录第五轮 package 的性能入口。测试使用同源 custom Python binding、OpenVINO
 core 和 GPU plugin，版本为
 `2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`；没有混用 qwen_env
 中的官方 OpenVINO wheel runtime。运行时环境为：

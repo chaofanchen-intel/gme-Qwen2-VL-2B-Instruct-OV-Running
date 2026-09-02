@@ -1,4 +1,4 @@
-# GME 文档 Embedding 评测：GPU final causal / visual optimized precision
+# GME 文档 Embedding 评测：GPU latest causal / visual optimized precision
 
 本目录专门评测 GME-Qwen2-VL-2B-Instruct 对 PDF 文档做 embedding 的性能和表征质量。
 
@@ -6,9 +6,11 @@
 
 - device: `GPU`
 - precision: `int8_causal_vopt`, `int4_causal_vopt`, `int4_gs64_causal_vopt`
+- visual threshold: `VISUAL_DQ_THRESHOLD=0`，启用视觉 MVN-to-DynamicQuantize 融合；只作用于
+	image/fused 的 visual IR，不改变 text/query 的 language IR
 - document: `../060_OT_Downlook_PR_Error.pdf`
 
-`_vopt` 表示第五轮最终 visual IR：在 mask-free 基础上使用 headfirst Q/K/V 布局和
+`_vopt` 表示当前推荐 visual IR：在 mask-free 基础上使用 headfirst Q/K/V 布局和
 整塔 rank-3 输入。`int8_causal_vopt` 使用 causal INT8 language IR，
 `int4_causal_vopt` 使用 causal INT4 language IR，`int4_gs64_causal_vopt` 是
 精度优先的 INT4 变体。历史 masked/vnomask 结果仍保留在 `results/`，但不再作为
@@ -37,7 +39,7 @@
 
 - text page/chunk: batch `1, 4, 8, 14`
 - image/fused page: batch `1, 4, 8, 14`
-- 每个 batch 重复 3 次，第一次作为 warm-up，报告 warm p50/mean
+- 每个 batch 重复 3 次，第一次作为 warm-up；性能结论使用 arithmetic mean，p50 仅保留作原始统计
 - 记录：PDF open/text extraction/render、模型 load、embedding wall time、items/s、tokens/s、peak RSS、向量维度
 
 性能分为两种口径：
@@ -77,7 +79,9 @@ env -i HOME="$HOME" PATH=/usr/bin:/bin \
 	LD_LIBRARY_PATH="$OV/bin/intel64/Release:$OV/temp/Linux_x86_64/tbb/lib" \
 	OPENVINO_LIB_PATHS="$OV/bin/intel64/Release" \
 	OPENVINO_PLUGIN_PATH="$OV/bin/intel64/Release" \
-	OUTPUT="$PWD/results/benchmark_gme_round5_final_vopt_20260827.json" \
+	VISUAL_DQ_THRESHOLD=0 \
+	OUTPUT="$PWD/results/benchmark_gme_round9_vopt_vdq0_20260829.json" \
+	PRECISIONS="int8_causal_vopt,int4_causal_vopt,int4_gs64_causal_vopt" \
 	/home/chaofan/envs/qwen_env/bin/python3 -u run_eval.py
 ```
 
@@ -87,7 +91,9 @@ wheel 的 `openvino/libs` 抢先加载。
 
 结果写入 `results/`：
 
-- `benchmark_gme_round5_final_vopt_20260827.json`: 当前第五轮最终完整评测结果
+- `benchmark_gme_round5_final_vopt_20260827.json`: 历史第五轮完整评测结果
+- `benchmark_gme_round9_vopt_vdq0_20260829.json`: 最新 custom plugin + visual threshold=0
+	的三 precision 完整评测结果
 - `benchmark_gme_round4_vnomask_int8_int4_causal_20260826.json`: 历史第四轮 mask-free 完整评测结果
 - `benchmark_gme_opt_int8_int4_causal_20260825.json`: 历史 masked visual 优化结果
 - `document_embedding_benchmark_before_optimized.json`: 优化前基线结果，用于 A/B 对比
@@ -95,6 +101,10 @@ wheel 的 `openvino/libs` 抢先加载。
 - `REPORT.md`: 结果报告
 
 本次实测结论见 [REPORT.md](REPORT.md)。
+
+`REPORT.md` 当前第九轮章节同时给出最初 INT8/INT4 baseline 与 round-9 的 batch=8
+逐表示对比；历史 baseline 文件不会被覆盖。统一 arithmetic-mean 对比 JSON 见
+[`../gme-qwen2-vl-int4-hotspot-optimization/results/r9_latest/baseline_vs_round9_comparison.json`](../gme-qwen2-vl-int4-hotspot-optimization/results/r9_latest/baseline_vs_round9_comparison.json)。
 
 ## 扩展评测：per-OC INT4（`int4_per_oc` / `int4_per_oc_sym`）
 
@@ -120,4 +130,6 @@ PRECISIONS=int4_per_oc,int4_per_oc_sym OUTPUT="$PWD/results/benchmark_int4_per_o
 - PDF 原生文本优先；本评测不默认 OCR，因为该 PDF 有可用文本层。OCR 只应作为单独实验，不能与原生文本结果混合。
 - 150 DPI 是页面图像默认点；如需扩展分辨率，应新增结果文件，不覆盖本次结果。
 - 当前 GME package 有 `gme_language_int8_causal.xml` 和 `gme_language_int4_causal.xml`；第五轮补齐了此前漏掉的 `int8_causal`，不再对它做缺失模型外推。
-- `*_causal_vopt` 只选择已有的 causal language IR 和第五轮最终 visual IR；本次不需要重新导出或重新量化。
+- `*_causal_vopt` 只选择已有的 causal language IR 和当前推荐 visual IR；本次不需要重新导出或重新量化。
+- `VISUAL_DQ_THRESHOLD=0` 会写入结果 metadata，并通过 GME wrapper 传给 visual IR；它要求
+	GPU plugin，且 package 默认 `min_image_tokens=256` 时不会触发短行旁路差异。

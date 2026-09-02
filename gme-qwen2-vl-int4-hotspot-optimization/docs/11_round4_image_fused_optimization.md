@@ -1,9 +1,9 @@
 # 第四轮：image / fused 路径的 hotspot 分析与优化（历史）
 
-> 第五轮已在本轮 mask-free visual 的基础上继续加入 `headfirst` 和 `rank3` 布局，
-> 并补上 `int8_causal`。因此本文的 `_vnomask` 结果是第四轮历史中间态；当前
-> final precision、初始 stock 对照和完整性能见 [`docs/12`](12_round5_vision_layout_and_int8_causal.md)
-> 及 [`results/r5_final_20260827/`](../results/r5_final_20260827/)。
+> 第五轮及之后又加入了 `headfirst`、`rank3`、DQ reuse、RMS/MVN fusion 和 QKV
+> transpose。因此本文的 `_vnomask` 结果是第四轮历史中间态；当前 final precision、
+> 初始 stock 对照和完整性能见 [`docs/16`](16_round9_final_rebenchmark.md) 及
+> [`results/r9_latest/`](../results/r9_latest/)。
 
 前三轮全部围绕**语言 IR** 的纯文本 `text` / `query` 路径：1024 token 从 stock 283.0 ms
 降到 `int4_causal` 的 222.3 ms（累计 1.273x，docs/06、docs/09、docs/10）。

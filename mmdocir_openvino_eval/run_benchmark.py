@@ -40,6 +40,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fused-layout-batch-size", type=int)
     parser.add_argument("--batch-mode", choices=("auto", "per_sample", "padded"), default="auto")
     parser.add_argument("--max-image-tokens", type=int)
+    parser.add_argument("--visual-dq-threshold", type=int,
+                        help="GPU visual activation-row threshold; 0 enables MVN-to-DQ fusion")
     parser.add_argument("--query-instruction")
     parser.add_argument("--scopes", default="close,open")
     parser.add_argument("--max-documents", type=int)
@@ -209,6 +211,7 @@ def main() -> None:
                     "dataset_dir": str(args.dataset_dir.resolve()),
                     "selection": selection,
                     "batch_profile": args.batch_profile,
+                    "visual_dq_threshold": args.visual_dq_threshold,
                     "execution_batches": {
                         precision: resolve_batches(args, precision) for precision in precisions
                     },
@@ -252,6 +255,7 @@ def main() -> None:
             cache_dir=args.ov_cache_dir,
             batch_mode=args.batch_mode,
             max_image_tokens=args.max_image_tokens,
+            visual_dq_threshold=args.visual_dq_threshold,
             query_instruction=args.query_instruction,
         )
         backend_metadata = backend.metadata()

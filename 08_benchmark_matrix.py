@@ -21,7 +21,7 @@ Suites (``--suite``, default all four):
   latency      N=1, all four modes, every precision, per device -- the base table.
   text-lengths text/query at each --text-lengths target.
   image-sizes  image/fused at each --image-sizes entry.
-  batch        N sweep x batch_mode x streams, for text and image.
+    batch        N sweep x batch_mode x streams, for all four modes.
 
 Written for report generation, so the matrix is wide: check the printed estimate
 before running the full thing, and cut it down with the flags. Nothing here is
@@ -228,6 +228,16 @@ def available_devices(package: Path, devices: list[str]) -> list[str]:
     return usable
 
 
+def encoder_options(config: dict, device: str) -> dict:
+    return {
+        "visual_dynamic_quantization_threshold": (
+            config["visual_dq_threshold"]
+            if GmeOpenVINO._is_gpu_device(device)
+            else None
+        ),
+    }
+
+
 # --------------------------------------------------------------------- suites
 def suite_latency(config: dict, workloads: dict, paths: MatrixPaths) -> dict:
     """N=1 across mode x precision x device: the base comparison table."""
@@ -241,7 +251,10 @@ def suite_latency(config: dict, workloads: dict, paths: MatrixPaths) -> dict:
         for precision in config["precisions"]:
             key = f"{device}/{precision}"
             if "python" in config["backends"]:
-                encoder = GmeOpenVINO(paths.package, device=device, precision=precision)
+                encoder = GmeOpenVINO(
+                    paths.package, device=device, precision=precision,
+                    **encoder_options(config, device),
+                )
                 results["cells"][f"python/{key}"] = {
                     "text": timed(lambda: encoder.get_text_embeddings(
                         [text], is_query=False, show_progress_bar=False), config["repeat"], 1),
@@ -273,7 +286,10 @@ def suite_text_lengths(config: dict, workloads: dict, paths: MatrixPaths) -> dic
             for precision in config["precisions"]:
                 key = f"{device}/{precision}/{length}tok"
                 if "python" in config["backends"]:
-                    encoder = GmeOpenVINO(paths.package, device=device, precision=precision)
+                    encoder = GmeOpenVINO(
+                        paths.package, device=device, precision=precision,
+                        **encoder_options(config, device),
+                    )
                     cell = {
                         "text": timed(lambda: encoder.get_text_embeddings(
                             [text], is_query=False, show_progress_bar=False), config["repeat"], 1),
@@ -309,7 +325,10 @@ def suite_image_sizes(config: dict, workloads: dict, paths: MatrixPaths) -> dict
             for precision in config["precisions"]:
                 key = f"{device}/{precision}/{size}({tokens}vt)"
                 if "python" in config["backends"]:
-                    encoder = GmeOpenVINO(paths.package, device=device, precision=precision)
+                    encoder = GmeOpenVINO(
+                        paths.package, device=device, precision=precision,
+                        **encoder_options(config, device),
+                    )
                     cell = {
                         "image": timed(lambda: encoder.get_image_embeddings(
                             [path], show_progress_bar=False), config["repeat"], 1),
@@ -328,7 +347,7 @@ def suite_image_sizes(config: dict, workloads: dict, paths: MatrixPaths) -> dict
 
 
 def suite_batch(config: dict, workloads: dict, paths: MatrixPaths) -> dict:
-    """N sweep x batch_mode x streams, for text and image.
+    """N sweep x batch_mode x streams, for all four modes.
 
     The two knobs interact with the device, not with each other: on CPU one request
     already fills every core, so throughput comes from `streams`; on GPU the
@@ -347,27 +366,38 @@ def suite_batch(config: dict, workloads: dict, paths: MatrixPaths) -> dict:
                 tag = f"{device}/{batch_mode}/streams={streams}"
                 if "python" in config["backends"]:
                     encoder = GmeOpenVINO(paths.package, device=device, precision=precision,
-                                          streams=streams, batch_mode=batch_mode)
+                                          streams=streams, batch_mode=batch_mode,
+                                          **encoder_options(config, device))
                     for count in config["batch_sizes"]:
-                        cell = {"text": timed(lambda: encoder.get_text_embeddings(
-                            [text] * count, is_query=False, batch_size=None,
-                            show_progress_bar=False), config["repeat"], count)}
+                        cell = {
+                            "text": timed(lambda: encoder.get_text_embeddings(
+                                [text] * count, is_query=False, batch_size=None,
+                                show_progress_bar=False), config["repeat"], count),
+                            "query": timed(lambda: encoder.get_text_embeddings(
+                                [text] * count, instruction=config["instruction"],
+                                batch_size=None, show_progress_bar=False), config["repeat"], count),
+                        }
                         if count in config["image_batch_sizes"]:
                             cell["image"] = timed(lambda: encoder.get_image_embeddings(
                                 [path] * count, batch_size=None, show_progress_bar=False),
                                 config["repeat"], count)
+                            cell["fused"] = timed(lambda: encoder.get_fused_embeddings(
+                                [text] * count, [path] * count, batch_size=None,
+                                show_progress_bar=False), config["repeat"], count)
                         results["cells"][f"python/{tag}/N={count}"] = cell
                         report_cell(f"python/{tag}/N={count}", cell)
                 if "cpp" in config["backends"]:
                     for count in config["batch_sizes"]:
-                        modes = "text,image" if count in config["image_batch_sizes"] else "text"
+                        modes = "text,query"
+                        if count in config["image_batch_sizes"]:
+                            modes += ",image,fused"
                         cell = run_cpp([
                             "--device", device, "--precision", precision, "--benchmark",
                             "--benchmark-modes", modes, "--repeat", str(config["repeat"]),
                             "--batch", str(count), "--batch-mode", batch_mode,
                             "--streams", "0" if streams == "auto" else str(streams),
                             "--batch-size", "0",  # one chunk: measure the batch, not the chunking
-                            "--image", str(path), text,
+                            "--instruction", config["instruction"], "--image", str(path), text,
                         ], paths)
                         results["cells"][f"cpp/{tag}/N={count}"] = cell
                         report_cell(f"cpp/{tag}/N={count}", cell)
@@ -424,6 +454,8 @@ def parse_args() -> argparse.Namespace:
                         help="batch suite: which N also run the image mode (images are far more expensive)")
     parser.add_argument("--batch-modes", default="per_sample,padded")
     parser.add_argument("--streams", default="1,auto")
+    parser.add_argument("--visual-dq-threshold", type=int,
+                        help="GPU visual activation-row threshold; 0 enables MVN-to-DQ fusion")
     parser.add_argument("--batch-precision", default="int8_causal_vopt",
                         help="batch suite precision; int8_causal_vopt keeps the sweep affordable")
     parser.add_argument("--batch-text-length", type=int, default=128)
@@ -480,6 +512,7 @@ def main() -> None:
         "streams": [1 if s.strip() == "1" else s.strip() for s in args.streams.split(",") if s.strip()],
         "batch_precision": args.batch_precision,
         "batch_text_length": args.batch_text_length,
+        "visual_dq_threshold": args.visual_dq_threshold,
     }
     if not config["devices"]:
         raise SystemExit("no requested device is available")

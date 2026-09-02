@@ -2,11 +2,26 @@
 
 本文保留原始运行说明中的技术解释、实验方法、兼容性判断和性能结果。面向需要理解实现边界、复现实验或做部署选型的读者；日常 handoff 操作请先看 [README.md](README.md)，完整性能矩阵请看 [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md)。
 
-**当前状态（第五轮）**：package 默认使用 `int8_causal_vopt`，低延迟推荐使用
+**当前状态（第九轮）**：package 默认使用 `int8_causal_vopt`，低延迟推荐使用
 `int4_causal_vopt`，精度优先 INT4 可选 `int4_gs64_causal_vopt`。`_vopt`
 在 mask-free visual 的基础上加入 headfirst 和 rank3；`int8_causal` 也已补齐。
-第四轮和更早的 masked/vnomask 数字仅作为历史对照。当前完整
-text/query/image/fused/batch 矩阵见 `gme-qwen2-vl-int4-hotspot-optimization/results/r5_final_20260827/`。
+第四轮至第八轮和第五轮 final 数字仅作为历史对照。当前完整
+text/query/image/fused/batch 矩阵及 INT8/INT4 baseline 对比见
+[`gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md`](gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md)。
+
+第九轮 public API 的 baseline→round-9 arithmetic-mean 摘要如下；`text/query` 或
+`image/fused` 均按该顺序排列，speedup 为 baseline / round-9：
+
+| workload | INT8 baseline → round 9 | INT8 speedup | INT4 baseline → round 9 | INT4 speedup |
+| --- | ---: | ---: | ---: | ---: |
+| text/query, 1024 tokens | 296.57/296.01 → 253.36/252.94 ms | 1.171x/1.170x | 291.443/280.598 → 216.73/217.05 ms | 1.345x/1.293x |
+| image/fused, 448x448 | 476.69/468.07 → 275.23/277.43 ms | 1.732x/1.687x | pre-vopt 296.37/296.43 → 242.23/241.77 ms | 1.224x/1.226x |
+| image/fused, 1288x728 | 4654.46/4600.58 → 1728.10/1731.73 ms | 2.693x/2.657x | pre-vopt 1800.29/1795.29 → 1618.10/1623.11 ms | 1.113x/1.106x |
+
+document embedding batch=8 的对应 speedup 为 INT8 `page_text/page_image/page_fused`
+的 `1.150x/2.714x/2.774x`，INT4 的 `1.269x/2.796x/2.795x`。原始值和 baseline
+来源统一保存在
+[`baseline_vs_round9_comparison.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r9_latest/baseline_vs_round9_comparison.json)。
 
 本文对应的脚本编号为连续的 `01` 到 `09`：
 
@@ -288,7 +303,7 @@ C++ 的 `--min-image-tokens`/`--max-image-tokens` 可以调整图片 token 上�
 
 ## 8. 精度实测
 
-以下数据来自本机 Core Ultra 7 356H、Linux、OpenVINO 2026.2 环境，比较对象是官方 PyTorch FP32 golden；这些是历史精度矩阵。当前第五轮 final precision 组合和 document embedding 质量结果见 [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md) 与 [document_embedding_eval_int8_int4_gpu/REPORT.md](document_embedding_eval_int8_int4_gpu/REPORT.md)。
+以下数据来自本机 Core Ultra 7 356H、Linux、OpenVINO 2026.2 环境，比较对象是官方 PyTorch FP32 golden；这些是历史精度矩阵。当前第九轮 final precision 组合、baseline 对比和 document embedding 质量结果见 [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md)、[第九轮报告](gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md) 与 [document_embedding_eval_int8_int4_gpu/REPORT.md](document_embedding_eval_int8_int4_gpu/REPORT.md)。
 
 ### 8.1 Python OpenVINO
 
@@ -305,7 +320,20 @@ C++ 的 `--min-image-tokens`/`--max-image-tokens` 可以调整图片 token 上�
 | GPU | int4_gs64 | 0.918643 | 0.950327 | 0.944975 | 0.963901 |
 | GPU | int4_visint8 | 0.886320 | 0.911044 | 0.947935 | 0.968358 |
 
-FP32 四种模式均为 `1.0`。INT8 是最稳定的低比特方案；INT4 的 text/query 下降明显，`int4_gs64` 相对较好。
+FP32 四种模式均为 `1.0`。上表是历史精度矩阵；第九轮当前 GPU golden cosine
+结果如下，完整原始数据见
+[`artifacts/openvino_validation_round9_latest.json`](artifacts/openvino_validation_round9_latest.json)：
+
+| precision | text min | query | image | fused |
+| --- | ---: | ---: | ---: | ---: |
+| `fp32` | 1.000000 | 1.000000 | 1.000000 | 1.000000 |
+| `int8_causal_vopt` | 0.997899 | 0.998784 | 0.987115 | 0.996531 |
+| `int4_causal_vopt` | 0.941730 | 0.955173 | 0.943164 | 0.955472 |
+| `int4_gs64_causal_vopt` | 0.944205 | 0.957576 | 0.943657 | 0.958768 |
+
+相对于最初 public baseline 的完整 INT8/INT4 latency reduction 和 speedup 见
+[`baseline_vs_round9_comparison.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r9_latest/baseline_vs_round9_comparison.json)。
+INT8 是最稳定的低比特方案；INT4 的 text/query 质量下降明显，`int4_gs64` 相对较好。
 
 ### 8.2 C++
 
@@ -396,9 +424,9 @@ C++ text/query 与 Python 共用 tokenizer/language IR，因此接近精确；im
 | --- | --- | --- |
 | CPU historical `int8_vnomask` | `per_sample + streams="auto"` | 历史 text×8 约 `1.81x`，image×4 约 `1.76x` |
 | CPU historical `int8_vnomask` | padded | 历史 N=1/4/8 归一化吞吐约 `1.00x/1.00x/0.99x` |
-| GPU `int8_causal_vopt` | padded batch | 当前 final fresh 短文本 N=4 约 `32.02 ms/embedding` |
-| GPU `int8_causal_vopt` | 4 次串行单样本 | 当前 final fresh 约 `50.67 ms/embedding` |
-| GPU `int8_causal_vopt` | 4 个异步单样本 | 当前 final fresh `per_sample/streams=auto` 约 `51.09 ms/embedding` |
+| GPU `int8_causal_vopt` | padded batch | round-9 text=128，N=8 为 `31.23 ms/embedding`；N=4 为 `30.65` |
+| GPU `int4_causal_vopt` | padded batch | round-9 text=128，N=8 为 `26.46 ms/embedding`；N=4 为 `27.79` |
+| GPU `int4_gs64_causal_vopt` | padded batch | round-9 text=128，N=8 为 `28.28 ms/embedding`；N=4 为 `33.04` |
 
 因此 `batch_mode="auto"` 在 CPU 选择 per-sample，在 GPU 选择 padded。完整的 `N={1,2,4,8,16,32}` 矩阵由 `08_benchmark_matrix.py --suite batch` 生成，结果见 [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md)。
 

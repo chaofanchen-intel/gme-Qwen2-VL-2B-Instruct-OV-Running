@@ -1,36 +1,53 @@
 # GME hotspot results
 
-## 当前第五轮 final rerun：`r5_final_20260827/`
+## 当前第九轮 latest package/runtime rerun：`r9_latest/`
 
-这是当前最终 package 的 GPU/Python 重测，使用同源 custom OpenVINO
-core/plugin/Python binding：`2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`。
+这是当前 package 的 GPU/Python 重测，使用同源 custom OpenVINO
+core/plugin/Python binding：`2026.3.0-22455-2080527e54b-qwen-ttft-optimizations`。
 正式 precision 为 `int8_causal_vopt`、`int4_causal_vopt` 和
 `int4_gs64_causal_vopt`，package 默认是 `int8_causal_vopt`。text/query 使用
-32/128/512/1024 effective tokens，image/fused 使用五种标准尺寸和 logo，
-batch 使用 text N=1/2/4/8/16/32、image N=1/2/4/8，覆盖
-`per_sample`/`padded` 与 `streams=1/auto`，每个 cell repeat=5。
+32/128/512/1024 effective tokens，image/fused 使用 448x448、672x672 和
+1288x728，batch 使用 text/query N=1/2/4/8/16/32、image/fused N=1/2/4/8，
+本次 formal batch 为 `padded`、`streams=1`，每个 cell repeat=5。visual
+`GPU_DYNAMIC_QUANTIZATION_THRESHOLD=0` 只传给 visual IR。
 
 | 文件 | 内容 |
 | --- | --- |
-| `benchmark_text_image_matrix.json` | 三个最终 precision 的 text/query 与 image/fused 多尺寸矩阵 |
-| `benchmark_batch_int8_causal_vopt.json` | 默认 INT8 causal vopt 的 text/image batch 全矩阵 |
-| `benchmark_batch_int4_causal_vopt.json` | 低延迟 INT4 causal vopt 的 text/image batch 全矩阵 |
-| `benchmark_batch_int4_gs64_causal_vopt.json` | gs64 causal vopt 的 text/image batch 全矩阵 |
+| `benchmark_matrix_python_vdq0_formal.json` | 三个 formal precision 的 text/query 与 image/fused 多尺寸矩阵 |
+| `benchmark_batch_int8_causal_vopt_vdq0.json` | INT8 causal vopt 的四模式 batch 矩阵 |
+| `benchmark_batch_int4_causal_vopt_vdq0.json` | INT4 causal vopt 的四模式 batch 矩阵 |
+| `benchmark_batch_int4_gs64_causal_vopt_vdq0.json` | gs64 causal vopt 的四模式 batch 矩阵 |
+| `profile_gme_image_int8_causal_vopt_vdq0.json` / `profile_gme_image_int4_causal_vopt_vdq0.json` | 最新 image/fused stage split |
+| `baseline_vs_round9_comparison.json` | 最初 baseline 到 round-9 的统一 arithmetic-mean 对比 |
 
-最初未优化 stock 对照不重新运行，直接使用
+最初未优化 stock 对照不重新运行，直接使用统一 comparison artifact：
+[`baseline_vs_round9_comparison.json`](baseline_vs_round9_comparison.json)。其来源包括
 [`../../artifacts/benchmark_matrix_fresh_r1.json`](../../artifacts/benchmark_matrix_fresh_r1.json)
 （初始 INT8 text/image/batch 矩阵）、`base_ops_int4_1024.json`（初始 INT4
 language profiling）和 `r4_20260826/vis_base_int4_*.json`（初始 INT4 visual
 profiling）。document 四表示的初始 INT8/INT4 baseline 见
 [`../../document_embedding_eval_int8_int4_gpu/results/document_embedding_benchmark_before_optimized.json`](../../document_embedding_eval_int8_int4_gpu/results/document_embedding_benchmark_before_optimized.json)。
 
-第五轮 final 的关键 N=8 batch 结果（`padded + streams=1`）为：text=128
-时 `31.90`、`27.53`、`29.35 ms/embedding`，448x448 image 时
-`260.55`、`247.79`、`253.42 ms/embedding`，顺序为 INT8 causal、INT4
-causal、INT4 gs64 causal。详细数据以 JSON 为准。
+### Public API baseline -> round-9（arithmetic mean）
 
-document embedding 的第五轮 final 三 precision 结果见
-[`../../document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round5_final_vopt_20260827.json`](../../document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round5_final_vopt_20260827.json)。
+| workload | INT8 baseline -> round 9 | INT8 speedup | INT4 baseline -> round 9 | INT4 speedup |
+| --- | ---: | ---: | ---: | ---: |
+| text/query, 1024 tokens | 296.57/296.01 -> 253.36/252.94 ms | 1.171x/1.170x | 291.443/280.598 -> 216.73/217.05 ms | 1.345x/1.293x |
+| image/fused, 448x448 | 476.69/468.07 -> 275.23/277.43 ms | 1.732x/1.687x | pre-vopt 296.37/296.43 -> 242.23/241.77 ms | 1.224x/1.226x |
+| image/fused, 1288x728 | 4654.46/4600.58 -> 1728.10/1731.73 ms | 2.693x/2.657x | pre-vopt 1800.29/1795.29 -> 1618.10/1623.11 ms | 1.113x/1.106x |
+
+N=8、128-token、GPU `padded + streams=1` 的 text/query ms/embedding 为
+`31.23/33.27`（INT8）、`26.46/28.35`（INT4）、`28.28/31.90`（gs64）。
+INT4 image 的 baseline 是最早保存的完整 arithmetic-mean `pre-vopt` 矩阵；绝对最初
+masked INT4 image/fused 记录只有 p50，不混入本表。
+
+document embedding 的最新三 precision 结果见
+[`../../document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round9_vopt_vdq0_20260829.json`](../../document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round9_vopt_vdq0_20260829.json)。batch=8 相对初始 document baseline 的 speedup 为：
+INT8 `page_text/page_image/page_fused = 1.150x/2.714x/2.774x`，INT4
+`1.269x/2.796x/2.795x`；完整四表示对照见 comparison artifact。
+
+第五轮 final 的原始结果仍保留在
+[`r5_final_20260827/`](r5_final_20260827/)，但只作为历史 provenance，不再作为当前结果。
 
 ## 历史第四轮 fresh rerun：`r4_rerun_20260826/`
 

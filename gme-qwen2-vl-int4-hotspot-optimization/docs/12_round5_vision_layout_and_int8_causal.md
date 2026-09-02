@@ -291,11 +291,12 @@ merger 的第一步是 `view(-1, hidden_size)`，会把前导轴自然抹掉。
 
 ---
 
-## 12.5.1 当前 final public benchmark（2026-08-27）
+## 12.5.1 历史 final public benchmark（2026-08-27）
 
-上面的 stage-split `e2e_int4_causal_vopt.json` 是第五轮分析口径的 p50；当前最终
-部署性能以 `08_benchmark_matrix.py` 的 public API mean 为主，并且同时覆盖三个
-正式 precision。完整原始结果位于 [`results/r5_final_20260827/`](../results/r5_final_20260827/)。
+上面的 stage-split `e2e_int4_causal_vopt.json` 是第五轮分析口径的 p50；本节只保留
+历史结果。当前部署性能以第九轮 `08_benchmark_matrix.py` 的 public API mean 为主，
+并同时覆盖三个正式 precision；完整结果位于
+[`docs/16`](16_round9_final_rebenchmark.md) 和 [`results/r9_latest/`](../results/r9_latest/)。
 
 | workload | `int8_causal_vopt` | `int4_causal_vopt` | `int4_gs64_causal_vopt` |
 | --- | ---: | ---: | ---: |

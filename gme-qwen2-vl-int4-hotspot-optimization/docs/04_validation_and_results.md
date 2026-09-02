@@ -4,11 +4,11 @@
 > 加上第二轮的 opt-3 之后精度结论有一处变化，记在 **§4.1b**，性能数字统一按
 > 第二轮重测（**§4.3**）。
 
-> **第五轮状态**：本文前面的 opt-1/2/3 验证和第三、四轮 image/fused 结果都是
-> 历史口径。第四、五轮没有新增 plugin 改动；当前最终 precision 为
-> `int8_causal_vopt`、`int4_causal_vopt` 和 `int4_gs64_causal_vopt`，fresh GPU
-> 性能与 document embedding 结果见 [`docs/12`](12_round5_vision_layout_and_int8_causal.md)
-> 和 [`results/r5_final_20260827/`](../results/r5_final_20260827/)。
+> **历史说明**：本文的 opt-1/2/3 验证和第三、四轮 image/fused 结果均为历史口径。
+> 第五轮结果也只保留作 provenance；当前 precision、最初 INT8/INT4 baseline 对比、
+> fresh GPU 性能和 document embedding 结果统一见
+> [`docs/16`](16_round9_final_rebenchmark.md) 及
+> [`results/r9_latest/`](../results/r9_latest/)。
 
 ## 4.1 数值正确性（opt-1 + opt-2）：bit-identical
 

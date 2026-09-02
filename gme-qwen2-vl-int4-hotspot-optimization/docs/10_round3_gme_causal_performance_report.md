@@ -1,9 +1,8 @@
 # 第三轮 GME 性能报告：causal 导出、量化方案与优化点对比
 
-> 本文记录第三轮（2026-08-21）的 language IR 统一重测，属于历史报告。第四、
-> 五轮已新增 mask-free/layout visual IR 和 INT8 causal language；当前 package
-> 使用第五轮 `int8_causal_vopt` 和 `int4_causal_vopt`，当前 image/fused 和 batch
-> 结果见 [`../results/r5_final_20260827/`](../results/r5_final_20260827/) 及
+> 本文记录第三轮（2026-08-21）的 language IR 统一重测，属于历史报告。当前
+> package、image/fused、batch、baseline 对比和 document 结果见
+> [`docs/16`](16_round9_final_rebenchmark.md) 及
 > [`../../document_embedding_eval_int8_int4_gpu/REPORT.md`](../../document_embedding_eval_int8_int4_gpu/REPORT.md)。
 
 ## 1. 报告目的

@@ -1,10 +1,9 @@
 # 9. 第三轮：以 gs128/gs64 为主的进一步降延迟
 
-> 本文是第三轮 language-only 优化报告。其“当前”均指 2026-08-21 的第三轮
-> 状态；第四、五轮随后新增了 mask-free/layout visual IR 和 INT8 causal language。
-> 当前部署 precision 是 `int8_causal_vopt` / `int4_causal_vopt`，第五轮 fresh
-> matrix 见 [`docs/12`](12_round5_vision_layout_and_int8_causal.md) 和
-> [`results/r5_final_20260827/`](../results/r5_final_20260827/)。
+> 本文是第三轮 language-only 优化历史报告；其中“当前”均指 2026-08-21 的第三轮
+> 状态。当前部署 precision、baseline 对比和 fresh matrix 见
+> [`docs/16`](16_round9_final_rebenchmark.md) 和
+> [`results/r9_latest/`](../results/r9_latest/)。
 
 第二轮把 1024 token 从 283.0 ms 降到 238.2 ms（opt-1/2/3），剩下的时间构成里 GEMM 占
 63%，而 GEMM 的头部空间在 oneDNN 内部。第三轮的任务是：**在不牺牲精度的前提下继续降

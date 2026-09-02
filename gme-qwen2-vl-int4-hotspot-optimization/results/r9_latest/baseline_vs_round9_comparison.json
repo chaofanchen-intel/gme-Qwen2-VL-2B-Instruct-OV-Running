@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "metric": "arithmetic mean latency",
+  "public_api": {
+    "int8_initial_stock": {
+      "baseline_source": "../../artifacts/benchmark_matrix_fresh_r1.json",
+      "latest_source": "benchmark_matrix_python_vdq0_formal.json",
+      "rows": [
+        {"workload": "text/query 32 tokens", "baseline_ms_per_call": [51.55, 49.41], "latest_ms_per_call": [39.84, 39.37], "reduction_percent": [22.72, 20.32], "speedup": [1.294, 1.255]},
+        {"workload": "text/query 128 tokens", "baseline_ms_per_call": [64.07, 62.74], "latest_ms_per_call": [50.60, 49.02], "reduction_percent": [21.02, 21.87], "speedup": [1.266, 1.280]},
+        {"workload": "text/query 512 tokens", "baseline_ms_per_call": [144.65, 139.36], "latest_ms_per_call": [122.90, 123.04], "reduction_percent": [15.04, 11.71], "speedup": [1.177, 1.133]},
+        {"workload": "text/query 1024 tokens", "baseline_ms_per_call": [296.57, 296.01], "latest_ms_per_call": [253.36, 252.94], "reduction_percent": [14.57, 14.55], "speedup": [1.171, 1.170]},
+        {"workload": "image/fused 448x448", "baseline_ms_per_call": [476.69, 468.07], "latest_ms_per_call": [275.23, 277.43], "reduction_percent": [42.26, 40.73], "speedup": [1.732, 1.687]},
+        {"workload": "image/fused 672x672", "baseline_ms_per_call": [1372.30, 1338.03], "latest_ms_per_call": [661.96, 658.72], "reduction_percent": [51.76, 50.77], "speedup": [2.073, 2.031]},
+        {"workload": "image/fused 1288x728", "baseline_ms_per_call": [4654.46, 4600.58], "latest_ms_per_call": [1728.10, 1731.73], "reduction_percent": [62.87, 62.36], "speedup": [2.693, 2.657]}
+      ]
+    },
+    "int4_initial_stock_text_query": {
+      "baseline_source": "results/ab/stock_len{128,512,1024}_r{1,2,3}.json",
+      "baseline_statistic": "mean of the three preserved stock-run means; each run used repeat=14",
+      "latest_source": "benchmark_matrix_python_vdq0_formal.json",
+      "rows": [
+        {"workload": "text/query 128 tokens", "baseline_ms_per_call": [56.967, 46.514], "latest_ms_per_call": [35.48, 35.10], "reduction_percent": [37.72, 24.54], "speedup": [1.606, 1.325]},
+        {"workload": "text/query 512 tokens", "baseline_ms_per_call": [157.318, 146.188], "latest_ms_per_call": [114.36, 114.15], "reduction_percent": [27.31, 21.92], "speedup": [1.376, 1.281]},
+        {"workload": "text/query 1024 tokens", "baseline_ms_per_call": [291.443, 280.598], "latest_ms_per_call": [216.73, 217.05], "reduction_percent": [25.64, 22.65], "speedup": [1.345, 1.293]}
+      ],
+      "missing_baseline": "No preserved arithmetic-mean INT4 32-token stock run was found; old 32-token p50 values are intentionally excluded."
+    },
+    "int4_earliest_preserved_pre_vopt_image": {
+      "baseline_source": "results/r4_rerun_20260826/benchmark_text_image_matrix.json",
+      "baseline_description": "earliest preserved full public INT4 image/fused arithmetic-mean matrix, using mask-free visual but before headfirst/rank3 vopt",
+      "latest_source": "benchmark_matrix_python_vdq0_formal.json",
+      "rows": [
+        {"workload": "image/fused 448x448", "baseline_ms_per_call": [296.37, 296.43], "latest_ms_per_call": [242.23, 241.77], "reduction_percent": [18.27, 18.44], "speedup": [1.224, 1.226]},
+        {"workload": "image/fused 672x672", "baseline_ms_per_call": [699.25, 694.68], "latest_ms_per_call": [595.29, 592.59], "reduction_percent": [14.87, 14.70], "speedup": [1.175, 1.172]},
+        {"workload": "image/fused 1288x728", "baseline_ms_per_call": [1800.29, 1795.29], "latest_ms_per_call": [1618.10, 1623.11], "reduction_percent": [10.12, 9.59], "speedup": [1.113, 1.106]}
+      ],
+      "caveat": "The absolute initial masked INT4 e2e record retained p50 only, so it is not used for a mean comparison."
+    }
+  },
+  "document_embedding_batch8": {
+    "baseline_source": "../../document_embedding_eval_int8_int4_gpu/results/document_embedding_benchmark_before_optimized.json",
+    "latest_source": "../../document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round9_vopt_vdq0_20260829.json",
+    "rows": [
+      {"representation": "page_text", "int8_baseline_ms": 568.104, "int8_latest_ms": 494.103, "int8_reduction_percent": 13.03, "int8_speedup": 1.150, "int4_baseline_ms": 555.459, "int4_latest_ms": 437.855, "int4_reduction_percent": 21.17, "int4_speedup": 1.269},
+      {"representation": "text_chunk_256", "int8_baseline_ms": 568.450, "int8_latest_ms": 494.869, "int8_reduction_percent": 12.94, "int8_speedup": 1.149, "int4_baseline_ms": 554.420, "int4_latest_ms": 435.908, "int4_reduction_percent": 21.38, "int4_speedup": 1.272},
+      {"representation": "page_image_150", "int8_baseline_ms": 68482.061, "int8_latest_ms": 25235.720, "int8_reduction_percent": 63.15, "int8_speedup": 2.714, "int4_baseline_ms": 67823.817, "int4_latest_ms": 24254.520, "int4_reduction_percent": 64.24, "int4_speedup": 2.796},
+      {"representation": "page_fused_150", "int8_baseline_ms": 71149.129, "int8_latest_ms": 25651.721, "int8_reduction_percent": 63.95, "int8_speedup": 2.774, "int4_baseline_ms": 68941.041, "int4_latest_ms": 24666.638, "int4_reduction_percent": 64.22, "int4_speedup": 2.795}
+    ]
+  },
+  "notes": [
+    "Public initial INT8 is a one-measurement stock matrix, not an interleaved A/B run.",
+    "Public initial INT4 text/query is aggregated from three preserved stock-run means.",
+    "Document baseline contains both original INT8 and INT4 and is directly comparable by representation and batch.",
+    "Round-9 latest public and document measurements use arithmetic mean; p50 is not used for optimization conclusions."
+  ]
+}

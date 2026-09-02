@@ -8,6 +8,7 @@ PYTHON=${PYTHON:-/home/chaofan/envs/qwen_env/bin/python}
 BATCH_SIZE=${BATCH_SIZE:-1}
 BATCH_PROFILE=${BATCH_PROFILE:-recommended}
 PRECISIONS=${PRECISIONS:-fp32,int8_causal_vopt,int4_causal_vopt}
+VISUAL_DQ_THRESHOLD=${VISUAL_DQ_THRESHOLD:-}
 SUBSET_FILE=${SUBSET_FILE:-}
 MAX_SAMPLES=${MAX_SAMPLES:-}
 
@@ -30,7 +31,13 @@ if [[ "$BATCH_PROFILE" == "uniform" ]]; then
 else
   profile_name="$BATCH_PROFILE"
 fi
-OUTPUT_DIR=${OUTPUT_DIR:-$GME/mmdocir_openvino_eval/results/${selection_name}_${profile_name}}
+threshold_args=()
+threshold_suffix=""
+if [[ -n "$VISUAL_DQ_THRESHOLD" ]]; then
+  threshold_args+=(--visual-dq-threshold "$VISUAL_DQ_THRESHOLD")
+  threshold_suffix="_vdq${VISUAL_DQ_THRESHOLD}"
+fi
+OUTPUT_DIR=${OUTPUT_DIR:-$GME/mmdocir_openvino_eval/results/${selection_name}_${profile_name}${threshold_suffix}}
 
 cd "$GME/mmdocir_openvino_eval"
 exec env -i \
@@ -44,6 +51,7 @@ exec env -i \
     --precisions "$PRECISIONS" \
     --batch-profile "$BATCH_PROFILE" \
     --batch-size "$BATCH_SIZE" \
+    "${threshold_args[@]}" \
     --scopes close,open \
     --output-dir "$OUTPUT_DIR" \
     "${selection_args[@]}" \

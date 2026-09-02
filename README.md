@@ -9,14 +9,33 @@
 plugin patch 和 bit-identical 回归验证，见
 [gme-qwen2-vl-int4-hotspot-optimization/README.md](./gme-qwen2-vl-int4-hotspot-optimization/README.md)。
 
-当前交付 package 已包含第五轮最终优化。默认 precision key 是
+当前交付 package 已完成第九轮 latest package/runtime 复测。默认 precision key 是
 `int8_causal_vopt`（near-lossless），低延迟推荐是 `int4_causal_vopt`；
 精度优先的 INT4 可选 `int4_gs64_causal_vopt`。`_vopt` 在第四轮 mask-free
 visual 的基础上加入 headfirst Q/K/V 布局和整塔 rank-3 输入，让既有 opt-3
-命中视觉 `mlp.fc1`；第五轮还补上了此前漏掉的 `int8_causal`。当前 fresh
-GPU 矩阵、初始 stock baseline 和 document embedding 结果见
+命中视觉 `mlp.fc1`；第五轮还补上了此前漏掉的 `int8_causal`。第九轮使用
+`visual_dynamic_quantization_threshold=0`，当前 fresh GPU 矩阵、初始 stock
+baseline 和 document embedding 结果见
 [gme-qwen2-vl-int4-hotspot-optimization/results/README.md](./gme-qwen2-vl-int4-hotspot-optimization/results/README.md)
 以及 [document_embedding_eval_int8_int4_gpu/REPORT.md](./document_embedding_eval_int8_int4_gpu/REPORT.md)。
+统一的 INT8/INT4 baseline→round-9 arithmetic-mean 对比见
+[baseline_vs_round9_comparison.json](gme-qwen2-vl-int4-hotspot-optimization/results/r9_latest/baseline_vs_round9_comparison.json)
+和 [第九轮完整报告](gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md)。
+
+第九轮 GPU Python public API 的代表性累计优化效果如下。格式为
+`text/query` 或 `image/fused` 的 ms/call；括号内为 baseline / round-9 speedup：
+
+| workload | INT8 baseline → round 9 | INT4 baseline → round 9 |
+| --- | ---: | ---: |
+| text/query, 1024 tokens | 296.57/296.01 → 253.36/252.94 (1.171x/1.170x) | 291.443/280.598 → 216.73/217.05 (1.345x/1.293x) |
+| image/fused, 448x448 | 476.69/468.07 → 275.23/277.43 (1.732x/1.687x) | 296.37/296.43 → 242.23/241.77 (1.224x/1.226x) |
+| image/fused, 1288x728 | 4654.46/4600.58 → 1728.10/1731.73 (2.693x/2.657x) | 1800.29/1795.29 → 1618.10/1623.11 (1.113x/1.106x) |
+
+document embedding batch=8 相对最初 baseline 的 arithmetic-mean speedup 为：INT8
+`page_text/page_image/page_fused = 1.150x/2.714x/2.774x`，INT4
+`1.269x/2.796x/2.795x`；四种表示的完整 baseline→round-9 表见
+[document embedding 报告](document_embedding_eval_int8_int4_gpu/REPORT.md) 和
+[统一 comparison artifact](gme-qwen2-vl-int4-hotspot-optimization/results/r9_latest/baseline_vs_round9_comparison.json)。
 
 支持四种输入模式：
 

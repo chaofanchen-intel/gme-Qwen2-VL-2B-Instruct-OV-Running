@@ -60,6 +60,7 @@ class GmeOpenVINOBackend(EmbeddingBackend):
         cache_dir: Path | None = None,
         batch_mode: str = "auto",
         max_image_tokens: int | None = None,
+        visual_dq_threshold: int | None = None,
         query_instruction: str | None = None,
     ) -> None:
         sys.path.insert(0, str(running_dir))
@@ -72,6 +73,7 @@ class GmeOpenVINOBackend(EmbeddingBackend):
         self.batch_size = batch_size
         self.batch_mode = batch_mode
         self.max_image_tokens = max_image_tokens
+        self.visual_dq_threshold = visual_dq_threshold
         self.query_instruction = query_instruction
         started = time.perf_counter()
         self.encoder = GmeOpenVINO(
@@ -81,6 +83,7 @@ class GmeOpenVINOBackend(EmbeddingBackend):
             batch_mode=batch_mode,
             cache_dir=cache_dir,
             max_image_tokens=max_image_tokens,
+            visual_dynamic_quantization_threshold=visual_dq_threshold,
         )
         self.load_seconds = time.perf_counter() - started
         self.embedding_dim = self.encoder.embedding_dim
@@ -146,6 +149,7 @@ class GmeOpenVINOBackend(EmbeddingBackend):
             "batch_size": self.batch_size,
             "batch_mode": self.batch_mode,
             "max_image_tokens": self.max_image_tokens,
+            "visual_dynamic_quantization_threshold": self.visual_dq_threshold,
             "query_instruction": self.query_instruction,
             "embedding_dim": self.embedding_dim,
             "load_seconds": self.load_seconds,

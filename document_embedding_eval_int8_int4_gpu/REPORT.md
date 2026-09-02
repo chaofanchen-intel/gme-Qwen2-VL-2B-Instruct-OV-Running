@@ -1,8 +1,35 @@
-# GME 文档 Embedding 评测报告：第五轮 final causal / visual optimized
+# GME 文档 Embedding 评测报告：latest causal / visual optimized
 
-## 当前第五轮 final（2026-08-27）
+## 当前第九轮 final（2026-08-29）
 
-本节是当前 document embedding 结果的主入口。原始文件为
+当前主结果是
+[`benchmark_gme_round9_vopt_vdq0_20260829.json`](results/benchmark_gme_round9_vopt_vdq0_20260829.json)。
+它使用最新 custom OpenVINO runtime、package 当前配置和
+`VISUAL_DQ_THRESHOLD=0`；三档正式 precision 的完整 mean latency、质量 probe
+和复现命令见 [`gme-qwen2-vl-int4-hotspot-optimization/docs/16`](../gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md)。
+下面的第五轮及更早章节保留为历史 provenance，不再代表当前 final 结果。
+
+### 与最初 INT8/INT4 document baseline 的对比
+
+以下是同一份 14-page PDF、同一表示、batch=8 的 arithmetic mean。baseline 来自
+[`document_embedding_benchmark_before_optimized.json`](results/document_embedding_benchmark_before_optimized.json)，
+round-9 来自上面的结果文件；speedup = baseline / round-9。
+
+| representation | INT8 baseline -> round 9 | INT8 speedup | INT4 baseline -> round 9 | INT4 speedup |
+| --- | ---: | ---: | ---: | ---: |
+| page_text | 568.104 -> 494.103 ms | 1.150x (-13.03%) | 555.459 -> 437.855 ms | 1.269x (-21.17%) |
+| text_chunk_256 | 568.450 -> 494.869 ms | 1.149x (-12.94%) | 554.420 -> 435.908 ms | 1.272x (-21.38%) |
+| page_image_150 | 68482.061 -> 25235.720 ms | 2.714x (-63.15%) | 67823.817 -> 24254.520 ms | 2.796x (-64.24%) |
+| page_fused_150 | 71149.129 -> 25651.721 ms | 2.774x (-63.95%) | 68941.041 -> 24666.638 ms | 2.795x (-64.22%) |
+
+对应质量 probe：INT8 的 page_text/page_image R@1/3/5 保持不变，page_fused MRR
+为 `0.4568 -> 0.4506`；INT4 的 page_text R@3/MRR 为 `0.625/0.4100 ->
+0.500/0.3996`，page_image MRR 为 `0.5208 -> 0.5193`，page_fused MRR 保持
+`0.4464`。probe 只有 8 queries/14 pages，不能替代业务检索集。
+
+## 历史第五轮 final（2026-08-27）
+
+本节保留第五轮 document embedding 结果。原始文件为
 [`benchmark_gme_round5_final_vopt_20260827.json`](results/benchmark_gme_round5_final_vopt_20260827.json)。
 最初未优化的普通 INT8/INT4 baseline 没有重复运行，直接保留并引用
 [`document_embedding_benchmark_before_optimized.json`](results/document_embedding_benchmark_before_optimized.json)。
@@ -10,7 +37,7 @@
 
 ### 运行时与模型组合
 
-| 项目 | 当前值 |
+| 项目 | 第五轮当时值 |
 | --- | --- |
 | OpenVINO source | `benchmark/openvino`，official base `8a17657b99` + GME opt1/opt2/opt3 |
 | core/plugin/Python binding | `2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`，三者同源 custom build |
@@ -22,7 +49,7 @@
 | measurement | 1 warm-up + 3 measured calls per cell；mean 为主，同时保留 p50/p95/min/max |
 | embedding | 1536 dimensions, float32, L2 normalized |
 
-当前最终 precision 映射：
+第五轮当时的 precision 映射：
 
 | precision key | language IR | visual IR | 语义 |
 | --- | --- | --- | --- |
@@ -215,7 +242,7 @@ env -i HOME="$HOME" PATH=/usr/bin:/bin \
 ## 历史结果和中间阶段
 
 以下原有正文记录第四轮 masked/vnomask 阶段和未优化 baseline，保留用于实验
-provenance；当前最终结论以上面的第五轮章节为准。
+provenance；当前最终结论以上面的第九轮章节为准。
 
 ### 历史 masked visual 报告（第五轮之前）
 

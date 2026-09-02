@@ -8,6 +8,10 @@
 - Page input: `image_binary`，调用 image embedding。
 - Layout input: `image`/`table` 调用 fused embedding (`vlm_text` + `image_binary`)；其他类型调用 text embedding (`text`)。
 - Query input: text embedding，`is_query=True`。默认 instruction 与导出包保持一致；可用 `--query-instruction` 显式设置。
+- Visual DynamicQuantize: 用 `--visual-dq-threshold 0`（或 campaign 的
+  `VISUAL_DQ_THRESHOLD=0`）启用视觉 MVN-to-DQ 融合；该选项只作用于 visual IR，
+  不改变 query/text language IR。该值会写入 backend metadata 和 embedding cache
+  fingerprint，不能与未启用融合的 cache 混用。
 - Matching: L2-normalized embedding 的 cosine similarity。
 - Close-domain: query 只搜索所属 document 的 page/layout。
 - Open-domain: query 搜索全部 313 documents 的 page/layout。
@@ -92,10 +96,13 @@ $PYTHON run_benchmark.py \
 
 ```bash
 SUBSET_FILE="$PWD/subsets/balanced_200.json" \
-  ./run_campaign.sh
+  VISUAL_DQ_THRESHOLD=0 ./run_campaign.sh
 ```
 
-默认使用实测的 `recommended` batch profile，输出为 `results/balanced_200_recommended/summary.json`，包含 FP32 baseline 及 INT8/INT4 自动 delta。该命令一次完成 close-domain 和 subset open-domain；后者只在所选 34 documents 中开放检索，不等同于完整 313-document open-domain。
+默认使用实测的 `recommended` batch profile；设置 `VISUAL_DQ_THRESHOLD=0` 时，输出为
+`results/balanced_200_recommended_vdq0/summary.json`，包含 FP32 baseline 及
+INT8/INT4 自动 delta。该命令一次完成 close-domain 和 subset open-domain；后者只在所选
+34 documents 中开放检索，不等同于完整 313-document open-domain。
 
 ## 推荐子集：三精度分别运行
 
@@ -115,15 +122,18 @@ SUBSET_FILE="$SUBSET" PRECISIONS=int4_causal_vopt \
 
 # 利用上述 cache 生成同一 summary 中的 FP32/INT8/INT4 delta：
 SUBSET_FILE="$SUBSET" PRECISIONS=fp32,int8_causal_vopt,int4_causal_vopt \
-  OUTPUT_DIR="$PWD/results/balanced_200_recommended/combined" ./run_campaign.sh
+  VISUAL_DQ_THRESHOLD=0 \
+  OUTPUT_DIR="$PWD/results/balanced_200_recommended_vdq0/combined" ./run_campaign.sh
 ```
 
 ## 周末自动套件
 
-[run_weekend_suite.sh](run_weekend_suite.sh) 已符合“分别跑三精度 + 生成整体对比”的要求。默认运行 `balanced_200` 和实测 `recommended` profile，顺序为 FP32 -> INT8 -> INT4 -> combined；combined 会复用前三步的 page/layout cache：
+[run_weekend_suite.sh](run_weekend_suite.sh) 已符合“分别跑三精度 + 生成整体对比”的要求。设置
+`VISUAL_DQ_THRESHOLD=0` 后运行 `balanced_200` 和实测 `recommended` profile，顺序为
+FP32 -> INT8 -> INT4 -> combined；combined 会复用前三步的 page/layout cache：
 
 ```bash
-./run_weekend_suite.sh
+VISUAL_DQ_THRESHOLD=0 ./run_weekend_suite.sh
 ```
 
 立即放到后台：
@@ -155,8 +165,13 @@ journalctl --user -u mmdocir-balanced-200.service -f
 
 ```bash
 BATCH_PROFILE=uniform BATCH_SIZE=4 \
+  VISUAL_DQ_THRESHOLD=0 \
   PRECISIONS=int8_causal_vopt,int4_causal_vopt ./run_campaign.sh
 ```
+
+`run_benchmark.py` 也可直接接收 `--visual-dq-threshold 0`。campaign wrapper 会把该
+值加入输出目录名（例如 `_vdq0`）；backend metadata、package identity 和执行 batch
+共同参与 page/layout cache fingerprint，因此不同 threshold 配置会生成独立 cache。
 
 ## 全量评测：三精度分别运行
 
@@ -172,7 +187,7 @@ PRECISIONS=fp32,int8_causal_vopt,int4_causal_vopt \
 也可让自动套件切换到 full set：
 
 ```bash
-FULL_DATASET=1 ./run_weekend_suite.sh
+VISUAL_DQ_THRESHOLD=0 FULL_DATASET=1 ./run_weekend_suite.sh
 ```
 
 中断后执行同一命令会复用已经完整发布的 precision/page/layout cache。正在写入的向量先使用 `.tmp` 文件，未完成时不会被当作有效 cache。
