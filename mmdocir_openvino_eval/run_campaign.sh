@@ -11,6 +11,12 @@ PRECISIONS=${PRECISIONS:-fp32,int8_causal_vopt,int4_causal_vopt}
 VISUAL_DQ_THRESHOLD=${VISUAL_DQ_THRESHOLD:-}
 SUBSET_FILE=${SUBSET_FILE:-}
 MAX_SAMPLES=${MAX_SAMPLES:-}
+# oneDNN's primitive cache is an LRU whose keys hold a raw `primitive_attr_t *`.
+# Hashing one of those keys after its attr has been freed walks recycled memory
+# as if it were a std::map and wedges the process forever -- see README's
+# "挂死检测与断点续跑". 0 disables the cache, which makes every code path that
+# hashes a key unreachable. Empty keeps oneDNN's own default (1024).
+ONEDNN_PRIMITIVE_CACHE_CAPACITY=${ONEDNN_PRIMITIVE_CACHE_CAPACITY:-}
 
 if [[ -n "$SUBSET_FILE" && -n "$MAX_SAMPLES" ]]; then
   echo "SUBSET_FILE and MAX_SAMPLES are mutually exclusive" >&2
@@ -38,6 +44,10 @@ if [[ -n "$VISUAL_DQ_THRESHOLD" ]]; then
   threshold_suffix="_vdq${VISUAL_DQ_THRESHOLD}"
 fi
 OUTPUT_DIR=${OUTPUT_DIR:-$GME/mmdocir_openvino_eval/results/${selection_name}_${profile_name}${threshold_suffix}}
+onednn_env=()
+if [[ -n "$ONEDNN_PRIMITIVE_CACHE_CAPACITY" ]]; then
+  onednn_env+=("ONEDNN_PRIMITIVE_CACHE_CAPACITY=$ONEDNN_PRIMITIVE_CACHE_CAPACITY")
+fi
 
 cd "$GME/mmdocir_openvino_eval"
 exec env -i \
@@ -47,6 +57,7 @@ exec env -i \
   LD_LIBRARY_PATH="$OV/bin/intel64/Release:$OV/temp/Linux_x86_64/tbb/lib" \
   OPENVINO_LIB_PATHS="$OV/bin/intel64/Release" \
   OPENVINO_PLUGIN_PATH="$OV/bin/intel64/Release" \
+  "${onednn_env[@]}" \
   "$PYTHON" -u run_benchmark.py \
     --precisions "$PRECISIONS" \
     --batch-profile "$BATCH_PROFILE" \

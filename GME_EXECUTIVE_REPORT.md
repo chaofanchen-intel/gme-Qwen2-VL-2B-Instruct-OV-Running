@@ -66,7 +66,19 @@ INT4 image 的 `pre-vopt` 是最早保存的完整 arithmetic-mean public 矩阵
 masked INT4 e2e 记录只有 p50，因此没有混入本表。document embedding 的 INT8/INT4
 baseline→round-9 batch=8 对照见 document report。
 
-### 1.5 历史第五轮 final rerun（2026-08-27）
+### 1.5 MMDocIR balanced_200 质量检查（2026-09-02）
+
+MMDocIR `balanced_200` 已完成 FP32、INT8、INT4 的 close/open 质量评测，覆盖
+200 queries、34 documents、607 pages 和 7,956 layouts。相对 FP32，INT8 的 page
+指标最大下降约 0.58 percentage points；INT4 的 page R@5 下降 1.21/1.46 points、
+layout R@5 下降 3.35/3.83 points（close/open）。
+
+INT4 为绕过 oneDNN primitive-cache 死锁使用了
+`ONEDNN_PRIMITIVE_CACHE_CAPACITY=0`，因此本轮不比较 MMDocIR 的 INT4 与 FP32/INT8
+运行时间、throughput 或 speedup。完整质量表见
+[MMDocIR REPORT](mmdocir_openvino_eval/REPORT.md)。
+
+### 1.6 历史第五轮 final rerun（2026-08-27）
 
 当前结果来自 `benchmark/openvino/bin/intel64/Release` 的 matching custom Python
 binding/core/plugin，版本为 `2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`。

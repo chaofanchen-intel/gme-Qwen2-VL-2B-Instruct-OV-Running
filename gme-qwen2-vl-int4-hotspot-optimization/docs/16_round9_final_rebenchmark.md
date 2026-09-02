@@ -229,7 +229,7 @@ page_image MRR 从 `0.5208` 到 `0.5193`，page_fused MRR 保持 `0.4464`。这�
 本轮没有看到明显的结构性质量崩溃；INT4 上线仍应由实际 Recall@K、nDCG 和 Top-K
 评测决定。
 
-## 16.7 MMDocIR audit 和 smoke
+## 16.7 MMDocIR balanced_200 质量结果和 audit
 
 本轮对 `mmdocir_openvino_eval` 做了如下更新：
 
@@ -239,21 +239,51 @@ page_image MRR 从 `0.5208` 到 `0.5193`，page_fused MRR 保持 `0.4464`。这�
 - `GmeOpenVINOBackend` 把 threshold 传给 visual IR；
 - backend metadata 和 page/layout cache fingerprint 均包含
   `visual_dynamic_quantization_threshold`，不同 threshold 不会复用同一 embedding cache；
-- `README.md` 增加了可复现命令和 cache 说明。
+- 编码阶段增加 progress heartbeat、单次调用 watchdog、checkpoint 和 resume，减少
+  oneDNN/ GPU plugin hang 时从头开始的风险；
+- `README.md` 增加 workaround、质量结果和 cache 说明。
 
-真实 smoke 结果位于
-[`r9_smoke_first1_rebenchmark_vdq0/summary.json`](../../mmdocir_openvino_eval/results/r9_smoke_first1_rebenchmark_vdq0/summary.json)。
-它使用 1 document、1 query、23 pages、153 layouts，完成 FP32、INT8、INT4 的
-query/page/layout 编码和 close/open 评估。
+当前结果位于
+[`balanced_200_recommended_vdq0/combined/summary.json`](../../mmdocir_openvino_eval/results/balanced_200_recommended_vdq0/combined/summary.json)。
+它使用 200 queries、10 个 domain、34 documents、607 pages、7,956 layouts，完成
+FP32、INT8、INT4 的 query/page/layout 编码和 close/open 评估。
 
-| precision | query mean ms | pages wall s | layouts wall s | text layout batch | fused layout batch | close page R@5 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| FP32 | 600.96 | 139.73 | 188.52 | 1 | 1 | 1.0 |
-| INT8 | 232.13 | 21.02 | 26.89 | 4 | 1 | 1.0 |
-| INT4 | 359.36 | 20.34 | 26.56 | 4 | 1 | 1.0 |
+### 质量主表
 
-该 smoke 只证明新 backend/config/cache 链路和单文档 schema 可用，不是 full MMDocIR
-质量结论。完整 313-document campaign 仍需单独的长时间 GPU 任务。
+| precision | scope | page R@5/R@10 | page nDCG@5/@10 | layout R@5/R@10 | layout nDCG@5/@10 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| FP32 | close | 0.8650 / 0.9333 | 0.7699 / 0.7968 | 0.5995 / 0.6774 | 0.4853 / 0.5143 |
+| INT8 | close | 0.8663 / 0.9329 | 0.7671 / 0.7932 | 0.5824 / 0.6841 | 0.4728 / 0.5101 |
+| INT4 | close | 0.8529 / 0.9121 | 0.7580 / 0.7802 | 0.5661 / 0.6603 | 0.4657 / 0.5008 |
+| FP32 | open | 0.7571 / 0.8100 | 0.6678 / 0.6871 | 0.5208 / 0.5920 | 0.4232 / 0.4495 |
+| INT8 | open | 0.7513 / 0.8108 | 0.6633 / 0.6844 | 0.5267 / 0.5899 | 0.4208 / 0.4441 |
+| INT4 | open | 0.7425 / 0.8083 | 0.6519 / 0.6766 | 0.4825 / 0.5967 | 0.3992 / 0.4398 |
+
+相对 FP32 的质量变化（percentage points）为：
+
+| precision | scope | page R@5 | page R@10 | page nDCG@5 | page nDCG@10 | layout R@5 | layout R@10 | layout nDCG@5 | layout nDCG@10 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| INT8 | close | +0.13 | -0.04 | -0.28 | -0.37 | -1.71 | +0.67 | -1.25 | -0.42 |
+| INT4 | close | -1.21 | -2.12 | -1.19 | -1.66 | -3.35 | -1.71 | -1.97 | -1.35 |
+| INT8 | open | -0.58 | +0.08 | -0.46 | -0.27 | +0.59 | -0.21 | -0.24 | -0.54 |
+| INT4 | open | -1.46 | -0.17 | -1.60 | -1.05 | -3.83 | +0.47 | -2.40 | -0.97 |
+
+结论：INT8 在这个 balanced_200 子集上最接近 FP32；INT4 的 page 和 layout 指标均出现
+更明显下降，尤其是 layout Recall@5。该子集适合筛查趋势，但最终上线仍需完整
+1,658-query 业务评测。
+
+### INT4 死锁 workaround 和时间口径
+
+2026-08-29 的默认 INT4 run 在 layout 阶段进入 GPU plugin/oneDNN primitive-cache 死锁；
+2026-09-02 使用 `ONEDNN_PRIMITIVE_CACHE_CAPACITY=0` 重新完成全部 7,956 layouts。
+该 workaround 绕过 cache key 哈希路径，但会显著增加 INT4 运行时间。因此本节**不展示
+INT4 与 FP32/INT8 的 encoding latency、throughput、ETA 或 speedup 对比**；JSON 中的时间
+字段只用于记录本次运行过程，不能作为 precision 间性能结论。
+
+INT4 standalone 结果中的 `system.onednn_primitive_cache_capacity` 为 `0`；FP32/INT8
+质量向量和 INT4 质量向量使用同一 balanced_200 selection，combined summary 只用于
+汇总 quality delta。此前的 `r9_smoke_first1_rebenchmark_vdq0` 仍保留为单文档链路 smoke，
+不再作为 balanced_200 当前质量结论。
 
 ## 16.8 复现入口
 

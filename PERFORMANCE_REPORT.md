@@ -9,6 +9,9 @@ mean 解读，原始 JSON 见
 
 document embedding 的最新三 precision 结果见
 [`document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round9_vopt_vdq0_20260829.json`](document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round9_vopt_vdq0_20260829.json)。
+MMDocIR `balanced_200` 的当前质量结果见
+[`mmdocir_openvino_eval/REPORT.md`](mmdocir_openvino_eval/REPORT.md)；INT4 因
+`ONEDNN_PRIMITIVE_CACHE_CAPACITY=0` workaround 导致耗时不可与 FP32/INT8 横向比较。
 
 历史主表的所有时延数据来自 `08_benchmark_matrix.py` 的 `repeat=20` 结果；
 原始 JSON 保存在 `artifacts/benchmark_matrix_*_r20*.json`。**不要**用
@@ -20,7 +23,7 @@ document embedding 的最新三 precision 结果见
 
 ## 当前第九轮 latest package/runtime rerun（2026-08-29）
 
-完整矩阵、batch、FP32 cosine、document embedding 和 MMDocIR smoke 见
+完整矩阵、batch、FP32 cosine、document embedding 和 MMDocIR balanced_200 质量结果见
 [`docs/16_round9_final_rebenchmark.md`](gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md)。
 本轮使用 OpenVINO `2026.3.0-22455-2080527e54b-qwen-ttft-optimizations`，GPU
 visual threshold=0，所有性能结论均为 arithmetic mean。

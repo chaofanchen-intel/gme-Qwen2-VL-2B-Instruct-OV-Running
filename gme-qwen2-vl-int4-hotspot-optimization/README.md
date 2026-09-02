@@ -129,7 +129,7 @@ ms/embedding（INT8 causal、INT4 causal、INT4 gs64 causal）；448x448 image
 第九轮使用当前 package `gme-Qwen2-VL-2B-Instruct`（GME `d3cf918`）和
 OpenVINO `2026.3.0-22455-2080527e54b-qwen-ttft-optimizations`，GPU visual
 threshold 显式设为 0。所有性能数字是 arithmetic mean；完整结果、batch、FP32
-cosine、document embedding 和 MMDocIR smoke 见
+cosine、document embedding 和 MMDocIR balanced_200 质量结果见
 [`docs/16`](docs/16_round9_final_rebenchmark.md)。
 
 | workload | `int8_causal_vopt` | `int4_causal_vopt` | `int4_gs64_causal_vopt` |
@@ -142,6 +142,11 @@ N=8、128-token、GPU `padded + streams=1` 的 text/query ms/embedding 为
 `31.23/33.27`（INT8）、`26.46/28.35`（INT4）、`28.28/31.90`（gs64）。新增
 `int4_causal_vnomask_qkvfused` 和 `int4_visint8` 完成 cosine smoke；后者在
 1288x728 fused 上触发 `CL_OUT_OF_RESOURCES`，均不纳入正式部署结论。
+
+MMDocIR `balanced_200` 的最新质量结果已完成：INT8 的 page 指标最接近 FP32，INT4
+的 layout Recall@5 相对 FP32 下降约 3.35/3.83 percentage points（close/open）。
+INT4 因 `ONEDNN_PRIMITIVE_CACHE_CAPACITY=0` workaround 只用于质量分析，不与
+FP32/INT8 比较本轮 MMDocIR 运行时间；详情见 [`mmdocir_openvino_eval/REPORT.md`](../mmdocir_openvino_eval/REPORT.md)。
 
 ## 历史第四轮 fresh rerun
 

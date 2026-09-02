@@ -46,6 +46,11 @@ document embedding 的最新三 precision 结果见
 INT8 `page_text/page_image/page_fused = 1.150x/2.714x/2.774x`，INT4
 `1.269x/2.796x/2.795x`；完整四表示对照见 comparison artifact。
 
+MMDocIR `balanced_200` 的当前 FP32/INT8/INT4 close/open 质量结果见
+[`../../mmdocir_openvino_eval/REPORT.md`](../../mmdocir_openvino_eval/REPORT.md)。INT4
+使用 `ONEDNN_PRIMITIVE_CACHE_CAPACITY=0` 绕过死锁，本轮不使用 MMDocIR 的 INT4
+运行时间或 throughput 与 FP32/INT8 做比较。
+
 第五轮 final 的原始结果仍保留在
 [`r5_final_20260827/`](r5_final_20260827/)，但只作为历史 provenance，不再作为当前结果。
 

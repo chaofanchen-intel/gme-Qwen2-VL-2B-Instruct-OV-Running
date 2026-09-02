@@ -37,6 +37,12 @@ document embedding batch=8 相对最初 baseline 的 arithmetic-mean speedup 为
 [document embedding 报告](document_embedding_eval_int8_int4_gpu/REPORT.md) 和
 [统一 comparison artifact](gme-qwen2-vl-int4-hotspot-optimization/results/r9_latest/baseline_vs_round9_comparison.json)。
 
+MMDocIR `balanced_200` 已完成 FP32/INT8/INT4 的 close/open 质量评测；INT8 的 page
+指标最接近 FP32，INT4 的 layout Recall@5 下降约 3.35/3.83 percentage points。
+INT4 使用 `ONEDNN_PRIMITIVE_CACHE_CAPACITY=0` 绕过死锁，因此该 MMDocIR 结果不做
+INT4 与 FP32/INT8 的时间或 throughput 对比，详细质量分析见
+[MMDocIR REPORT](mmdocir_openvino_eval/REPORT.md)。
+
 支持四种输入模式：
 
 - `text`：默认 instruction 的文本 embedding；

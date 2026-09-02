@@ -23,6 +23,11 @@ document embedding batch=8 的对应 speedup 为 INT8 `page_text/page_image/page
 来源统一保存在
 [`baseline_vs_round9_comparison.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r9_latest/baseline_vs_round9_comparison.json)。
 
+MMDocIR `balanced_200` 当前质量结果（FP32/INT8/INT4，close/open，200 queries）见
+[`mmdocir_openvino_eval/REPORT.md`](mmdocir_openvino_eval/REPORT.md)。INT4 使用
+`ONEDNN_PRIMITIVE_CACHE_CAPACITY=0` 绕过 primitive-cache 死锁，本轮不把 MMDocIR
+的 INT4 elapsed time、throughput 或 speedup 与 FP32/INT8 比较。
+
 本文对应的脚本编号为连续的 `01` 到 `09`：
 
 - `01_reference.py`：官方 PyTorch golden reference；

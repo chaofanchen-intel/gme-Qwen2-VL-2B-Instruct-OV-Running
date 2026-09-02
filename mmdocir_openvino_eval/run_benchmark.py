@@ -10,7 +10,10 @@ from pathlib import Path
 
 from mmdocir_eval.backend import create_backend
 from mmdocir_eval.data import load_annotations, selected_row_count
+from mmdocir_eval.progress import Watchdog
 from mmdocir_eval.runner import (
+    EncodeControls,
+    cleanup_stale_temporaries,
     encode_layouts,
     encode_pages,
     encode_queries,
@@ -51,6 +54,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cache-dir", type=Path, default=HERE / "cache")
     parser.add_argument("--ov-cache-dir", type=Path, default=HERE / ".ov_cache")
     parser.add_argument("--force", action="store_true", help="ignore complete embedding caches")
+    parser.add_argument(
+        "--call-timeout-seconds", type=float, default=1800.0,
+        help="abort the run when one model call stalls this long; 0 disables the watchdog",
+    )
+    parser.add_argument(
+        "--progress-interval-seconds", type=float, default=30.0,
+        help="heartbeat interval inside an encode phase; 0 disables progress lines",
+    )
+    parser.add_argument(
+        "--checkpoint-interval-seconds", type=float, default=120.0,
+        help="how often a partial embedding cache is checkpointed; 0 checkpoints every batch",
+    )
+    parser.add_argument(
+        "--resume", action="store_true",
+        help="continue a checkpointed embedding cache instead of re-encoding it; the reported "
+             "throughput then covers only the rows encoded by the resuming run",
+    )
     parser.add_argument("--dry-run", action="store_true", help="print selection and exit before loading a model")
     return parser.parse_args()
 
@@ -221,6 +241,12 @@ def main() -> None:
             )
         )
         return
+    removed, resumable = cleanup_stale_temporaries(args.cache_dir)
+    for path in removed:
+        print(f"removed unresumable partial cache {path}", flush=True)
+    for path in resumable:
+        print(f"partial cache {path} is checkpointed; --resume continues it", flush=True)
+    watchdog = Watchdog(args.call_timeout_seconds)
     manifest_path = args.dataset_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else None
     all_results = {
@@ -244,20 +270,28 @@ def main() -> None:
             if args.batch_profile == "uniform" and len(set(batches.values())) == 1
             else f"q{batches['query']}_p{batches['page']}_t{batches['text_layout']}_f{batches['fused_layout']}"
         )
-        print(f"[{precision}] loading backend", flush=True)
-        backend = create_backend(
-            args.backend,
-            package=args.package,
-            precision=precision,
-            device=args.device,
-            batch_size=max(batches.values()),
-            running_dir=RUNNING,
-            cache_dir=args.ov_cache_dir,
-            batch_mode=args.batch_mode,
-            max_image_tokens=args.max_image_tokens,
-            visual_dq_threshold=args.visual_dq_threshold,
-            query_instruction=args.query_instruction,
+        controls = EncodeControls(
+            label=f"[{precision}]",
+            watchdog=watchdog,
+            progress_interval_seconds=args.progress_interval_seconds,
+            checkpoint_interval_seconds=args.checkpoint_interval_seconds,
+            resume=args.resume,
         )
+        print(f"[{precision}] loading backend", flush=True)
+        with controls.guard("backend load"):
+            backend = create_backend(
+                args.backend,
+                package=args.package,
+                precision=precision,
+                device=args.device,
+                batch_size=max(batches.values()),
+                running_dir=RUNNING,
+                cache_dir=args.ov_cache_dir,
+                batch_mode=args.batch_mode,
+                max_image_tokens=args.max_image_tokens,
+                visual_dq_threshold=args.visual_dq_threshold,
+                query_instruction=args.query_instruction,
+            )
         backend_metadata = backend.metadata()
         stable_backend_metadata = {
             key: value for key, value in backend_metadata.items() if key != "load_seconds"
@@ -273,10 +307,19 @@ def main() -> None:
             "execution_batches": batches,
         }
         print(f"[{precision}] encoding {len(queries)} queries", flush=True)
-        query_vectors, query_performance = encode_queries(backend, queries, batches["query"])
+        query_vectors, query_performance = encode_queries(
+            backend, queries, batches["query"], controls
+        )
         print(f"[{precision}] encoding {selection['pages']} pages", flush=True)
         pages = encode_pages(
-            backend, pages_path, documents, args.cache_dir, cache_key, batches["page"], args.force
+            backend,
+            pages_path,
+            documents,
+            args.cache_dir,
+            cache_key,
+            batches["page"],
+            args.force,
+            controls,
         )
         print(f"[{precision}] encoding {selection['layouts']} layouts", flush=True)
         layouts = encode_layouts(
@@ -288,6 +331,7 @@ def main() -> None:
             batches["text_layout"],
             batches["fused_layout"],
             args.force,
+            controls,
         )
         run = {
             "backend": backend_metadata,

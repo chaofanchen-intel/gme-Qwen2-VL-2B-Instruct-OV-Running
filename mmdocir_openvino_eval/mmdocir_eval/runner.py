@@ -7,6 +7,7 @@ import os
 import platform
 import time
 from collections import defaultdict
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from io import BytesIO
@@ -20,6 +21,7 @@ from PIL import Image
 from .backend import EmbeddingBackend
 from .data import Document, Query, iter_parquet_rows, selected_row_count
 from .metrics import LayoutCandidate, layout_metrics, page_metrics
+from .progress import ProgressReporter, Watchdog
 from .timing import summarize_ms, throughput
 
 
@@ -28,6 +30,25 @@ class EncodedIndex:
     vectors: np.ndarray
     rows: list[dict[str, Any]]
     performance: dict[str, Any]
+
+
+@dataclass
+class EncodeControls:
+    """Progress, liveness, and resume knobs shared by the encode phases."""
+
+    label: str = ""
+    watchdog: Watchdog | None = None
+    progress_interval_seconds: float = 30.0
+    checkpoint_interval_seconds: float = 120.0
+    resume: bool = False
+
+    def guard(self, description: str):
+        if self.watchdog is None:
+            return nullcontext()
+        return self.watchdog.guard(f"{self.label} {description}".strip())
+
+    def reporter(self, kind: str, total: int) -> ProgressReporter:
+        return ProgressReporter(f"{self.label} {kind}".strip(), total, self.progress_interval_seconds)
 
 
 class ResourceTracker:
@@ -70,6 +91,20 @@ class ResourceTracker:
         }
 
 
+def onednn_primitive_cache_capacity() -> str | None:
+    """The oneDNN primitive-cache capacity this process runs under, if overridden.
+
+    Stamped into every phase's performance dict rather than only into the run
+    metadata, because a cached phase reports the throughput of whatever run
+    produced it -- which may have used a different capacity, and capacities are
+    not throughput-comparable. `None` means the phase predates this field or ran
+    on oneDNN's own default.
+    """
+    return os.environ.get(
+        "ONEDNN_PRIMITIVE_CACHE_CAPACITY", os.environ.get("DNNL_PRIMITIVE_CACHE_CAPACITY")
+    )
+
+
 def _json_dump(path: Path, value: Any) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -102,6 +137,146 @@ def _cache_paths(cache_root: Path, kind: str, fingerprint: str) -> tuple[Path, P
     return prefix.with_suffix(".npy"), prefix.with_suffix(".rows.json"), prefix.with_suffix(".perf.json")
 
 
+def _progress_path(cache_root: Path, kind: str, fingerprint: str) -> Path:
+    return (cache_root / f"{kind}_{fingerprint}").with_suffix(".progress.json")
+
+
+def cleanup_stale_temporaries(cache_root: Path) -> tuple[list[Path], list[Path]]:
+    """Delete half-written vector caches that no checkpoint can resume.
+
+    A ``.npy.tmp`` is only ever read after being renamed into place, so one with
+    no checkpoint beside it is dead weight. Returns ``(removed, resumable)``.
+    """
+    removed: list[Path] = []
+    resumable: list[Path] = []
+    for path in sorted(cache_root.glob("*.npy.tmp")):
+        if path.with_suffix("").with_suffix(".progress.json").exists():
+            resumable.append(path)
+        else:
+            path.unlink(missing_ok=True)
+            removed.append(path)
+    return removed, resumable
+
+
+class _PartialVectors:
+    """A half-written vector cache plus the watermark that makes it resumable.
+
+    Positions do not complete in order -- ``encode_layouts`` drains a text queue
+    and a fused queue independently -- so the watermark is the longest completed
+    *prefix*, not a count of finished rows. It trails the true count by at most
+    one pending batch per queue, which is the price of a checkpoint a resume can
+    trust without also persisting a per-row bitmap.
+    """
+
+    def __init__(
+        self,
+        vectors: np.ndarray,
+        progress_path: Path,
+        identity: dict[str, Any],
+        count: int,
+        completed: int,
+        interval_seconds: float,
+    ) -> None:
+        self.vectors = vectors
+        self.progress_path = progress_path
+        self.identity = identity
+        self.count = count
+        self.completed = completed
+        self.interval_seconds = interval_seconds
+        self._ahead: set[int] = set()
+        self._last_write = time.monotonic()
+
+    def mark(self, positions: Sequence[int]) -> None:
+        self._ahead.update(positions)
+        while self.completed in self._ahead:
+            self._ahead.discard(self.completed)
+            self.completed += 1
+
+    def checkpoint(self) -> None:
+        """Persist the watermark, at most once per `interval_seconds`.
+
+        Throttled because the flush that has to precede it msyncs the whole
+        vector mapping; a non-positive interval means "after every batch".
+        """
+        now = time.monotonic()
+        if self.interval_seconds > 0 and now - self._last_write < self.interval_seconds:
+            return
+        self._last_write = now
+        self.vectors.flush()
+        _json_dump(
+            self.progress_path, {**self.identity, "count": self.count, "completed": self.completed}
+        )
+
+    def discard(self) -> None:
+        self.progress_path.unlink(missing_ok=True)
+
+
+def _reopen_partial(
+    temporary_vectors_path: Path,
+    progress_path: Path,
+    identity: dict[str, Any],
+    count: int,
+    dim: int,
+    label: str,
+) -> tuple[int, np.ndarray | None]:
+    if not (temporary_vectors_path.exists() and progress_path.exists()):
+        return 0, None
+    reject = f"{label} ignoring checkpoint {progress_path}".strip()
+    try:
+        checkpoint = json.loads(progress_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        print(f"{reject}: unreadable ({error})", flush=True)
+        return 0, None
+    expected = {**identity, "count": count}
+    mismatch = next((key for key, value in expected.items() if checkpoint.get(key) != value), None)
+    if mismatch is not None:
+        print(f"{reject}: {mismatch} differs", flush=True)
+        return 0, None
+    completed = checkpoint.get("completed")
+    if not isinstance(completed, int) or not 0 <= completed <= count:
+        print(f"{reject}: bad completed={completed!r}", flush=True)
+        return 0, None
+    try:
+        vectors = np.lib.format.open_memmap(temporary_vectors_path, mode="r+")
+    except (OSError, ValueError) as error:
+        print(f"{reject}: partial cache is unusable ({error})", flush=True)
+        return 0, None
+    if vectors.shape != (count, dim) or vectors.dtype != np.float32:
+        print(f"{reject}: partial cache is {vectors.shape}/{vectors.dtype}", flush=True)
+        return 0, None
+    return completed, vectors
+
+
+def _open_partial(
+    temporary_vectors_path: Path,
+    progress_path: Path,
+    identity: dict[str, Any],
+    count: int,
+    dim: int,
+    controls: EncodeControls,
+) -> _PartialVectors:
+    completed, vectors = (
+        _reopen_partial(temporary_vectors_path, progress_path, identity, count, dim, controls.label)
+        if controls.resume
+        else (0, None)
+    )
+    if vectors is None:
+        progress_path.unlink(missing_ok=True)
+        completed = 0
+        vectors = np.lib.format.open_memmap(
+            temporary_vectors_path, mode="w+", dtype=np.float32, shape=(count, dim)
+        )
+    elif completed:
+        print(
+            f"{controls.label} resuming {identity['kind']} at {completed}/{count}; "
+            "reported throughput covers the resumed rows only".strip(),
+            flush=True,
+        )
+    return _PartialVectors(
+        vectors, progress_path, identity, count, completed, controls.checkpoint_interval_seconds
+    )
+
+
 def _cached_index(
     cache_root: Path,
     kind: str,
@@ -126,24 +301,33 @@ def _cached_index(
 
 
 def encode_queries(
-    backend: EmbeddingBackend, queries: Sequence[Query], batch_size: int
+    backend: EmbeddingBackend,
+    queries: Sequence[Query],
+    batch_size: int,
+    controls: EncodeControls | None = None,
 ) -> tuple[np.ndarray, dict[str, Any]]:
+    controls = controls or EncodeControls()
     vectors: list[np.ndarray] = []
     latencies_ms: list[float] = []
     resources = ResourceTracker(backend)
+    reporter = controls.reporter("queries", len(queries))
     started = time.perf_counter()
     for offset in range(0, len(queries), batch_size):
         batch = [query.text for query in queries[offset : offset + batch_size]]
         call_started = time.perf_counter()
-        vectors.append(_normalize(backend.encode_queries(batch, batch_size=batch_size)))
+        with controls.guard(f"query batch at offset {offset}"):
+            vectors.append(_normalize(backend.encode_queries(batch, batch_size=batch_size)))
         resources.sample()
         latencies_ms.append((time.perf_counter() - call_started) * 1000)
+        reporter.update(offset + len(batch))
+    reporter.close(len(queries))
     elapsed = time.perf_counter() - started
     output = np.concatenate(vectors, axis=0)
     steady_items = max(0, len(queries) - min(batch_size, len(queries)))
     steady_seconds = sum(latencies_ms[1:]) / 1000
     return output, {
         "items": len(queries),
+        "onednn_primitive_cache_capacity": onednn_primitive_cache_capacity(),
         "wall_seconds": elapsed,
         "queries_per_second": throughput(len(queries), elapsed),
         "batch_call_latency_ms": summarize_ms(latencies_ms),
@@ -165,7 +349,9 @@ def encode_pages(
     cache_key: dict[str, Any],
     batch_size: int,
     force: bool,
+    controls: EncodeControls | None = None,
 ) -> EncodedIndex:
+    controls = controls or EncodeControls()
     fingerprint = _fingerprint({**cache_key, "kind": "page"})
     count = selected_row_count(documents, "page")
     if not force and (
@@ -174,14 +360,22 @@ def encode_pages(
         return cached
     vectors_path, rows_path, performance_path = _cache_paths(cache_root, "page", fingerprint)
     temporary_vectors_path = vectors_path.with_suffix(vectors_path.suffix + ".tmp")
-    vectors = np.lib.format.open_memmap(
-        temporary_vectors_path, mode="w+", dtype=np.float32, shape=(count, backend.embedding_dim)
+    partial = _open_partial(
+        temporary_vectors_path,
+        _progress_path(cache_root, "page", fingerprint),
+        {"format": 1, "kind": "page", "fingerprint": fingerprint, "dim": backend.embedding_dim},
+        count,
+        backend.embedding_dim,
+        controls,
     )
+    vectors = partial.vectors
+    resumed_from = partial.completed
     page_owners, _ = _owner_maps(documents)
     rows: list[dict[str, Any]] = []
     pending: list[tuple[int, Image.Image]] = []
     encode_ms: list[float] = []
     resources = ResourceTracker(backend)
+    reporter = controls.reporter("pages", count)
     preprocessing_ms = 0.0
     started = time.perf_counter()
 
@@ -190,18 +384,19 @@ def encode_pages(
             return
         positions, images = zip(*pending)
         call_started = time.perf_counter()
-        batch_vectors = _normalize(backend.encode_page_images(images, batch_size=batch_size))
+        with controls.guard(f"page batch at position {positions[0]}"):
+            batch_vectors = _normalize(backend.encode_page_images(images, batch_size=batch_size))
         resources.sample()
         encode_ms.append((time.perf_counter() - call_started) * 1000)
         vectors[list(positions)] = batch_vectors
         pending.clear()
+        partial.mark(positions)
+        partial.checkpoint()
+        reporter.update(partial.completed)
 
     for position, (global_index, row) in enumerate(
         iter_parquet_rows(parquet_path, ["doc_name", "passage_id", "image_binary"], documents, "page")
     ):
-        prep_started = time.perf_counter()
-        image = _load_image(row["image_binary"])
-        preprocessing_ms += (time.perf_counter() - prep_started) * 1000
         doc_name, page_id = page_owners[global_index]
         rows.append(
             {
@@ -211,24 +406,36 @@ def encode_pages(
                 "passage_id": row["passage_id"],
             }
         )
+        if position < resumed_from:
+            continue
+        prep_started = time.perf_counter()
+        image = _load_image(row["image_binary"])
+        preprocessing_ms += (time.perf_counter() - prep_started) * 1000
         pending.append((position, image))
         if len(pending) >= batch_size:
             flush()
     flush()
+    reporter.close(count)
     if len(rows) != count:
         raise RuntimeError(f"page parquet yielded {len(rows)} selected rows; expected {count}")
+    if partial.completed != count:
+        raise RuntimeError(f"page encoding covered {partial.completed} of {count} rows")
     vectors.flush()
     vector_bytes = int(vectors.nbytes)
     del vectors
+    partial.discard()
     temporary_vectors_path.replace(vectors_path)
     elapsed = time.perf_counter() - started
-    steady_items = max(0, count - min(batch_size, count))
+    encoded_items = count - resumed_from
+    steady_items = max(0, encoded_items - min(batch_size, encoded_items))
     steady_seconds = sum(encode_ms[1:]) / 1000
     performance = {
         "cache_hit": False,
+        "resumed_from": resumed_from,
+        "onednn_primitive_cache_capacity": onednn_primitive_cache_capacity(),
         "items": count,
         "wall_seconds": elapsed,
-        "pages_per_second": throughput(count, elapsed),
+        "pages_per_second": throughput(encoded_items, elapsed),
         "model_call_seconds": sum(encode_ms) / 1000,
         "preprocessing_seconds": preprocessing_ms / 1000,
         "batch_call_latency_ms": summarize_ms(encode_ms),
@@ -251,7 +458,9 @@ def encode_layouts(
     text_batch_size: int,
     fused_batch_size: int,
     force: bool,
+    controls: EncodeControls | None = None,
 ) -> EncodedIndex:
+    controls = controls or EncodeControls()
     fingerprint = _fingerprint({**cache_key, "kind": "layout", "hybrid": "image/table=fused-vlm"})
     count = selected_row_count(documents, "layout")
     if not force and (
@@ -260,15 +469,23 @@ def encode_layouts(
         return cached
     vectors_path, rows_path, performance_path = _cache_paths(cache_root, "layout", fingerprint)
     temporary_vectors_path = vectors_path.with_suffix(vectors_path.suffix + ".tmp")
-    vectors = np.lib.format.open_memmap(
-        temporary_vectors_path, mode="w+", dtype=np.float32, shape=(count, backend.embedding_dim)
+    partial = _open_partial(
+        temporary_vectors_path,
+        _progress_path(cache_root, "layout", fingerprint),
+        {"format": 1, "kind": "layout", "fingerprint": fingerprint, "dim": backend.embedding_dim},
+        count,
+        backend.embedding_dim,
+        controls,
     )
+    vectors = partial.vectors
+    resumed_from = partial.completed
     _, layout_owners = _owner_maps(documents)
     rows: list[dict[str, Any]] = []
     text_pending: list[tuple[int, str]] = []
     fused_pending: list[tuple[int, str, Image.Image]] = []
     timings: dict[str, list[float]] = {"text": [], "fused": []}
     resources = ResourceTracker(backend)
+    reporter = controls.reporter("layouts", count)
     counts = {"text": 0, "fused": 0}
     preprocessing_ms = 0.0
     started = time.perf_counter()
@@ -278,26 +495,34 @@ def encode_layouts(
             return
         positions, texts = zip(*text_pending)
         call_started = time.perf_counter()
-        batch_vectors = _normalize(
-            backend.encode_layout_texts(texts, batch_size=text_batch_size)
-        )
+        with controls.guard(f"text layout batch at position {positions[0]}"):
+            batch_vectors = _normalize(
+                backend.encode_layout_texts(texts, batch_size=text_batch_size)
+            )
         resources.sample()
         timings["text"].append((time.perf_counter() - call_started) * 1000)
         vectors[list(positions)] = batch_vectors
         text_pending.clear()
+        partial.mark(positions)
+        partial.checkpoint()
+        reporter.update(partial.completed)
 
     def flush_fused() -> None:
         if not fused_pending:
             return
         positions, texts, images = zip(*fused_pending)
         call_started = time.perf_counter()
-        batch_vectors = _normalize(
-            backend.encode_layout_fused(texts, images, batch_size=fused_batch_size)
-        )
+        with controls.guard(f"fused layout batch at position {positions[0]}"):
+            batch_vectors = _normalize(
+                backend.encode_layout_fused(texts, images, batch_size=fused_batch_size)
+            )
         resources.sample()
         timings["fused"].append((time.perf_counter() - call_started) * 1000)
         vectors[list(positions)] = batch_vectors
         fused_pending.clear()
+        partial.mark(positions)
+        partial.checkpoint()
+        reporter.update(partial.completed)
 
     columns = ["doc_name", "type", "layout_id", "page_id", "bbox", "image_binary", "text", "vlm_text"]
     for position, (global_index, row) in enumerate(
@@ -315,6 +540,8 @@ def encode_layouts(
                 "type": layout_type,
             }
         )
+        if position < resumed_from:
+            continue
         if layout_type in {"image", "table"}:
             prep_started = time.perf_counter()
             image = _load_image(row["image_binary"])
@@ -330,18 +557,24 @@ def encode_layouts(
                 flush_text()
     flush_text()
     flush_fused()
+    reporter.close(count)
     if len(rows) != count:
         raise RuntimeError(f"layout parquet yielded {len(rows)} selected rows; expected {count}")
+    if partial.completed != count:
+        raise RuntimeError(f"layout encoding covered {partial.completed} of {count} rows")
     vectors.flush()
     vector_bytes = int(vectors.nbytes)
     del vectors
+    partial.discard()
     temporary_vectors_path.replace(vectors_path)
     elapsed = time.perf_counter() - started
     performance: dict[str, Any] = {
         "cache_hit": False,
+        "resumed_from": resumed_from,
+        "onednn_primitive_cache_capacity": onednn_primitive_cache_capacity(),
         "items": count,
         "wall_seconds": elapsed,
-        "layouts_per_second": throughput(count, elapsed),
+        "layouts_per_second": throughput(count - resumed_from, elapsed),
         "preprocessing_seconds": preprocessing_ms / 1000,
         "vector_bytes": vector_bytes,
         "resources": resources.summary(),
@@ -521,4 +754,5 @@ def system_metadata() -> dict[str, Any]:
         "cpu_count": os.cpu_count(),
         "openvino_version": openvino_version,
         "openvino_module": openvino_path,
+        "onednn_primitive_cache_capacity": onednn_primitive_cache_capacity(),
     }

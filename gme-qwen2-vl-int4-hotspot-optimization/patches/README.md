@@ -132,6 +132,11 @@ pre-vopt 448x448 image/fused 加速 `1.224x/1.226x`。document batch=8 的 INT8
 page_text/page_image/page_fused 加速为 `1.150x/2.714x/2.774x`，INT4 为
 `1.269x/2.796x/2.795x`。
 
+MMDocIR `balanced_200` 的当前 FP32/INT8/INT4 close/open 质量结果见
+[`../../mmdocir_openvino_eval/REPORT.md`](../../mmdocir_openvino_eval/REPORT.md)。INT4
+使用 `ONEDNN_PRIMITIVE_CACHE_CAPACITY=0` 绕过 oneDNN 死锁，因此该 MMDocIR 运行的
+INT4 时间和 throughput 不与其他 precision 做比较。
+
 ## 收益（Intel Panther Lake-P iGPU，gme-Qwen2-VL-2B-Instruct，INT4，GPU）
 
 `bench_ab.sh` 交替 A/B，stock 2026.3 wheel vs 三个 patch 全开，3 轮取中位：

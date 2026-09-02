@@ -10,6 +10,9 @@ PYTHON=${PYTHON:-/home/chaofan/envs/qwen_env/bin/python}
 BATCH_SIZE=${BATCH_SIZE:-1}
 BATCH_PROFILE=${BATCH_PROFILE:-recommended}
 VISUAL_DQ_THRESHOLD=${VISUAL_DQ_THRESHOLD:-}
+# Set to 0 to work around the oneDNN primitive-cache hang; see run_campaign.sh.
+# Must be identical across precisions, otherwise their throughput is not comparable.
+ONEDNN_PRIMITIVE_CACHE_CAPACITY=${ONEDNN_PRIMITIVE_CACHE_CAPACITY:-}
 FULL_DATASET=${FULL_DATASET:-0}
 threshold_suffix=""
 if [[ -n "$VISUAL_DQ_THRESHOLD" ]]; then
@@ -40,6 +43,7 @@ run_precision() {
   BATCH_SIZE="$BATCH_SIZE" \
   BATCH_PROFILE="$BATCH_PROFILE" \
   VISUAL_DQ_THRESHOLD="$VISUAL_DQ_THRESHOLD" \
+  ONEDNN_PRIMITIVE_CACHE_CAPACITY="$ONEDNN_PRIMITIVE_CACHE_CAPACITY" \
   PRECISIONS="$precision" \
   SUBSET_FILE="$SUBSET_FILE" \
   OUTPUT_DIR="$output_dir" \
@@ -59,6 +63,7 @@ PYTHON="$PYTHON" \
 BATCH_SIZE="$BATCH_SIZE" \
 BATCH_PROFILE="$BATCH_PROFILE" \
 VISUAL_DQ_THRESHOLD="$VISUAL_DQ_THRESHOLD" \
+ONEDNN_PRIMITIVE_CACHE_CAPACITY="$ONEDNN_PRIMITIVE_CACHE_CAPACITY" \
 PRECISIONS=fp32,int8_causal_vopt,int4_causal_vopt \
 SUBSET_FILE="$SUBSET_FILE" \
 OUTPUT_DIR="$RESULTS_ROOT/combined" \
