@@ -21,7 +21,7 @@
 | **结果（第六轮，DQ/RMS + image token cap）** | arithmetic mean：DQ reuse 140→112 calls；长序列 RMS→DQ opt-in 在 1024 token **220.28 → 211.63 ms（1.041x）**，129+ token 与 padded batch 对 control 逐位相同。显式 `max_image_tokens=768` 在超宽 logo 上 **1.94x**，MMDocIR `balanced_100` page/layout encoding **1.183x/1.460x**。见 [`docs/13`](docs/13_round6_rms_dq_and_image_token_cap.md) |
 | **结果（第七轮，视觉 MVN→DQ）** | arithmetic mean：INT4 视觉 IR **1.036–1.053x**；public image/fused 端到端 **1.027–1.039x**。63 个 block LayerNorm 融入 DQ，MVN 65→2 calls；四个 grid、真实 public API 和 cache reload 全部 **bit-identical**。见 [`docs/14`](docs/14_round7_visual_mvn_dq_fusion.md) |
 | **结果（第八轮，QKV transpose）** | arithmetic mean：专用 `permute_qkv_headfirst` 让 INT4 visual **1.005–1.020x**、public image/fused **1.004–1.017x**；INT8 visual **1.006–1.020x**。三精度四-grid、golden 和 cache reload 全部 bit-identical。INT8 grouped MVN→DQ 虽逐位正确但回归 1.7–3.7%，否决。见 [`docs/15`](docs/15_round8_qkv_permute_and_int8_grouped_mvn.md) |
-| **结果（第九轮，latest package/runtime final rerun）** | GPU Python public API arithmetic mean：1024-token text/query 为 `253.36/252.94` ms（INT8）、`216.73/217.05` ms（INT4）、`231.18/231.32` ms（gs64）；448x448 image/fused 为 `275.23/277.43`、`242.23/241.77`、`253.20/252.83` ms。visual threshold=0；新增 `int4_visint8` 在 1288x728 fused 触发 `CL_OUT_OF_RESOURCES`，不作为部署候选。完整数据见 [`docs/16`](docs/16_round9_final_rebenchmark.md) |
+| **结果（第十轮，Python-only latest package/runtime rerun）** | GPU Python public API arithmetic mean：1024-token text/query 为 `267.31/266.85` ms（INT8）、`228.18/228.96` ms（INT4）、`241.05/241.44` ms（gs64）；448x448 image/fused 为 `285.68/284.25`、`248.36/248.38`、`259.60/258.55` ms。visual threshold=0；C++ 本轮不测试。完整数据见 [`docs/17`](docs/17_round10_python_final_rebenchmark.md) |
 | **正确性** | text/语言 IR 结果见 §4；image-only 三尺寸 bit-identical；fused 仍可运行但部分尺寸有小幅稳定漂移，见 `docs/04_validation_and_results.md` §4.1c。第三轮 causal 改造在 FP32 上**逐位相同**（含不等长右 padding 批），docs/09 §9.2.5。第四轮 mask-free 视觉塔在 FP32 上**逐位相同**（5 个 grid，`max_abs_diff = 0.0`），docs/11 §11.3.3 |
 | **回归** | 有状态生成式模型 greedy 解码 token id、首步 logits SHA 与 top-8 逐位相同 |
 | **改动** | opt1–5 见 round-7 combined；第八轮另提供增量 `opt6_qkv_headfirst_permute.patch`（4 files）和 opt1–6 combined patch。第六至八轮包含 GPU plugin 与 Python 配置/测量入口 |
@@ -124,7 +124,7 @@ ms/embedding（INT8 causal、INT4 causal、INT4 gs64 causal）；448x448 image
 第五轮 `int8_causal_vopt` 为 260.95/262.29 ms；448x448 image/fused
 初始为 476.69/468.07 ms，最终为 285.13/284.54 ms。
 
-## 当前第九轮 latest package/runtime rerun
+## 历史第九轮 latest package/runtime rerun
 
 第九轮使用当前 package `gme-Qwen2-VL-2B-Instruct`（GME `d3cf918`）和
 OpenVINO `2026.3.0-22455-2080527e54b-qwen-ttft-optimizations`，GPU visual

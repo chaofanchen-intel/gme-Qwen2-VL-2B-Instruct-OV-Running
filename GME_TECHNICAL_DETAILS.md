@@ -2,14 +2,24 @@
 
 本文保留原始运行说明中的技术解释、实验方法、兼容性判断和性能结果。面向需要理解实现边界、复现实验或做部署选型的读者；日常 handoff 操作请先看 [README.md](README.md)，完整性能矩阵请看 [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md)。
 
-**当前状态（第九轮）**：package 默认使用 `int8_causal_vopt`，低延迟推荐使用
+**当前状态（第十轮 Python-only）**：package 默认使用 `int8_causal_vopt`，低延迟推荐使用
 `int4_causal_vopt`，精度优先 INT4 可选 `int4_gs64_causal_vopt`。`_vopt`
 在 mask-free visual 的基础上加入 headfirst 和 rank3；`int8_causal` 也已补齐。
-第四轮至第八轮和第五轮 final 数字仅作为历史对照。当前完整
+第四轮至第九轮和第五轮 final 数字仅作为历史对照。当前 Python-only 完整
 text/query/image/fused/batch 矩阵及 INT8/INT4 baseline 对比见
-[`gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md`](gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md)。
+[`gme-qwen2-vl-int4-hotspot-optimization/docs/17_round10_python_final_rebenchmark.md`](gme-qwen2-vl-int4-hotspot-optimization/docs/17_round10_python_final_rebenchmark.md)。
 
-第九轮 public API 的 baseline→round-9 arithmetic-mean 摘要如下；`text/query` 或
+Round-10 provenance：GME `9ae29bd`、OpenVINO
+`2026.3.0-22455-2080527e54-qwen-ttft-optimizations`、visual threshold `0`、Python
+repeat=5。C++ 本轮按要求不测试。
+
+第十轮的代表性 arithmetic-mean baseline 对比如下：INT8 1024-token text/query
+`296.57/296.01 -> 267.31/266.85 ms`，INT4 `291.443/280.598 -> 228.18/228.96 ms`；
+448x448 image/fused 的 INT8 为 `476.69/468.07 -> 285.68/284.25 ms`，INT4 为
+`296.37/296.43 -> 248.36/248.38 ms`。完整机器可读数据见
+[`baseline_vs_r10_python_comparison.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r10_latest/baseline_vs_r10_python_comparison.json)。
+
+历史第九轮 public API 的 baseline→round-9 arithmetic-mean 摘要如下；`text/query` 或
 `image/fused` 均按该顺序排列，speedup 为 baseline / round-9：
 
 | workload | INT8 baseline → round 9 | INT8 speedup | INT4 baseline → round 9 | INT4 speedup |
@@ -18,9 +28,9 @@ text/query/image/fused/batch 矩阵及 INT8/INT4 baseline 对比见
 | image/fused, 448x448 | 476.69/468.07 → 275.23/277.43 ms | 1.732x/1.687x | pre-vopt 296.37/296.43 → 242.23/241.77 ms | 1.224x/1.226x |
 | image/fused, 1288x728 | 4654.46/4600.58 → 1728.10/1731.73 ms | 2.693x/2.657x | pre-vopt 1800.29/1795.29 → 1618.10/1623.11 ms | 1.113x/1.106x |
 
-document embedding batch=8 的对应 speedup 为 INT8 `page_text/page_image/page_fused`
-的 `1.150x/2.714x/2.774x`，INT4 的 `1.269x/2.796x/2.795x`。原始值和 baseline
-来源统一保存在
+document embedding batch=8 的当前结果中，INT4 fresh r10 的
+`page_text/page_image/page_fused` speedup 为 `1.275x/2.806x/2.796x`；INT8/gs64
+仍使用同 runtime reference。原始值和 baseline 来源统一保存在
 [`baseline_vs_round9_comparison.json`](gme-qwen2-vl-int4-hotspot-optimization/results/r9_latest/baseline_vs_round9_comparison.json)。
 
 MMDocIR `balanced_200` 当前质量结果（FP32/INT8/INT4，close/open，200 queries）见

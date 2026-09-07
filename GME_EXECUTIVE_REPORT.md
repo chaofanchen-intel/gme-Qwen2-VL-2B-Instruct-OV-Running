@@ -3,10 +3,10 @@
 **汇报对象**：项目负责人、组内研发与部署同学  
 **测试环境**：Intel Core Ultra 7 356H / Intel iGPU / 当前 custom OpenVINO core/plugin
 
-**报告范围**：本文以第九轮 latest package/runtime 复测为当前结果，历史 `repeat=20` 和第五轮数据保留作 provenance。
+**报告范围**：本文以第十轮 Python-only latest package/runtime 复测为当前结果，历史 round-9、`repeat=20` 和第五轮数据保留作 provenance；C++ 不纳入本轮性能结论。
 
 **当前 package**：默认 `int8_causal_vopt`；低延迟推荐 `int4_causal_vopt`；精度优先 INT4 可选 `int4_gs64_causal_vopt`。`_vopt` 在 mask-free visual 上加入 headfirst/rank3，旧 masked/vnomask 结果只作历史对照。
-**数据口径**：第九轮 GPU Python public/batch 和 document 结果以 arithmetic mean 为主；完整原始 JSON 与最初 INT8/INT4 baseline 对照见 [round-9 report](gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md)。
+**数据口径**：第十轮 GPU Python public/batch 结果以 arithmetic mean 为主；完整原始 JSON 与最初 INT8/INT4 baseline 对照见 [round-10 report](gme-qwen2-vl-int4-hotspot-optimization/docs/17_round10_python_final_rebenchmark.md)。document 使用同一 runtime/package 的 round-9 last-valid reference。
 
 ---
 
@@ -39,15 +39,30 @@
 
 ### 1.3 关键性能结论
 
-- 当前 round-9 GPU `int8_causal_vopt` 1024-token text/query：`253.36/252.94 ms/call`；`int4_causal_vopt`：`216.73/217.05 ms/call`。
-- 当前 round-9 GPU `448x448` image/fused：INT8 `275.23/277.43 ms/call`；INT4 `242.23/241.77 ms/call`。
-- 相对最初 public INT8 baseline，round-9 在 1024-token text/query 加速 `1.171x/1.170x`，在 448x448 image/fused 加速 `1.732x/1.687x`。
-- document batch=8 相对最初 baseline：INT8 page_text/page_fused 加速 `1.150x/2.774x`；INT4 page_text/page_fused 加速 `1.269x/2.795x`。
+- 当前 round-10 GPU `int8_causal_vopt` 1024-token text/query：`267.31/266.85 ms/call`；`int4_causal_vopt`：`228.18/228.96 ms/call`。
+- 当前 round-10 GPU `448x448` image/fused：INT8 `285.68/284.25 ms/call`；INT4 `248.36/248.38 ms/call`。
+- 相对最初 public baseline，round-10 在 1024-token text/query 的 INT8/INT4 加速为 `1.109x/1.109x` 和 `1.277x/1.226x`；448x448 image/fused 的 INT8/INT4 加速为 `1.669x/1.647x` 和 `1.193x/1.193x`。
+- document batch=8：INT4 fresh r10 的 page_text/page_image/page_fused 相对初始 baseline 加速 `1.275x/2.806x/2.796x`；INT8/gs64 使用同 runtime reference。
 - 图片从 256 visual tokens 增加到 1260 visual tokens，GPU INT8 image 延迟约增加 9.9 倍。
 - 1024 token 文本相对 32 token 明显超线性增长，不能用短文本结果外推长文本 SLA。
 - CPU batch 吞吐主要依靠 `streams="auto"`；GPU batch 吞吐主要依靠 `padded`。
 
-### 1.4 当前第九轮 latest package/runtime rerun（2026-08-29）
+### 1.4 当前第十轮 Python-only latest package/runtime rerun（2026-09-07）
+
+当前 round-10 使用 GME `9ae29bd`、OpenVINO `2026.3.0-22455-2080527e54`、visual
+threshold=0 和 Python repeat=5。代表性结果如下；完整 baseline comparison 见
+[round-10 report](gme-qwen2-vl-int4-hotspot-optimization/docs/17_round10_python_final_rebenchmark.md)。
+
+| workload | INT8 | INT4 causal | INT4 gs64 |
+| --- | ---: | ---: | ---: |
+| text/query, 1024 tokens | 267.31 / 266.85 | **228.18 / 228.96** | 241.05 / 241.44 |
+| image/fused, 448x448 | 285.68 / 284.25 | **248.36 / 248.38** | 259.60 / 258.55 |
+| image/fused, 1288x728 | 1759.95 / 1742.62 | **1647.54 / 1639.14** | 1683.12 / 1671.75 |
+
+Batch=8、`padded + streams=1` 的 INT4 text/query/image/fused 为
+`27.18/29.29/237.45/263.97 ms/embedding`。C++ 没有参与本轮。
+
+### 1.5 历史第九轮 latest package/runtime rerun（2026-08-29）
 
 第九轮使用 OpenVINO `2026.3.0-22455-2080527e54b-qwen-ttft-optimizations`，
 `visual_dynamic_quantization_threshold=0`，并以 arithmetic mean 重新测量四种模式。
@@ -66,7 +81,7 @@ INT4 image 的 `pre-vopt` 是最早保存的完整 arithmetic-mean public 矩阵
 masked INT4 e2e 记录只有 p50，因此没有混入本表。document embedding 的 INT8/INT4
 baseline→round-9 batch=8 对照见 document report。
 
-### 1.5 MMDocIR balanced_200 质量检查（2026-09-02）
+### 1.6 MMDocIR balanced_200 质量检查（2026-09-02）
 
 MMDocIR `balanced_200` 已完成 FP32、INT8、INT4 的 close/open 质量评测，覆盖
 200 queries、34 documents、607 pages 和 7,956 layouts。相对 FP32，INT8 的 page
@@ -78,7 +93,7 @@ INT4 为绕过 oneDNN primitive-cache 死锁使用了
 运行时间、throughput 或 speedup。完整质量表见
 [MMDocIR REPORT](mmdocir_openvino_eval/REPORT.md)。
 
-### 1.6 MMDocIR full INT4 质量检查（2026-09-05）
+### 1.7 MMDocIR full INT4 质量检查（2026-09-05）
 
 完整 1,658-query Evaluation set 的 `int4_causal_vopt` 已完成 close/open 评测：
 page Recall@5 为 `0.8086/0.5957`，layout Recall@5 为 `0.5248/0.3987`（close/open）。
@@ -86,7 +101,7 @@ Layout 聚合基于 1,657 个可计算 query；数据集唯一的零面积 groun
 （query 700）被透明排除并写入 summary。full FP32/INT8 尚未完成，因此该结果不用于
 full-set precision delta；详细结果见 [MMDocIR REPORT](mmdocir_openvino_eval/REPORT.md)。
 
-### 1.7 历史第五轮 final rerun（2026-08-27）
+### 1.8 历史第五轮 final rerun（2026-08-27）
 
 当前结果来自 `benchmark/openvino/bin/intel64/Release` 的 matching custom Python
 binding/core/plugin，版本为 `2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`。

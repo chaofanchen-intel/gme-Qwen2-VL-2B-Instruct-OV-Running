@@ -9,33 +9,38 @@
 plugin patch 和 bit-identical 回归验证，见
 [gme-qwen2-vl-int4-hotspot-optimization/README.md](./gme-qwen2-vl-int4-hotspot-optimization/README.md)。
 
-当前交付 package 已完成第九轮 latest package/runtime 复测。默认 precision key 是
+当前交付 package 已完成第十轮 Python-only latest package/runtime 复测。默认 precision key 是
 `int8_causal_vopt`（near-lossless），低延迟推荐是 `int4_causal_vopt`；
 精度优先的 INT4 可选 `int4_gs64_causal_vopt`。`_vopt` 在第四轮 mask-free
 visual 的基础上加入 headfirst Q/K/V 布局和整塔 rank-3 输入，让既有 opt-3
-命中视觉 `mlp.fc1`；第五轮还补上了此前漏掉的 `int8_causal`。第九轮使用
+命中视觉 `mlp.fc1`；第五轮还补上了此前漏掉的 `int8_causal`。历史第九轮使用
 `visual_dynamic_quantization_threshold=0`，当前 fresh GPU 矩阵、初始 stock
 baseline 和 document embedding 结果见
 [gme-qwen2-vl-int4-hotspot-optimization/results/README.md](./gme-qwen2-vl-int4-hotspot-optimization/results/README.md)
 以及 [document_embedding_eval_int8_int4_gpu/REPORT.md](./document_embedding_eval_int8_int4_gpu/REPORT.md)。
-统一的 INT8/INT4 baseline→round-9 arithmetic-mean 对比见
-[baseline_vs_round9_comparison.json](gme-qwen2-vl-int4-hotspot-optimization/results/r9_latest/baseline_vs_round9_comparison.json)
-和 [第九轮完整报告](gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md)。
+历史 round-9 对比见
+[baseline_vs_round9_comparison.json](gme-qwen2-vl-int4-hotspot-optimization/results/r9_latest/baseline_vs_round9_comparison.json)。当前 round-10
+Python-only 对比见
+[baseline_vs_r10_python_comparison.json](gme-qwen2-vl-int4-hotspot-optimization/results/r10_latest/baseline_vs_r10_python_comparison.json)
+和 [第十轮完整报告](gme-qwen2-vl-int4-hotspot-optimization/docs/17_round10_python_final_rebenchmark.md)。
 
-第九轮 GPU Python public API 的代表性累计优化效果如下。格式为
-`text/query` 或 `image/fused` 的 ms/call；括号内为 baseline / round-9 speedup：
+第十轮 GPU Python public API 的代表性累计优化效果如下。格式为
+`text/query` 或 `image/fused` 的 ms/call；括号内为 initial stock / round-10 speedup：
 
-| workload | INT8 baseline → round 9 | INT4 baseline → round 9 |
+| workload | INT8 baseline → round 10 | INT4 baseline → round 10 |
 | --- | ---: | ---: |
-| text/query, 1024 tokens | 296.57/296.01 → 253.36/252.94 (1.171x/1.170x) | 291.443/280.598 → 216.73/217.05 (1.345x/1.293x) |
-| image/fused, 448x448 | 476.69/468.07 → 275.23/277.43 (1.732x/1.687x) | 296.37/296.43 → 242.23/241.77 (1.224x/1.226x) |
-| image/fused, 1288x728 | 4654.46/4600.58 → 1728.10/1731.73 (2.693x/2.657x) | 1800.29/1795.29 → 1618.10/1623.11 (1.113x/1.106x) |
+| text/query, 1024 tokens | 296.57/296.01 → 267.31/266.85 (1.109x/1.109x) | 291.443/280.598 → 228.18/228.96 (1.277x/1.226x) |
+| image/fused, 448x448 | 476.69/468.07 → 285.68/284.25 (1.669x/1.647x) | 296.37/296.43 → 248.36/248.38 (1.193x/1.193x) |
+| image/fused, 1288x728 | 4654.46/4600.58 → 1759.95/1742.62 (2.645x/2.640x) | 1800.29/1795.29 → 1647.54/1639.14 (1.093x/1.095x) |
 
-document embedding batch=8 相对最初 baseline 的 arithmetic-mean speedup 为：INT8
-`page_text/page_image/page_fused = 1.150x/2.714x/2.774x`，INT4
-`1.269x/2.796x/2.795x`；四种表示的完整 baseline→round-9 表见
-[document embedding 报告](document_embedding_eval_int8_int4_gpu/REPORT.md) 和
-[统一 comparison artifact](gme-qwen2-vl-int4-hotspot-optimization/results/r9_latest/baseline_vs_round9_comparison.json)。
+document embedding batch=8 的当前 Python 结果为：INT8/INT4 causal/INT4 gs64 的
+`page_text` 分别为 `494.103/435.708/490.767 ms`，`page_image` 分别为
+`25235.720/24171.267/24641.368 ms`。INT4 causal 是本轮 fresh r10 document 测量，
+相对初始 baseline 的 page_text/page_image/page_fused speedup 为
+`1.275x/2.806x/2.796x`；INT8/gs64 仍是同 runtime reference。口径和来源见
+[第十轮报告](gme-qwen2-vl-int4-hotspot-optimization/docs/17_round10_python_final_rebenchmark.md)。
+
+本轮只测试 Python API；C++ binary 没有重编、没有测试，也不参与 latest 性能结论。
 
 MMDocIR `balanced_200` 已完成 FP32/INT8/INT4 的 close/open 质量评测；INT8 的 page
 指标最接近 FP32，INT4 的 layout Recall@5 下降约 3.35/3.83 percentage points。

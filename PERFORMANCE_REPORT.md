@@ -1,14 +1,15 @@
 # GME-Qwen2-VL-2B-Instruct OpenVINO 性能测试报告
 
-**状态：当前第九轮 latest package/runtime 结果已完成，历史主表保留。** 本文件后面的原有章节是
+**状态：当前第十轮 Python-only latest package/runtime 结果已完成，历史主表保留。** 本文件后面的原有章节是
 2026-08-03 的 repeat=20 历史矩阵，使用旧的普通/masked visual precision；它们
 仍可用于 workload 对照，但不代表当前 package 默认值。当前结果使用
 `int8_causal_vopt`、`int4_causal_vopt` 和 `int4_gs64_causal_vopt`，主要统计按
 mean 解读，原始 JSON 见
 [`gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md`](gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md)。
 
-document embedding 的最新三 precision 结果见
-[`document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round9_vopt_vdq0_20260829.json`](document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round9_vopt_vdq0_20260829.json)。
+document embedding 的 INT4 fresh r10 结果见
+[`document_embedding_eval_int8_int4_gpu/results/benchmark_gme_r10_int4_vopt_vdq0_20260907.json`](document_embedding_eval_int8_int4_gpu/results/benchmark_gme_r10_int4_vopt_vdq0_20260907.json)；INT8/INT4-gs64 继续引用
+[`document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round9_vopt_vdq0_20260829.json`](document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round9_vopt_vdq0_20260829.json) 的同 runtime reference。
 MMDocIR `balanced_200` 的当前质量结果见
 [`mmdocir_openvino_eval/REPORT.md`](mmdocir_openvino_eval/REPORT.md)；INT4 因
 `ONEDNN_PRIMITIVE_CACHE_CAPACITY=0` workaround 导致耗时不可与 FP32/INT8 横向比较。
@@ -21,7 +22,22 @@ MMDocIR `balanced_200` 的当前质量结果见
 本报告与 `GME_TECHNICAL_DETAILS.md` §9.1–§9.3 的关系：技术说明记录**固定参考 workload** 的历史结果（用于回归对比）；本报告覆盖
 **部署选型真正需要的维度**——指定 token 长度的文本、常见分辨率的图片、以及 batch 扩展性。
 
-## 当前第九轮 latest package/runtime rerun（2026-08-29）
+## 当前第十轮 Python-only latest package/runtime rerun（2026-09-07）
+
+完整 Python-only 矩阵、batch、cosine 和 baseline 对比见
+[`docs/17_round10_python_final_rebenchmark.md`](gme-qwen2-vl-int4-hotspot-optimization/docs/17_round10_python_final_rebenchmark.md)。
+本轮不纳入 C++。
+
+| workload | `int8_causal_vopt` | `int4_causal_vopt` | `int4_gs64_causal_vopt` |
+| --- | ---: | ---: | ---: |
+| text/query, 1024 tokens (ms/call) | 267.31 / 266.85 | **228.18 / 228.96** | 241.05 / 241.44 |
+| image/fused, 448x448 (ms/call) | 285.68 / 284.25 | **248.36 / 248.38** | 259.60 / 258.55 |
+| image/fused, 1288x728 (ms/call) | 1759.95 / 1742.62 | **1647.54 / 1639.14** | 1683.12 / 1671.75 |
+
+Batch=8、`padded + streams=1` 的 INT4 text/query/image/fused 为
+`27.18/29.29/237.45/263.97 ms/embedding`。
+
+## 历史第九轮 latest package/runtime rerun（2026-08-29）
 
 完整矩阵、batch、FP32 cosine、document embedding 和 MMDocIR balanced_200 质量结果见
 [`docs/16_round9_final_rebenchmark.md`](gme-qwen2-vl-int4-hotspot-optimization/docs/16_round9_final_rebenchmark.md)。

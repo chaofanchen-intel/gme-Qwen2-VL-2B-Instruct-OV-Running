@@ -1,6 +1,6 @@
 # GME hotspot results
 
-## 当前第九轮 latest package/runtime rerun：`r9_latest/`
+## 当前第十轮 Python-only latest package/runtime rerun：`r10_latest/`
 
 这是当前 package 的 GPU/Python 重测，使用同源 custom OpenVINO
 core/plugin/Python binding：`2026.3.0-22455-2080527e54b-qwen-ttft-optimizations`。
@@ -18,33 +18,34 @@ core/plugin/Python binding：`2026.3.0-22455-2080527e54b-qwen-ttft-optimizations
 | `benchmark_batch_int4_causal_vopt_vdq0.json` | INT4 causal vopt 的四模式 batch 矩阵 |
 | `benchmark_batch_int4_gs64_causal_vopt_vdq0.json` | gs64 causal vopt 的四模式 batch 矩阵 |
 | `profile_gme_image_int8_causal_vopt_vdq0.json` / `profile_gme_image_int4_causal_vopt_vdq0.json` | 最新 image/fused stage split |
-| `baseline_vs_round9_comparison.json` | 最初 baseline 到 round-9 的统一 arithmetic-mean 对比 |
+| `baseline_vs_r10_python_comparison.json` | 最初 baseline 到 round-10 的 Python-only arithmetic-mean 对比 |
 
 最初未优化 stock 对照不重新运行，直接使用统一 comparison artifact：
-[`baseline_vs_round9_comparison.json`](baseline_vs_round9_comparison.json)。其来源包括
+[`baseline_vs_r10_python_comparison.json`](baseline_vs_r10_python_comparison.json)。其来源包括
 [`../../artifacts/benchmark_matrix_fresh_r1.json`](../../artifacts/benchmark_matrix_fresh_r1.json)
 （初始 INT8 text/image/batch 矩阵）、`base_ops_int4_1024.json`（初始 INT4
 language profiling）和 `r4_20260826/vis_base_int4_*.json`（初始 INT4 visual
 profiling）。document 四表示的初始 INT8/INT4 baseline 见
 [`../../document_embedding_eval_int8_int4_gpu/results/document_embedding_benchmark_before_optimized.json`](../../document_embedding_eval_int8_int4_gpu/results/document_embedding_benchmark_before_optimized.json)。
 
-### Public API baseline -> round-9（arithmetic mean）
+### Public API baseline -> round-10（arithmetic mean）
 
-| workload | INT8 baseline -> round 9 | INT8 speedup | INT4 baseline -> round 9 | INT4 speedup |
+| workload | INT8 baseline -> round 10 | INT8 speedup | INT4 baseline -> round 10 | INT4 speedup |
 | --- | ---: | ---: | ---: | ---: |
-| text/query, 1024 tokens | 296.57/296.01 -> 253.36/252.94 ms | 1.171x/1.170x | 291.443/280.598 -> 216.73/217.05 ms | 1.345x/1.293x |
-| image/fused, 448x448 | 476.69/468.07 -> 275.23/277.43 ms | 1.732x/1.687x | pre-vopt 296.37/296.43 -> 242.23/241.77 ms | 1.224x/1.226x |
-| image/fused, 1288x728 | 4654.46/4600.58 -> 1728.10/1731.73 ms | 2.693x/2.657x | pre-vopt 1800.29/1795.29 -> 1618.10/1623.11 ms | 1.113x/1.106x |
+| text/query, 1024 tokens | 296.57/296.01 -> 267.31/266.85 ms | 1.109x/1.109x | 291.443/280.598 -> 228.18/228.96 ms | 1.277x/1.226x |
+| image/fused, 448x448 | 476.69/468.07 -> 285.68/284.25 ms | 1.669x/1.647x | pre-vopt 296.37/296.43 -> 248.36/248.38 ms | 1.193x/1.193x |
+| image/fused, 1288x728 | 4654.46/4600.58 -> 1759.95/1742.62 ms | 2.645x/2.640x | pre-vopt 1800.29/1795.29 -> 1647.54/1639.14 ms | 1.093x/1.095x |
 
 N=8、128-token、GPU `padded + streams=1` 的 text/query ms/embedding 为
-`31.23/33.27`（INT8）、`26.46/28.35`（INT4）、`28.28/31.90`（gs64）。
+`31.63/33.62`（INT8）、`27.18/29.29`（INT4）、`28.70/32.23`（gs64）。
 INT4 image 的 baseline 是最早保存的完整 arithmetic-mean `pre-vopt` 矩阵；绝对最初
 masked INT4 image/fused 记录只有 p50，不混入本表。
 
-document embedding 的最新三 precision 结果见
-[`../../document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round9_vopt_vdq0_20260829.json`](../../document_embedding_eval_int8_int4_gpu/results/benchmark_gme_round9_vopt_vdq0_20260829.json)。batch=8 相对初始 document baseline 的 speedup 为：
-INT8 `page_text/page_image/page_fused = 1.150x/2.714x/2.774x`，INT4
-`1.269x/2.796x/2.795x`；完整四表示对照见 comparison artifact。
+document embedding 的当前结果见
+[`../../document_embedding_eval_int8_int4_gpu/results/benchmark_gme_r10_int4_vopt_vdq0_20260907.json`](../../document_embedding_eval_int8_int4_gpu/results/benchmark_gme_r10_int4_vopt_vdq0_20260907.json)
+（fresh INT4）以及 round-9 threshold=0 reference（INT8/gs64）。batch=8 相对初始
+document baseline 的 INT4 speedup 为 `page_text/page_image/page_fused = 1.275x/2.806x/2.796x`；
+完整四表示对照见 comparison artifact。
 
 MMDocIR `balanced_200` 的当前 FP32/INT8/INT4 close/open 质量结果见
 [`../../mmdocir_openvino_eval/REPORT.md`](../../mmdocir_openvino_eval/REPORT.md)。INT4

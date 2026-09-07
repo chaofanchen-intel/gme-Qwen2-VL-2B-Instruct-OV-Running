@@ -1,8 +1,39 @@
 # GME 文档 Embedding 评测报告：latest causal / visual optimized
 
-## 当前第九轮 final（2026-08-29）
+## 当前 Python latest 口径（2026-09-07）
 
-当前主结果是
+本轮 public/batch 性能只纳入 Python API，C++ 不测试。当前 GME commit 相对 round-9
+只增加 MMDocIR evaluator/cache/resume 和文档改动，没有改变 `gme_openvino.py`、package
+IR/config 或 OpenVINO plugin。dedicated INT4 document Python run 已完成，INT8 和
+INT4-gs64 继续使用 threshold=0 的同 runtime round-9 reference；generic stale
+`benchmark.json` 不纳入结论。
+
+Python public/batch 的当前 r10 结果和初始 baseline 对照见
+[`../gme-qwen2-vl-int4-hotspot-optimization/docs/17_round10_python_final_rebenchmark.md`](../gme-qwen2-vl-int4-hotspot-optimization/docs/17_round10_python_final_rebenchmark.md)。
+这不影响下面 same-runtime document reference 的有效性；它仍使用 threshold=0、相同
+package 和相同 plugin。
+
+## 当前 document batch=8 结果（2026-09-07）
+
+| representation | INT8 reference | INT4 causal r10 | INT4 gs64 reference |
+| --- | ---: | ---: | ---: |
+| page_text | 494.103 | 435.708 | 490.767 |
+| text_chunk_256 | 494.869 | 438.270 | - |
+| page_image_150 | 25235.720 | 24171.267 | 24641.368 |
+| page_fused_150 | 25651.721 | 24661.086 | 25130.626 |
+
+INT4 r10 结果来自
+[`benchmark_gme_r10_int4_vopt_vdq0_20260907.json`](results/benchmark_gme_r10_int4_vopt_vdq0_20260907.json)。
+相对最初 INT4 document baseline，batch=8 speedup 为 page_text `1.275x`、
+text_chunk `1.265x`、page_image `2.806x`、page_fused `2.796x`。INT8/gs64 数字是
+同一 package/runtime 的 round-9 threshold=0 reference，不能误称为本轮新测量。
+
+质量 probe 与 round-9 保持一致：INT4 page_text/page_image/page_fused 的 MRR 为
+`0.3996/0.5193/0.4464`。
+
+## Same-runtime document reference: round-9（2026-08-29）
+
+当前 document reference 是
 [`benchmark_gme_round9_vopt_vdq0_20260829.json`](results/benchmark_gme_round9_vopt_vdq0_20260829.json)。
 它使用最新 custom OpenVINO runtime、package 当前配置和
 `VISUAL_DQ_THRESHOLD=0`；三档正式 precision 的完整 mean latency、质量 probe
@@ -15,12 +46,12 @@
 [`document_embedding_benchmark_before_optimized.json`](results/document_embedding_benchmark_before_optimized.json)，
 round-9 来自上面的结果文件；speedup = baseline / round-9。
 
-| representation | INT8 baseline -> round 9 | INT8 speedup | INT4 baseline -> round 9 | INT4 speedup |
+| representation | INT8 baseline -> reference | INT8 speedup | INT4 baseline -> r10 | INT4 speedup |
 | --- | ---: | ---: | ---: | ---: |
-| page_text | 568.104 -> 494.103 ms | 1.150x (-13.03%) | 555.459 -> 437.855 ms | 1.269x (-21.17%) |
-| text_chunk_256 | 568.450 -> 494.869 ms | 1.149x (-12.94%) | 554.420 -> 435.908 ms | 1.272x (-21.38%) |
-| page_image_150 | 68482.061 -> 25235.720 ms | 2.714x (-63.15%) | 67823.817 -> 24254.520 ms | 2.796x (-64.24%) |
-| page_fused_150 | 71149.129 -> 25651.721 ms | 2.774x (-63.95%) | 68941.041 -> 24666.638 ms | 2.795x (-64.22%) |
+| page_text | 568.104 -> 494.103 ms | 1.150x (-13.03%) | 555.459 -> 435.708 ms | 1.275x (-21.56%) |
+| text_chunk_256 | 568.450 -> 494.869 ms | 1.149x (-12.94%) | 554.420 -> 438.270 ms | 1.265x (-20.95%) |
+| page_image_150 | 68482.061 -> 25235.720 ms | 2.714x (-63.15%) | 67823.817 -> 24171.267 ms | 2.806x (-64.36%) |
+| page_fused_150 | 71149.129 -> 25651.721 ms | 2.774x (-63.95%) | 68941.041 -> 24661.086 ms | 2.796x (-64.23%) |
 
 对应质量 probe：INT8 的 page_text/page_image R@1/3/5 保持不变，page_fused MRR
 为 `0.4568 -> 0.4506`；INT4 的 page_text R@3/MRR 为 `0.625/0.4100 ->

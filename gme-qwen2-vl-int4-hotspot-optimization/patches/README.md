@@ -120,7 +120,11 @@ opt-5 同样只在 visual compile 显式设置 threshold=0 时触发。Python ru
 第九轮使用当前 package/runtime 做了完整 public API、batch、FP32 cosine 和 document
 embedding 复测；`visual_dynamic_quantization_threshold=0` 的透传、MMDocIR cache
 identity 和结果摘要见 [`../docs/16_round9_final_rebenchmark.md`](../docs/16_round9_final_rebenchmark.md)。
-当前 formal 三 precision 的性能表只引用 round-9 arithmetic mean；新增的
+第十轮在同一 patch runtime 上补做了 Python-only public、batch 和 cosine rebenchmark；
+C++ 按要求不纳入。最新表和初始 stock 对照见
+[`../docs/17_round10_python_final_rebenchmark.md`](../docs/17_round10_python_final_rebenchmark.md)，
+机器可读对照见 [`../results/r10_latest/baseline_vs_r10_python_comparison.json`](../results/r10_latest/baseline_vs_r10_python_comparison.json)。
+当前 formal 三 precision 的性能表只引用 round-10 arithmetic mean；新增的
 `int4_causal_vnomask_qkvfused`/`int4_visint8` 只完成 smoke，其中后者的大图 fused
 路径触发 `CL_OUT_OF_RESOURCES`，不作为 accepted deployment precision。
 

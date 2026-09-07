@@ -1,0 +1,521 @@
+{
+  "unit": "ms, warm, end-to-end per call (tokenize/preprocess + inference), excludes load/compile",
+  "repeat": 5,
+  "config": {
+    "devices": [
+      "GPU"
+    ],
+    "precisions": [
+      "int8_causal_vopt",
+      "int4_causal_vopt",
+      "int4_gs64_causal_vopt"
+    ],
+    "backends": [
+      "python"
+    ],
+    "instruction": "Find an image that matches the given text.",
+    "repeat": 5,
+    "text_lengths": [
+      32,
+      128,
+      512,
+      1024
+    ],
+    "image_sizes": [
+      "448x448",
+      "672x672",
+      "1288x728"
+    ],
+    "include_logo": false,
+    "batch_sizes": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32
+    ],
+    "image_batch_sizes": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "batch_modes": [
+      "per_sample",
+      "padded"
+    ],
+    "streams": [
+      1,
+      "auto"
+    ],
+    "batch_precision": "int8_causal_vopt",
+    "batch_text_length": 128,
+    "visual_dq_threshold": 0
+  },
+  "workloads": {
+    "texts": {
+      "32": {
+        "text": {
+          "raw_text": "a a a a a a a a a a a a",
+          "raw_text_chars": 23,
+          "sequence_tokens": 32
+        },
+        "query": {
+          "raw_text": "a a a a a a a a a",
+          "raw_text_chars": 17,
+          "instruction": "Find an image that matches the given text.",
+          "sequence_tokens": 32
+        }
+      },
+      "128": {
+        "text": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 215,
+          "sequence_tokens": 128
+        },
+        "query": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 209,
+          "instruction": "Find an image that matches the given text.",
+          "sequence_tokens": 128
+        }
+      },
+      "512": {
+        "text": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 983,
+          "sequence_tokens": 512
+        },
+        "query": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 977,
+          "instruction": "Find an image that matches the given text.",
+          "sequence_tokens": 512
+        }
+      },
+      "1024": {
+        "text": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 2007,
+          "sequence_tokens": 1024
+        },
+        "query": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 2001,
+          "instruction": "Find an image that matches the given text.",
+          "sequence_tokens": 1024
+        }
+      }
+    },
+    "images": {
+      "448x448": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/r10_latest/benchmarks/bench_images/bench_448x448.png",
+        "image": {
+          "file": "bench_448x448.png",
+          "source_size_wh": [
+            448,
+            448
+          ],
+          "processor_size_wh": [
+            448,
+            448
+          ],
+          "image_grid_thw": [
+            1,
+            32,
+            32
+          ],
+          "raw_patch_rows": 1024,
+          "visual_tokens": 256,
+          "sequence_tokens": 278
+        },
+        "fused": {
+          "file": "bench_448x448.png",
+          "source_size_wh": [
+            448,
+            448
+          ],
+          "processor_size_wh": [
+            448,
+            448
+          ],
+          "image_grid_thw": [
+            1,
+            32,
+            32
+          ],
+          "raw_patch_rows": 1024,
+          "visual_tokens": 256,
+          "sequence_tokens": 290
+        }
+      },
+      "672x672": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/r10_latest/benchmarks/bench_images/bench_672x672.png",
+        "image": {
+          "file": "bench_672x672.png",
+          "source_size_wh": [
+            672,
+            672
+          ],
+          "processor_size_wh": [
+            672,
+            672
+          ],
+          "image_grid_thw": [
+            1,
+            48,
+            48
+          ],
+          "raw_patch_rows": 2304,
+          "visual_tokens": 576,
+          "sequence_tokens": 598
+        },
+        "fused": {
+          "file": "bench_672x672.png",
+          "source_size_wh": [
+            672,
+            672
+          ],
+          "processor_size_wh": [
+            672,
+            672
+          ],
+          "image_grid_thw": [
+            1,
+            48,
+            48
+          ],
+          "raw_patch_rows": 2304,
+          "visual_tokens": 576,
+          "sequence_tokens": 610
+        }
+      },
+      "1288x728": {
+        "path": "/home/chaofan/model_benchmark/gme-Qwen2-VL-2B-Instruct-Running/gme-qwen2-vl-int4-hotspot-optimization/results/r10_latest/benchmarks/bench_images/bench_1288x728.png",
+        "image": {
+          "file": "bench_1288x728.png",
+          "source_size_wh": [
+            1288,
+            728
+          ],
+          "processor_size_wh": [
+            1288,
+            728
+          ],
+          "image_grid_thw": [
+            1,
+            52,
+            92
+          ],
+          "raw_patch_rows": 4784,
+          "visual_tokens": 1196,
+          "sequence_tokens": 1218
+        },
+        "fused": {
+          "file": "bench_1288x728.png",
+          "source_size_wh": [
+            1288,
+            728
+          ],
+          "processor_size_wh": [
+            1288,
+            728
+          ],
+          "image_grid_thw": [
+            1,
+            52,
+            92
+          ],
+          "raw_patch_rows": 4784,
+          "visual_tokens": 1196,
+          "sequence_tokens": 1230
+        }
+      }
+    },
+    "note": "sequence_tokens is the effective unpadded length after GME templating, including the expanded image-pad run; visual_tokens is grid_t*grid_h*grid_w/4"
+  },
+  "suites": {
+    "latency": {
+      "text_length": "32",
+      "image_size": "448x448",
+      "batch": 1,
+      "cells": {
+        "python/GPU/int8_causal_vopt": {
+          "text": {
+            "ms_per_call": 46.03,
+            "ms_per_embedding": 46.03
+          },
+          "query": {
+            "ms_per_call": 46.11,
+            "ms_per_embedding": 46.11
+          },
+          "image": {
+            "ms_per_call": 286.3,
+            "ms_per_embedding": 286.3
+          },
+          "fused": {
+            "ms_per_call": 284.58,
+            "ms_per_embedding": 284.58
+          }
+        },
+        "python/GPU/int4_causal_vopt": {
+          "text": {
+            "ms_per_call": 33.01,
+            "ms_per_embedding": 33.01
+          },
+          "query": {
+            "ms_per_call": 32.82,
+            "ms_per_embedding": 32.82
+          },
+          "image": {
+            "ms_per_call": 249.67,
+            "ms_per_embedding": 249.67
+          },
+          "fused": {
+            "ms_per_call": 249.11,
+            "ms_per_embedding": 249.11
+          }
+        },
+        "python/GPU/int4_gs64_causal_vopt": {
+          "text": {
+            "ms_per_call": 37.91,
+            "ms_per_embedding": 37.91
+          },
+          "query": {
+            "ms_per_call": 37.92,
+            "ms_per_embedding": 37.92
+          },
+          "image": {
+            "ms_per_call": 262.56,
+            "ms_per_embedding": 262.56
+          },
+          "fused": {
+            "ms_per_call": 261.1,
+            "ms_per_embedding": 261.1
+          }
+        }
+      }
+    },
+    "text-lengths": {
+      "batch": 1,
+      "cells": {
+        "python/GPU/int8_causal_vopt/32tok": {
+          "text": {
+            "ms_per_call": 44.91,
+            "ms_per_embedding": 44.91
+          },
+          "query": {
+            "ms_per_call": 44.92,
+            "ms_per_embedding": 44.92
+          }
+        },
+        "python/GPU/int4_causal_vopt/32tok": {
+          "text": {
+            "ms_per_call": 33.19,
+            "ms_per_embedding": 33.19
+          },
+          "query": {
+            "ms_per_call": 33.18,
+            "ms_per_embedding": 33.18
+          }
+        },
+        "python/GPU/int4_gs64_causal_vopt/32tok": {
+          "text": {
+            "ms_per_call": 37.52,
+            "ms_per_embedding": 37.52
+          },
+          "query": {
+            "ms_per_call": 37.86,
+            "ms_per_embedding": 37.86
+          }
+        },
+        "python/GPU/int8_causal_vopt/128tok": {
+          "text": {
+            "ms_per_call": 55.93,
+            "ms_per_embedding": 55.93
+          },
+          "query": {
+            "ms_per_call": 55.75,
+            "ms_per_embedding": 55.75
+          }
+        },
+        "python/GPU/int4_causal_vopt/128tok": {
+          "text": {
+            "ms_per_call": 43.55,
+            "ms_per_embedding": 43.55
+          },
+          "query": {
+            "ms_per_call": 43.36,
+            "ms_per_embedding": 43.36
+          }
+        },
+        "python/GPU/int4_gs64_causal_vopt/128tok": {
+          "text": {
+            "ms_per_call": 44.64,
+            "ms_per_embedding": 44.64
+          },
+          "query": {
+            "ms_per_call": 44.83,
+            "ms_per_embedding": 44.83
+          }
+        },
+        "python/GPU/int8_causal_vopt/512tok": {
+          "text": {
+            "ms_per_call": 129.94,
+            "ms_per_embedding": 129.94
+          },
+          "query": {
+            "ms_per_call": 130.1,
+            "ms_per_embedding": 130.1
+          }
+        },
+        "python/GPU/int4_causal_vopt/512tok": {
+          "text": {
+            "ms_per_call": 120.87,
+            "ms_per_embedding": 120.87
+          },
+          "query": {
+            "ms_per_call": 120.23,
+            "ms_per_embedding": 120.23
+          }
+        },
+        "python/GPU/int4_gs64_causal_vopt/512tok": {
+          "text": {
+            "ms_per_call": 139.83,
+            "ms_per_embedding": 139.83
+          },
+          "query": {
+            "ms_per_call": 139.91,
+            "ms_per_embedding": 139.91
+          }
+        },
+        "python/GPU/int8_causal_vopt/1024tok": {
+          "text": {
+            "ms_per_call": 267.31,
+            "ms_per_embedding": 267.31
+          },
+          "query": {
+            "ms_per_call": 266.85,
+            "ms_per_embedding": 266.85
+          }
+        },
+        "python/GPU/int4_causal_vopt/1024tok": {
+          "text": {
+            "ms_per_call": 228.18,
+            "ms_per_embedding": 228.18
+          },
+          "query": {
+            "ms_per_call": 228.96,
+            "ms_per_embedding": 228.96
+          }
+        },
+        "python/GPU/int4_gs64_causal_vopt/1024tok": {
+          "text": {
+            "ms_per_call": 241.05,
+            "ms_per_embedding": 241.05
+          },
+          "query": {
+            "ms_per_call": 241.44,
+            "ms_per_embedding": 241.44
+          }
+        }
+      }
+    },
+    "image-sizes": {
+      "batch": 1,
+      "cells": {
+        "python/GPU/int8_causal_vopt/448x448(256vt)": {
+          "image": {
+            "ms_per_call": 285.68,
+            "ms_per_embedding": 285.68
+          },
+          "fused": {
+            "ms_per_call": 284.25,
+            "ms_per_embedding": 284.25
+          }
+        },
+        "python/GPU/int4_causal_vopt/448x448(256vt)": {
+          "image": {
+            "ms_per_call": 248.36,
+            "ms_per_embedding": 248.36
+          },
+          "fused": {
+            "ms_per_call": 248.38,
+            "ms_per_embedding": 248.38
+          }
+        },
+        "python/GPU/int4_gs64_causal_vopt/448x448(256vt)": {
+          "image": {
+            "ms_per_call": 259.6,
+            "ms_per_embedding": 259.6
+          },
+          "fused": {
+            "ms_per_call": 258.55,
+            "ms_per_embedding": 258.55
+          }
+        },
+        "python/GPU/int8_causal_vopt/672x672(576vt)": {
+          "image": {
+            "ms_per_call": 677.06,
+            "ms_per_embedding": 677.06
+          },
+          "fused": {
+            "ms_per_call": 723.51,
+            "ms_per_embedding": 723.51
+          }
+        },
+        "python/GPU/int4_causal_vopt/672x672(576vt)": {
+          "image": {
+            "ms_per_call": 602.19,
+            "ms_per_embedding": 602.19
+          },
+          "fused": {
+            "ms_per_call": 600.55,
+            "ms_per_embedding": 600.55
+          }
+        },
+        "python/GPU/int4_gs64_causal_vopt/672x672(576vt)": {
+          "image": {
+            "ms_per_call": 621.93,
+            "ms_per_embedding": 621.93
+          },
+          "fused": {
+            "ms_per_call": 620.96,
+            "ms_per_embedding": 620.96
+          }
+        },
+        "python/GPU/int8_causal_vopt/1288x728(1196vt)": {
+          "image": {
+            "ms_per_call": 1759.95,
+            "ms_per_embedding": 1759.95
+          },
+          "fused": {
+            "ms_per_call": 1742.62,
+            "ms_per_embedding": 1742.62
+          }
+        },
+        "python/GPU/int4_causal_vopt/1288x728(1196vt)": {
+          "image": {
+            "ms_per_call": 1647.54,
+            "ms_per_embedding": 1647.54
+          },
+          "fused": {
+            "ms_per_call": 1639.14,
+            "ms_per_embedding": 1639.14
+          }
+        },
+        "python/GPU/int4_gs64_causal_vopt/1288x728(1196vt)": {
+          "image": {
+            "ms_per_call": 1683.12,
+            "ms_per_embedding": 1683.12
+          },
+          "fused": {
+            "ms_per_call": 1671.75,
+            "ms_per_embedding": 1671.75
+          }
+        }
+      }
+    }
+  }
+}
