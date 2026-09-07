@@ -51,6 +51,11 @@ def _area(bbox: BBox) -> float:
     return max(0.0, bbox[2] - bbox[0]) * max(0.0, bbox[3] - bbox[1])
 
 
+def layout_ground_truth_area(ground_truth: Sequence[LayoutCandidate]) -> float:
+    """Return the total evaluable area of a query's ground-truth layouts."""
+    return sum(_area(target.bbox) for target in ground_truth)
+
+
 def _layout_gain(candidate: LayoutCandidate, ground_truth: Sequence[LayoutCandidate]) -> float:
     return sum(
         intersection_area(candidate.bbox, target.bbox)
@@ -74,7 +79,7 @@ def layout_metrics(
     """
     if not ground_truth:
         raise ValueError("a query must have at least one relevant layout")
-    ground_truth_area = sum(_area(target.bbox) for target in ground_truth)
+    ground_truth_area = layout_ground_truth_area(ground_truth)
     if ground_truth_area <= 0:
         raise ValueError("ground-truth layouts must have positive area")
 

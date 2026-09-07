@@ -55,8 +55,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ov-cache-dir", type=Path, default=HERE / ".ov_cache")
     parser.add_argument("--force", action="store_true", help="ignore complete embedding caches")
     parser.add_argument(
-        "--call-timeout-seconds", type=float, default=1800.0,
-        help="abort the run when one model call stalls this long; 0 disables the watchdog",
+        "--call-timeout-seconds", type=float, default=600.0,
+        help="abort the run when one model call stalls this long; 0 disables the watchdog. "
+             "The slowest legitimate call observed here is 57s, so this is ~10x headroom; "
+             "with --resume a false positive only costs one restart",
     )
     parser.add_argument(
         "--progress-interval-seconds", type=float, default=30.0,
@@ -246,7 +248,10 @@ def main() -> None:
         print(f"removed unresumable partial cache {path}", flush=True)
     for path in resumable:
         print(f"partial cache {path} is checkpointed; --resume continues it", flush=True)
-    watchdog = Watchdog(args.call_timeout_seconds)
+    watchdog = Watchdog(
+        args.call_timeout_seconds,
+        native_stack_path=args.output_dir / "watchdog_native_stacks.txt",
+    )
     manifest_path = args.dataset_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else None
     all_results = {

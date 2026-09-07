@@ -42,6 +42,10 @@ MMDocIR `balanced_200` 已完成 FP32/INT8/INT4 的 close/open 质量评测；IN
 INT4 使用 `ONEDNN_PRIMITIVE_CACHE_CAPACITY=0` 绕过死锁，因此该 MMDocIR 结果不做
 INT4 与 FP32/INT8 的时间或 throughput 对比，详细质量分析见
 [MMDocIR REPORT](mmdocir_openvino_eval/REPORT.md)。
+完整 1,658-query set 的 `int4_causal_vopt` 已完成 close/open 精度评测，page/layout
+Recall@5 为 `0.8086/0.5957` 和 `0.5248/0.3987`；full FP32/INT8 尚未完成，当前
+不生成 full-set 的 precision delta。full 结果与唯一零面积 ground-truth 排除记录见
+[MMDocIR REPORT](mmdocir_openvino_eval/REPORT.md)。
 
 支持四种输入模式：
 

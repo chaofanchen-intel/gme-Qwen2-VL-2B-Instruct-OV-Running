@@ -21,6 +21,13 @@
 
 bbox 计算遵循官方代码：四元组前两项为起点、后两项为终点进行相交面积计算。官方 README 称其为 `[x1,y1,x2,y2]`，代码注释又称 `[top,left,bottom,right]`；两种命名不影响同序坐标的面积运算。
 
+数据集质量注意：固定 revision `bdcb36ecb3eee73667180ee3fb24fe433f6dd2a4` 的
+1,658 个 query 中有 1 个上游 layout annotation 的 bbox 为 `[300,100,300,450]`，
+面积为 0（`query_id=700`，`Guide-for-international-students-web.pdf` 第 6 页）。
+该 query 仍参与 page Recall/nDCG；由于 layout area Recall/nDCG 的分母无法定义，
+评测只排除该 query 的 layout 指标，并在 `summary.json` 的
+`layout_exclusions`、`layout_queries` 和 `layout_excluded_queries` 中记录。
+
 ## 环境
 
 必须让 Python binding、OpenVINO core 与 GPU plugin 来自同一份 `benchmark/openvino` custom build：
@@ -223,6 +230,12 @@ ONEDNN_PRIMITIVE_CACHE_CAPACITY=0 PRECISIONS=fp32,int8_causal_vopt,int4_causal_v
 VISUAL_DQ_THRESHOLD=0 ONEDNN_PRIMITIVE_CACHE_CAPACITY=0 FULL_DATASET=1 ./run_weekend_suite.sh
 ```
 
+截至 2026-09-05，full set 的 `int4_causal_vopt` 已完成 close/open 精度评测，结果为
+[`results/full_recommended/int4_causal_vopt/summary.json`](results/full_recommended/int4_causal_vopt/summary.json)。
+本次结果复用了已完成的 query/page/layout embedding cache；FP32 和 INT8 的 full
+结果尚未完成，因此当前只能报告 INT4 的绝对质量，不能生成 full-set 相对 FP32 的
+精度 delta。详细数值见 [`REPORT.md`](REPORT.md)。
+
 中断后执行同一命令会复用已经完整发布的 precision/page/layout cache。正在写入的向量先使用 `.tmp` 文件，未完成时不会被当作有效 cache。
 
 完整向量按配置指纹缓存在 `cache/`。完成的 page/layout cache 会复用；不同 precision、分路径 batch、image token 配置或数据选择不会互相污染。每个 precision 完成后都会 checkpoint 当前 output directory 的 `summary.json`，逐 query 排名写入 `per_query_*.jsonl`。
@@ -318,24 +331,44 @@ mutable const primitive_attr_t *attr_;
 ```
 
 `std::hash<key_t>::operator()` 不是 `noexcept`，libstdc++ 因此缓存哈希值、rehash 不重算——
-所以哈希**只在调用方传入的 probe key 上计算**，悬垂的是 cldnn 侧传进去的 attr。cldnn 把它存在
-`program_node::onednn_attrs`（`std::shared_ptr<dnnl::primitive_attr>`）里，而动态 shape 的
-impl 构建跑在一个独立的异步编译线程上（`program::make_compilation_context()` 里
-`_num_async_build_threads = 1`），与推理线程并发访问同一个 shared_ptr。
+所以哈希**只在调用方传入的 probe key 上计算**，也就是说悬垂的是传进 oneDNN 的那个 attr 指针。
+
+**不是并发竞争。** 这一点最初判断错了，2026-09-04 用三份证据推翻：
+
+1. 卡死瞬间 gdb 抓全部 75 个线程栈，**只有一个线程在跑**，其余全部阻塞在 futex，主线程停在
+   `ov::InferRequest::wait()`。此刻没有任何并发写入者。
+2. 三个不同的 build——原版、给 13 处 oneDNN impl `create()` 加 attr 深拷贝的版本、把
+   `use_async_compilation()` 强制 `return false` 的版本——在 balanced_200 上**全部卡在完全
+   相同的 layout 6684、完全相同的 10m08s**。竞争条件不可能三次命中同一个下标。
+3. 第 3 条改动等价于上游的 `disable_async_compilation`，直接消除了 impl 构建里唯一的并发源
+   （`program::make_compilation_context()` 里 `_num_async_build_threads = 1` 那条线程），
+   照样卡死。
+
+所以这是**确定性的 use-after-free**：某个 `primitive_attr_t` 在被哈希之前就已经释放，
+`get_attr_hash()` 把回收后的内存当红黑树遍历，撞进指针环。触发点取决于**单个进程内累积的状态**
+（同一数据集每次都在同一下标，换数据集则换下标：full set 上是 16644），不取决于线程调度。
 
 哈希是在 `get_or_add()` 持有**全局 rw_mutex 读锁**时算的，所以这个线程一旦转不出来，所有其他
 oneDNN 使用者都会永久阻塞——这解释了主线程为什么停在 `ov::InferRequest::wait()`。
 
 **为什么 capacity=0 有效**：`lru_cache_t::get()` 和 `get_or_add()` 在 `capacity_ == 0` 时
-在任何 map 操作之前就返回，`std::hash<key_t>` 根本不会被调用，那段代码不可达。
+在任何 map 操作之前就返回，`std::hash<key_t>` 根本不会被调用，那段代码不可达。它绕过的是
+**症状**（哈希遍历），不是那个悬垂指针本身。
 
-**排除掉的方案**：
+**为什么确定性 bug 仍然可以靠续跑绕过**：触发点取决于进程内累积的状态，重启会清零。所以每次
+`--resume` 都能在下一次卡死前多编码几千行，是单调前进的，不会卡在同一行反复重试。
+
+**已实测排除的方案**（都做了完整重编 + 复现测试）：
 
 * 调大 capacity 无效——哈希在每次 probe 时都会算，与是否淘汰无关。
-* `disable_async_compilation`（真正对症）在本 build 不可用：`ENABLE_DEBUG_CAPS=OFF`，
-  `OV_CONFIG_DEBUG_OPTION` 被整个编译掉了。要用得重编 OpenVINO。
-* `compilation_num_threads=1` 无效——异步编译上下文本来就固定 1 个线程，竞争发生在它和推理
-  线程之间。
+* 13 处 oneDNN impl 的 `create()` 里对 `impl_params.attrs_onednn` 做深拷贝（`dnnl::primitive_attr`
+  是句柄包装，直接拷是浅拷贝，需要 `dnnl_primitive_attr_clone`）——仍然卡死，只是换到了 fused 路径。
+* 强制 `use_async_compilation()` 返回 false——仍然卡在同一下标；顺带测得**这个负载上禁用异步
+  预编译没有性能损失**（10.7 layouts/s，与默认同速），因为几千个只出现一两次的 shape 预编译本
+  来就是白做。
+* `compilation_num_threads=1` 无效——异步编译上下文本来就固定 1 个线程。
+
+要真正根治还需要在 ASAN build 下定位那个提前释放的 `primitive_attr_t`，本仓库尚未做到。
 
 **已验证**：balanced_200 INT4 全量 7956 layouts 用 `capacity=0` 跑完，26 分 02 秒，无挂死
 （越过了上次卡死的 6684）。质量指标排序正常（close page nDCG@10：FP32 0.7968 > INT8 0.7932
@@ -355,26 +388,30 @@ balanced_200 layout 阶段 1562.5s，而挂死那次在默认配置下实测约 
 GPU plugin 的一个工作线程在 oneDNN primitive cache 的 key 哈希里遍历一块已被释放的
 `std::map`（`quant_entries_t::get_hash()`，INT4 非对称反量化的 scales/zero-points 表），
 红黑树的 `_M_left` 链上有一个 96 节点的环，`std::_Rb_tree_increment` 永远退不出来。
-这是上游 OpenVINO/oneDNN 的并发缺陷，概率性触发，本仓库无法修复；能修的是**它当时完全
-不可见**——阶段开始后不打印任何东西，挂死和“跑得慢”长得一模一样，而且重启要从 0 重编码。
+这是上游 OpenVINO/oneDNN 的缺陷，本仓库无法根治；能修的是**它当时完全不可见**——阶段开始后
+不打印任何东西，挂死和“跑得慢”长得一模一样，而且重启要从 0 重编码。
 
-因此编码阶段现在有三层保护，默认全部开启：
+因此编码阶段现在有四层保护，默认全部开启：
 
 | 参数 | 默认值 | 作用 |
 | --- | --- | --- |
 | `--progress-interval-seconds` | `30` | 阶段内心跳，打印 `已完成/总数`、已用时、ETA；`0` 关闭 |
-| `--call-timeout-seconds` | `1800` | 单次 model call 超时看门狗；`0` 关闭 |
+| `--call-timeout-seconds` | `600` | 单次 model call 超时看门狗；`0` 关闭 |
 | `--checkpoint-interval-seconds` | `120` | 部分向量 cache 的落盘间隔；`0` 表示每批都落盘 |
 | `--resume` | 关闭 | 从 checkpoint 继续，而不是重编码 |
 
 看门狗只对**单次调用**计时（阶段本身可以跑几小时，单次调用超过几分钟就已经不正常了；
-实测最慢的一次是 FP32 fused layout 的 56 秒）。超时后它 dump 所有 Python 线程栈并以
-**exit code 86** 结束进程——卡死的 OpenVINO 调用无法从 Python 取消，只能杀进程。栈里
-真正卡住的是原生 plugin 线程，要看它得用：
+实测最慢的一次是 FP32 fused layout 的 57 秒，所以 600 秒是约 10 倍余量，配合 `--resume`
+即使误杀也只是多一次重启）。超时后它会：
 
-```bash
-gdb -p <pid> -batch -ex 'thread apply all bt'
-```
+1. dump 所有 **Python** 线程栈到 stderr；
+2. 用 `timeout … gdb -p <self>` 把所有 **原生** 线程栈写进
+   `<output-dir>/watchdog_native_stacks.txt`——真正卡住的是没有 Python 帧的 plugin 线程，
+   不自动抓下来的话证据会随进程一起消失，每次排查都得重新复现一次（一次十几分钟）；
+3. 以 **exit code 86** 结束进程——卡死的 OpenVINO 调用无法从 Python 取消，只能杀进程。
+
+gdb 是套在 `timeout` 里跑的：附加会冻结本进程的所有线程（包括发起它的看门狗线程），所以
+必须由一个没被冻结的进程来兜底超时；输出写文件而不是管道，也是同一个原因。
 
 断点续跑：崩溃/被杀之后 `cache/` 里会留下 `*.npy.tmp` 和 `*.progress.json`，加 `--resume`
 即可从 watermark 继续：
@@ -394,6 +431,24 @@ watermark 是**已完成的最长前缀**而不是完成计数——layout 阶�
 * 每次启动会删除没有 checkpoint 的孤儿 `*.npy.tmp`（这类文件之前累积了 4 个、1 GB 稀疏
   文件）；有 checkpoint 的会保留并提示可以 `--resume`。已完整落盘的 `.npy` cache 优先级
   高于部分 cache。
+
+### 自动续跑：跑完全量的推荐方式
+
+[run_resilient.sh](run_resilient.sh) 把「看门狗杀进程 → 从 checkpoint 续跑」串成循环，
+用法和 `run_campaign.sh` 完全一致，所有环境变量原样透传：
+
+```bash
+ONEDNN_PRIMITIVE_CACHE_CAPACITY=0 \
+PRECISIONS=int4_causal_vopt \
+OUTPUT_DIR="$PWD/results/full_recommended/int4_causal_vopt" \
+  ./run_resilient.sh --progress-interval-seconds 120
+```
+
+它只在 exit code 86（看门狗中止）时重试，其他任何非零退出都立刻停下并原样返回——不会把真正
+的错误吞掉当成挂死无限重试。`MAX_ATTEMPTS` 默认 40。
+
+因为每次重试都会加 `--resume`，最终 `summary.json` 里该阶段的吞吐只覆盖最后一次尝试的行数，
+不能当作性能数字用；这条路径是为了**拿到完整的质量结果**，不是为了测性能。
 
 ## 输出指标
 

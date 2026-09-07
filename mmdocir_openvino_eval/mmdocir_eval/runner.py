@@ -20,7 +20,7 @@ from PIL import Image
 
 from .backend import EmbeddingBackend
 from .data import Document, Query, iter_parquet_rows, selected_row_count
-from .metrics import LayoutCandidate, layout_metrics, page_metrics
+from .metrics import LayoutCandidate, layout_ground_truth_area, layout_metrics, page_metrics
 from .progress import ProgressReporter, Watchdog
 from .timing import summarize_ms, throughput
 
@@ -47,8 +47,10 @@ class EncodeControls:
             return nullcontext()
         return self.watchdog.guard(f"{self.label} {description}".strip())
 
-    def reporter(self, kind: str, total: int) -> ProgressReporter:
-        return ProgressReporter(f"{self.label} {kind}".strip(), total, self.progress_interval_seconds)
+    def reporter(self, kind: str, total: int, already_done: int = 0) -> ProgressReporter:
+        return ProgressReporter(
+            f"{self.label} {kind}".strip(), total, self.progress_interval_seconds, already_done
+        )
 
 
 class ResourceTracker:
@@ -375,7 +377,7 @@ def encode_pages(
     pending: list[tuple[int, Image.Image]] = []
     encode_ms: list[float] = []
     resources = ResourceTracker(backend)
-    reporter = controls.reporter("pages", count)
+    reporter = controls.reporter("pages", count, resumed_from)
     preprocessing_ms = 0.0
     started = time.perf_counter()
 
@@ -485,7 +487,7 @@ def encode_layouts(
     fused_pending: list[tuple[int, str, Image.Image]] = []
     timings: dict[str, list[float]] = {"text": [], "fused": []}
     resources = ResourceTracker(backend)
-    reporter = controls.reporter("layouts", count)
+    reporter = controls.reporter("layouts", count, resumed_from)
     counts = {"text": 0, "fused": 0}
     preprocessing_ms = 0.0
     started = time.perf_counter()
@@ -636,6 +638,7 @@ def evaluate_scope(
     layout_score_ms: list[float] = []
     layout_rank_ms: list[float] = []
     details: list[dict[str, Any]] = []
+    layout_exclusions: list[dict[str, Any]] = []
     max_k = max(ks)
     warm_query = query_vectors[0]
     if scope == "close":
@@ -693,15 +696,28 @@ def evaluate_scope(
             LayoutCandidate(layout.page_id, layout.bbox, query.doc_name)
             for layout in query.relevant_layouts
         ]
-        ideal_indices = {
-            index
-            for target in ground_truth
-            for index in layout_by_doc_page[(target.doc_name, target.page_id)]
-        }
-        ideal_candidates = [layout_candidates[index] for index in ideal_indices]
-        query_layout_metrics = layout_metrics(
-            ranked_layouts, ideal_candidates, ground_truth, ks
-        )
+        ground_truth_area = layout_ground_truth_area(ground_truth)
+        if ground_truth_area <= 0:
+            layout_exclusion = {
+                "query_id": query.query_id,
+                "doc_name": query.doc_name,
+                "page_ids": list(query.relevant_page_ids),
+                "reason": "non_positive_ground_truth_area",
+                "ground_truth_area": ground_truth_area,
+                "bboxes": [list(layout.bbox) for layout in ground_truth],
+            }
+            layout_exclusions.append(layout_exclusion)
+            query_layout_metrics = None
+        else:
+            ideal_indices = {
+                index
+                for target in ground_truth
+                for index in layout_by_doc_page[(target.doc_name, target.page_id)]
+            }
+            ideal_candidates = [layout_candidates[index] for index in ideal_indices]
+            query_layout_metrics = layout_metrics(
+                ranked_layouts, ideal_candidates, ground_truth, ks
+            )
         details.append(
             {
                 "query_id": query.query_id,
@@ -711,16 +727,21 @@ def evaluate_scope(
                 "query": query.text,
                 "page": query_page_metrics,
                 "layout": query_layout_metrics,
+                "layout_exclusion": layout_exclusion if ground_truth_area <= 0 else None,
                 "top_pages": ranked_page_rows,
                 "top_layouts": [asdict(candidate) for candidate in ranked_layouts],
             }
         )
 
+    evaluable_layout_details = [detail for detail in details if detail["layout"] is not None]
     summary = {
         "scope": scope,
         "queries": len(queries),
         "page": _aggregate(details, "page"),
-        "layout": _aggregate(details, "layout"),
+        "layout": _aggregate(evaluable_layout_details, "layout"),
+        "layout_queries": len(evaluable_layout_details),
+        "layout_excluded_queries": len(layout_exclusions),
+        "layout_exclusions": layout_exclusions,
         "match_latency_ms": {
             "cpu_page_score": summarize_ms(page_score_ms),
             "cpu_page_topk": summarize_ms(page_rank_ms),

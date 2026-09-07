@@ -27,6 +27,9 @@ MMDocIR `balanced_200` 当前质量结果（FP32/INT8/INT4，close/open，200 qu
 [`mmdocir_openvino_eval/REPORT.md`](mmdocir_openvino_eval/REPORT.md)。INT4 使用
 `ONEDNN_PRIMITIVE_CACHE_CAPACITY=0` 绕过 primitive-cache 死锁，本轮不把 MMDocIR
 的 INT4 elapsed time、throughput 或 speedup 与 FP32/INT8 比较。
+完整 1,658-query set 的 `int4_causal_vopt` 也已完成 close/open 精度评测；page/layout
+Recall@5 为 `0.8086/0.5957` 和 `0.5248/0.3987`。full FP32/INT8 尚未完成，因此
+该结果只作为 INT4 绝对质量记录，不构成 full-set precision delta。
 
 本文对应的脚本编号为连续的 `01` 到 `09`：
 

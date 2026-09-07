@@ -1,7 +1,13 @@
 import math
 import unittest
 
-from mmdocir_eval.metrics import LayoutCandidate, intersection_area, layout_metrics, page_metrics
+from mmdocir_eval.metrics import (
+    LayoutCandidate,
+    intersection_area,
+    layout_ground_truth_area,
+    layout_metrics,
+    page_metrics,
+)
 
 
 class PageMetricsTest(unittest.TestCase):
@@ -37,6 +43,11 @@ class LayoutMetricsTest(unittest.TestCase):
         expected_dcg = 25 / math.log2(3) + 100 / math.log2(4)
         ideal_dcg = 100 + 25 / math.log2(3)
         self.assertAlmostEqual(result["ndcg@3"], expected_dcg / ideal_dcg)
+
+    def test_zero_width_ground_truth_has_no_evaluable_area(self) -> None:
+        target = LayoutCandidate(6, (300, 100, 300, 450))
+
+        self.assertEqual(layout_ground_truth_area([target]), 0.0)
 
     def test_open_domain_layout_identity_includes_document(self) -> None:
         target = LayoutCandidate(3, (0, 0, 10, 10), "relevant.pdf")

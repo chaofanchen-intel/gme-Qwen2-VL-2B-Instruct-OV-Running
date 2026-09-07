@@ -1,8 +1,31 @@
 # MMDocIR GME-2B OpenVINO Evaluation Report
 
-状态：`balanced_200` 子集已完成 FP32、INT8、INT4 三档质量评测；full 1,658-query
-结果仍未运行。本报告当前结论只使用
+状态：`balanced_200` 子集已完成 FP32、INT8、INT4 三档质量评测；full set 的
+`int4_causal_vopt` 已完成 close/open 质量评测。full FP32/INT8 尚未完成，因此 full
+set 暂不做相对 FP32 的精度 delta。本报告的 balanced 三精度结论使用
 `results/balanced_200_recommended_vdq0/combined/summary.json`。
+
+## 当前 full INT4 质量结果（2026-09-05）
+
+结果文件为
+[`results/full_recommended/int4_causal_vopt/summary.json`](results/full_recommended/int4_causal_vopt/summary.json)，
+覆盖完整 MMDocIR Evaluation set：313 documents、1,658 queries、20,395 pages 和
+170,338 layouts。运行使用 GPU、`int4_causal_vopt`、recommended profile，并在评测
+阶段设置 `ONEDNN_PRIMITIVE_CACHE_CAPACITY=0`；已完成的 page/layout embedding cache
+被直接复用，没有重新编码 170,338 个 layouts。
+
+Page 指标包含全部 1,658 个 query。Layout 指标包含 1,657 个 query；唯一排除项是
+上游 `query_id=700` 的零面积 bbox `[300,100,300,450]`，具体记录在 summary 的
+`layout_exclusions` 中。该处理只影响 layout 聚合，不影响 page 聚合。
+
+| scope | page Recall@5/10 | page nDCG@5/10 | layout Recall@5/10 | layout nDCG@5/10 |
+|---|---:|---:|---:|---:|
+| close | 0.8086 / 0.8812 | 0.6942 / 0.7204 | 0.5248 / 0.6193 | 0.4202 / 0.4532 |
+| open | 0.5957 / 0.6615 | 0.5109 / 0.5341 | 0.3987 / 0.4691 | 0.3194 / 0.3434 |
+
+本轮 INT4 使用 `ONEDNN_PRIMITIVE_CACHE_CAPACITY=0`，因此不把这次 full INT4 的
+encoding 时间或 throughput 与其它 capacity 配置下的 FP32/INT8 运行作横向性能比较。
+这些数值是当前 full-set 的 INT4 质量结果，不是三精度回归结论。
 
 ## 当前 balanced_200 质量结果（2026-09-02）
 
@@ -63,7 +86,8 @@ ETA 和 speedup **全部不作横向比较**。时间字段仍保留在 JSON 中
 - INT4 结果的 `system.onednn_primitive_cache_capacity` 为 `0`；quality delta 使用同一
 	balanced_200 选择和同一批 embedding cache 生成。
 
-full 集合尚未运行，本节不能外推为完整 MMDocIR 质量结论。
+full INT4 结果见本报告第一节；由于 full FP32/INT8 尚未完成，本节 balanced_200
+的三精度 delta 不能外推为 full-set 三精度质量结论。
 
 ## 对照目标
 

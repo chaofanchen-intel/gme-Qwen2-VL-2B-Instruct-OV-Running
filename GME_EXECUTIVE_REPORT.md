@@ -78,7 +78,15 @@ INT4 为绕过 oneDNN primitive-cache 死锁使用了
 运行时间、throughput 或 speedup。完整质量表见
 [MMDocIR REPORT](mmdocir_openvino_eval/REPORT.md)。
 
-### 1.6 历史第五轮 final rerun（2026-08-27）
+### 1.6 MMDocIR full INT4 质量检查（2026-09-05）
+
+完整 1,658-query Evaluation set 的 `int4_causal_vopt` 已完成 close/open 评测：
+page Recall@5 为 `0.8086/0.5957`，layout Recall@5 为 `0.5248/0.3987`（close/open）。
+Layout 聚合基于 1,657 个可计算 query；数据集唯一的零面积 ground-truth bbox
+（query 700）被透明排除并写入 summary。full FP32/INT8 尚未完成，因此该结果不用于
+full-set precision delta；详细结果见 [MMDocIR REPORT](mmdocir_openvino_eval/REPORT.md)。
+
+### 1.7 历史第五轮 final rerun（2026-08-27）
 
 当前结果来自 `benchmark/openvino/bin/intel64/Release` 的 matching custom Python
 binding/core/plugin，版本为 `2026.3.0-22451-8a17657b995-qwen-ttft-optimizations`。
