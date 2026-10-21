@@ -1,0 +1,217 @@
+{
+  "unit": "ms, warm, end-to-end per call (tokenize/preprocess + inference), excludes load/compile",
+  "repeat": 5,
+  "config": {
+    "devices": [
+      "GPU"
+    ],
+    "precisions": [
+      "int4_causal_vopt"
+    ],
+    "backends": [
+      "python"
+    ],
+    "instruction": "Find an image that matches the given text.",
+    "repeat": 5,
+    "text_lengths": [
+      128,
+      1024
+    ],
+    "image_sizes": [
+      "448x448"
+    ],
+    "include_logo": true,
+    "batch_sizes": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32
+    ],
+    "image_batch_sizes": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "batch_modes": [
+      "per_sample",
+      "padded"
+    ],
+    "streams": [
+      1,
+      "auto"
+    ],
+    "batch_precision": "int8_causal_vopt",
+    "batch_text_length": 128,
+    "visual_dq_threshold": null
+  },
+  "workloads": {
+    "texts": {
+      "128": {
+        "text": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 215,
+          "sequence_tokens": 128
+        },
+        "query": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 209,
+          "instruction": "Find an image that matches the given text.",
+          "sequence_tokens": 128
+        }
+      },
+      "1024": {
+        "text": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 2007,
+          "sequence_tokens": 1024
+        },
+        "query": {
+          "raw_text": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+          "raw_text_chars": 2001,
+          "instruction": "Find an image that matches the given text.",
+          "sequence_tokens": 1024
+        }
+      }
+    },
+    "images": {
+      "448x448": {
+        "path": "/tmp/gme-patch-sweep-artifacts/round8-default/bench_images/bench_448x448.png",
+        "image": {
+          "file": "bench_448x448.png",
+          "source_size_wh": [
+            448,
+            448
+          ],
+          "processor_size_wh": [
+            448,
+            448
+          ],
+          "image_grid_thw": [
+            1,
+            32,
+            32
+          ],
+          "raw_patch_rows": 1024,
+          "visual_tokens": 256,
+          "sequence_tokens": 278
+        },
+        "fused": {
+          "file": "bench_448x448.png",
+          "source_size_wh": [
+            448,
+            448
+          ],
+          "processor_size_wh": [
+            448,
+            448
+          ],
+          "image_grid_thw": [
+            1,
+            32,
+            32
+          ],
+          "raw_patch_rows": 1024,
+          "visual_tokens": 256,
+          "sequence_tokens": 386
+        }
+      },
+      "5164x600": {
+        "path": "/home/chaofan/model_benchmark/benchmark/models/gme-Qwen2-VL-2B-Instruct/images/gme_logo.png",
+        "image": {
+          "file": "gme_logo.png",
+          "source_size_wh": [
+            5164,
+            600
+          ],
+          "processor_size_wh": [
+            5152,
+            588
+          ],
+          "image_grid_thw": [
+            1,
+            24,
+            210
+          ],
+          "raw_patch_rows": 5040,
+          "visual_tokens": 1260,
+          "sequence_tokens": 1282
+        },
+        "fused": {
+          "file": "gme_logo.png",
+          "source_size_wh": [
+            5164,
+            600
+          ],
+          "processor_size_wh": [
+            5152,
+            588
+          ],
+          "image_grid_thw": [
+            1,
+            24,
+            210
+          ],
+          "raw_patch_rows": 5040,
+          "visual_tokens": 1260,
+          "sequence_tokens": 1390
+        }
+      }
+    },
+    "note": "sequence_tokens is the effective unpadded length after GME templating, including the expanded image-pad run; visual_tokens is grid_t*grid_h*grid_w/4"
+  },
+  "suites": {
+    "text-lengths": {
+      "batch": 1,
+      "cells": {
+        "python/GPU/int4_causal_vopt/128tok": {
+          "text": {
+            "ms_per_call": 36.33,
+            "ms_per_embedding": 36.33
+          },
+          "query": {
+            "ms_per_call": 36.16,
+            "ms_per_embedding": 36.16
+          }
+        },
+        "python/GPU/int4_causal_vopt/1024tok": {
+          "text": {
+            "ms_per_call": 218.47,
+            "ms_per_embedding": 218.47
+          },
+          "query": {
+            "ms_per_call": 218.86,
+            "ms_per_embedding": 218.86
+          }
+        }
+      }
+    },
+    "image-sizes": {
+      "batch": 1,
+      "cells": {
+        "python/GPU/int4_causal_vopt/448x448(256vt)": {
+          "image": {
+            "ms_per_call": 242.22,
+            "ms_per_embedding": 242.22
+          },
+          "fused": {
+            "ms_per_call": 273.04,
+            "ms_per_embedding": 273.04
+          }
+        },
+        "python/GPU/int4_causal_vopt/logo(1260vt)": {
+          "image": {
+            "ms_per_call": 1845.83,
+            "ms_per_embedding": 1845.83
+          },
+          "fused": {
+            "ms_per_call": 1857.42,
+            "ms_per_embedding": 1857.42
+          }
+        }
+      }
+    }
+  }
+}

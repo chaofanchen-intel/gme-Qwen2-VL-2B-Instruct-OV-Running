@@ -1,9 +1,9 @@
 diff --git a/src/plugins/intel_gpu/include/intel_gpu/primitives/dynamic_quantize.hpp b/src/plugins/intel_gpu/include/intel_gpu/primitives/dynamic_quantize.hpp
-index dbe1dd43b6..d4b908ab67 100644
+index 3e7d9213ca..9393c02a17 100644
 --- a/src/plugins/intel_gpu/include/intel_gpu/primitives/dynamic_quantize.hpp
 +++ b/src/plugins/intel_gpu/include/intel_gpu/primitives/dynamic_quantize.hpp
-@@ -44,11 +44,17 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
-     size_t input_size;
+@@ -50,11 +50,17 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
+     size_t innermost_size = 0;
      bool fused_rms = false;
      float rms_eps = 0.f;
 +    bool fused_mvn = false;
@@ -20,17 +20,17 @@ index dbe1dd43b6..d4b908ab67 100644
          seed = hash_range(seed, attrs.scales_zp_output_order.begin(), attrs.scales_zp_output_order.end());
          seed = hash_range(seed, attrs.group_sizes.begin(), attrs.group_sizes.end());
          seed = hash_combine(seed, attrs.quantization_type);
-@@ -80,6 +86,9 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
+@@ -87,6 +93,9 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
                 attrs.precomputed_reduction_dt == rhs_casted.attrs.precomputed_reduction_dt &&
                 fused_rms == rhs_casted.fused_rms &&
                 rms_eps == rhs_casted.rms_eps &&
 +               fused_mvn == rhs_casted.fused_mvn &&
 +               mvn_eps == rhs_casted.mvn_eps &&
 +               mvn_eps_inside_sqrt == rhs_casted.mvn_eps_inside_sqrt &&
-                input_size == rhs_casted.input_size;
+                input_size == rhs_casted.input_size &&
+                innermost_size == rhs_casted.innermost_size;
      }
- 
-@@ -97,6 +106,9 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
+@@ -105,6 +114,9 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
          ob << attrs.precomputed_reduction;
          ob << fused_rms;
          ob << rms_eps;
@@ -38,9 +38,9 @@ index dbe1dd43b6..d4b908ab67 100644
 +        ob << mvn_eps;
 +        ob << mvn_eps_inside_sqrt;
          ob << input_size;
+         ob << innermost_size;
      }
- 
-@@ -114,6 +126,9 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
+@@ -123,6 +135,9 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
          ib >> attrs.precomputed_reduction;
          ib >> fused_rms;
          ib >> rms_eps;
@@ -48,10 +48,10 @@ index dbe1dd43b6..d4b908ab67 100644
 +        ib >> mvn_eps;
 +        ib >> mvn_eps_inside_sqrt;
          ib >> input_size;
+         ib >> innermost_size;
      }
- };
 diff --git a/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp b/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp
-index a88eae83c9..ed618c227e 100644
+index 06315c6c0f..b49c4db11e 100644
 --- a/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp
 +++ b/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp
 @@ -20,7 +20,7 @@ static bool should_skip_execution(const dynamic_quantize_node& node, const layou
@@ -64,7 +64,7 @@ index a88eae83c9..ed618c227e 100644
  
      if (!node.is_runtime_skippable()
 diff --git a/src/plugins/intel_gpu/src/graph/graph_optimizer/prepare_primitive_fusing.cpp b/src/plugins/intel_gpu/src/graph/graph_optimizer/prepare_primitive_fusing.cpp
-index 046ac5a308..490d75d8bc 100644
+index d8a8bc8ea6..aa2d207a94 100644
 --- a/src/plugins/intel_gpu/src/graph/graph_optimizer/prepare_primitive_fusing.cpp
 +++ b/src/plugins/intel_gpu/src/graph/graph_optimizer/prepare_primitive_fusing.cpp
 @@ -89,14 +89,15 @@ void prepare_primitive_fusing::run(program& p) {
@@ -183,10 +183,10 @@ index 046ac5a308..490d75d8bc 100644
          if (!rms_node.is_type<rms>() || rms_node.is_output() || rms_node.get_users().size() != 1)
              continue;
 diff --git a/src/plugins/intel_gpu/src/graph/impls/ocl/dynamic_quantize.cpp b/src/plugins/intel_gpu/src/graph/impls/ocl/dynamic_quantize.cpp
-index 37e4495941..b5382257b4 100644
+index 7c0b9fe086..7d4dc660df 100644
 --- a/src/plugins/intel_gpu/src/graph/impls/ocl/dynamic_quantize.cpp
 +++ b/src/plugins/intel_gpu/src/graph/impls/ocl/dynamic_quantize.cpp
-@@ -61,11 +61,20 @@ struct dynamic_quantize_impl : typed_primitive_impl_ocl<dynamic_quantize> {
+@@ -56,11 +56,20 @@ struct dynamic_quantize_impl : typed_primitive_impl_ocl<dynamic_quantize> {
          params.generate_precomputed_reduction = desc->attrs.precomputed_reduction;
          params.fused_rms = desc->fused_rms;
          params.rms_eps = desc->rms_eps;
@@ -206,27 +206,27 @@ index 37e4495941..b5382257b4 100644
 +            params.inputs.push_back(convert_data_tensor(impl_param.get_input_layout(2)));
          }
  
-         return params;
+         validate_f4e2m1_packed_output(impl_param.get_output_layout(0), "dynamic_quantize");
 diff --git a/src/plugins/intel_gpu/src/graph/include/pass_manager.h b/src/plugins/intel_gpu/src/graph/include/pass_manager.h
-index f68720842b..eee3620522 100644
+index 3750d21465..a39e620838 100644
 --- a/src/plugins/intel_gpu/src/graph/include/pass_manager.h
 +++ b/src/plugins/intel_gpu/src/graph/include/pass_manager.h
-@@ -158,7 +158,7 @@ private:
-     void fuse_constant_transposes(program &p);
-     void optimize_fused_ops(program &p);
-     void remove_redundant_reshape(program &p);
--    void fuse_rms_into_dynamic_quantize(program &p);
-+    void fuse_normalization_into_dynamic_quantize(program &p);
+@@ -161,7 +161,7 @@ private:
+     void fuse_constant_transposes(program& p);
+     void optimize_fused_ops(program& p);
+     void remove_redundant_reshape(program& p);
+-    void fuse_rms_into_dynamic_quantize(program& p);
++    void fuse_normalization_into_dynamic_quantize(program& p);
  };
  
  class pre_replace_deconv : public base_pass {
 diff --git a/src/plugins/intel_gpu/src/graph/primitive_inst.cpp b/src/plugins/intel_gpu/src/graph/primitive_inst.cpp
-index 654061e0d8..e42315a34e 100644
+index 5a713322ee..8ce504862a 100644
 --- a/src/plugins/intel_gpu/src/graph/primitive_inst.cpp
 +++ b/src/plugins/intel_gpu/src/graph/primitive_inst.cpp
-@@ -542,8 +542,9 @@ void primitive_inst::update_shape() {
+@@ -546,8 +546,9 @@ void primitive_inst::update_shape() {
          auto &layout = _impl_params->get_output_layout(0);
-         OPENVINO_ASSERT(one_of(layout.data_type, {data_types::f16, data_types::i8, data_types::u8, data_types::f8e4m3, data_types::f8e5m2}),
+         OPENVINO_ASSERT(one_of(layout.data_type, {data_types::f16, data_types::i8, data_types::u8, data_types::f4e2m1, data_types::f8e4m3, data_types::f8e5m2}),
              "[GPU] Unsupported data type of dynamic_quantize: ", layout.data_type);
 -        const bool fused_rms = get_node().as<dynamic_quantize>().get_primitive()->fused_rms;
 -        if (layout.data_type == data_types::f16 && !fused_rms)
@@ -237,10 +237,10 @@ index 654061e0d8..e42315a34e 100644
          else
              set_can_be_optimized(false);
 diff --git a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/dynamic_quantize_gpu_opt.cl b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/dynamic_quantize_gpu_opt.cl
-index 4040534048..5bb390847c 100644
+index c6f4e08f05..b773d57b77 100644
 --- a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/dynamic_quantize_gpu_opt.cl
 +++ b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/dynamic_quantize_gpu_opt.cl
-@@ -302,13 +302,26 @@ KERNEL(dynamic_quantize_gpu_opt)(
+@@ -359,13 +359,26 @@ KERNEL(dynamic_quantize_gpu_opt)(
  #if FUSE_RMS && (ASYMMETRIC_QUANTIZATION != 0 || IS_F8 != 0 || IS_MXFP != 0)
  #error "FUSE_RMS requires per-token symmetric int8 quantization"
  #endif
@@ -268,7 +268,7 @@ index 4040534048..5bb390847c 100644
  #endif
      __global OUTPUT_TYPE* output,
      __global OUTPUT1_TYPE* output_scale
-@@ -421,6 +434,59 @@ KERNEL(dynamic_quantize_gpu_opt)(
+@@ -478,6 +491,59 @@ KERNEL(dynamic_quantize_gpu_opt)(
          output_zp[bf] = convert_uchar_rte(zp);
  #endif
      }
@@ -329,10 +329,10 @@ index 4040534048..5bb390847c 100644
      const uint bf = (uint)get_global_id(2);
      const uint sglid = get_sub_group_local_id();
 diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt.cpp
-index 93003cb2c2..3c84f095bb 100644
+index ef922bac05..eb89dfe477 100644
 --- a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt.cpp
 +++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt.cpp
-@@ -103,11 +103,17 @@ JitConstants DynamicQuantizeKernelOpt::GetJitConstants(const dynamic_quantize_pa
+@@ -121,11 +121,17 @@ JitConstants DynamicQuantizeKernelOpt::GetJitConstants(const dynamic_quantize_pa
      size_t block_num = params.fused_rms ? 16 : ((total_block_num > 32) ? 32 : total_block_num);
      jit.AddConstant(MakeJitConstant("BLOCK_NUM", block_num));
      jit.AddConstant(MakeJitConstant("FUSE_RMS", params.fused_rms));
@@ -350,7 +350,7 @@ index 93003cb2c2..3c84f095bb 100644
      }
  
      if (mode == DynQuanMode::PER_TOKEN)  {
-@@ -128,6 +134,12 @@ CommonDispatchData DynamicQuantizeKernelOpt::SetDefault(const dynamic_quantize_p
+@@ -146,6 +152,12 @@ CommonDispatchData DynamicQuantizeKernelOpt::SetDefault(const dynamic_quantize_p
          dispatchData.lws = {simd, 16, 1};
          return dispatchData;
      }
@@ -363,7 +363,7 @@ index 93003cb2c2..3c84f095bb 100644
  
      if (mode == DynQuanMode::SMALL_GS) {
          auto bf_size = get_input_bf_size(params);
-@@ -264,6 +276,22 @@ bool DynamicQuantizeKernelOpt::Validate(const Params& params) const {
+@@ -291,6 +303,22 @@ bool DynamicQuantizeKernelOpt::Validate(const Params& params) const {
              DO_NOT_USE_THIS_KERNEL(params.layerID);
      }
  
@@ -400,10 +400,10 @@ index 1731ed1098..d166e65161 100644
  
      if (non_compressed_dims_number == group_sizes.size())
 diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.cpp
-index 68d2b9f724..7821fa5c63 100644
+index be6f3bf34f..bf7ed39ecc 100644
 --- a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.cpp
 +++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.cpp
-@@ -167,7 +167,7 @@ bool DynamicQuantizeKernelRef::Validate(const Params& params) const {
+@@ -169,7 +169,7 @@ bool DynamicQuantizeKernelRef::Validate(const Params& params) const {
          DO_NOT_USE_THIS_KERNEL(params.layerID);
      }
  
@@ -413,7 +413,7 @@ index 68d2b9f724..7821fa5c63 100644
  
      return true;
 diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.h b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.h
-index 242bdd3ad4..2bff8f25d5 100644
+index 32f6fce7e3..6dde11d3b5 100644
 --- a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.h
 +++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.h
 @@ -24,6 +24,9 @@ struct dynamic_quantize_params : public base_params {

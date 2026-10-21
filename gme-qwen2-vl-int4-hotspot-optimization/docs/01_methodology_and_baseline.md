@@ -53,12 +53,10 @@ patch**：
 （DynamicQuantize 复用）**正好落在 GME 的热点路径上**，所以它们不是"与 gme 无关"，
 用它们做基线会污染结论。
 
-处理方式：
-
-1. `git diff` 备份工作区到 `preexisting-worktree-backup/`（原样保留，未丢失）；
-2. `git checkout -- src/` 把源码恢复到 `2026.3.0`；
-3. 重新编译 `openvino_intel_gpu_plugin` 并 install；
-4. 之后所有 baseline / patched 数字都以这个干净的 2026.3.0 为准。
+历史处理方式记录的是 2026.3.0 实验环境；其中曾在隔离工作区恢复
+`2026.3.0` 源码。不要在共享工作区执行 `git checkout -- src/`。当前
+2026.4.1 patch sweep 使用 release tag 的独立源码状态并逐阶段反向还原，
+结果见 [`docs/18`](18_openvino_2026.4.1_revalidation.md)。
 
 实测差异（1024 token，INT4）：带 Qwen3.5 patch 的构建 279.7 ms，干净 2026.3.0
 283.0 ms。同时 `DynamicQuantize` 调用数从 112（4/层）变回 140（5/层），

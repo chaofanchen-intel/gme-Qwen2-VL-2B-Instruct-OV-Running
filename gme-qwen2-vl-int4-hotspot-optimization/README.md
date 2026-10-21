@@ -5,8 +5,10 @@
 `image` / `fused` visual SDPA 未充分 lower 的问题，做了完整的 hotspot 定位、
 源码优化、数值验证和回归测试。
 
-**所有源码改动基于 OpenVINO 官方 release tag `2026.3.0`（`8a17657b99`），
-不掺杂本仓库既有的任何本地提交或工作区改动**，patch 见 [`patches/`](patches/)。
+**当前可交付 patch 已更新为基于 OpenVINO 官方 release tag `2026.4.1`**
+（`e213a14725769a6a2bf86fc86650aa78a9c05d3e`），patch 见 [`patches/`](patches/)。
+下方第一至第十轮性能数据仍是各自原始运行时的历史结果；2026.4.1 基线上的逐 patch
+GPU 复测见 [`docs/18`](docs/18_openvino_2026.4.1_revalidation.md)。
 
 ---
 
@@ -256,7 +258,7 @@ vtune -collect gpu-hotspots -result-dir results/vtune-gpu-hotspots-int4-1024-pat
 ```
 ├── README.md                        本文件
 ├── docs/                            分析过程 / hotspot / 优化 / 测试结论
-├── patches/                         基于官方 2026.3.0 的可交付 patch
+├── patches/                         基于官方 2026.4.1 的可交付 patch
 ├── onednn/                          第二轮的独立 oneDNN probe（脱离 OpenVINO 直接定价 GEMM）
 │   ├── *_probe.cpp                  GEMM 成本分解 / u4 重排 / scale 排布 / layout 精度
 │   ├── build_probe.sh               链接 oneDNN-ov2026.3 (babb7375ff)
@@ -278,13 +280,9 @@ vtune -collect gpu-hotspots -result-dir results/vtune-gpu-hotspots-int4-1024-pat
 
 ## 关于工作区状态
 
-开工时 `benchmark/openvino` 工作区里 apply 着 Qwen3.5 的 5 个 patch，其中
-`opt2_permute_lws_f_axis` 和 `opt3_dynamic_quantize_reuse` **正落在 GME 的热点路径上**，
-用它做基线会污染结论。处理方式：
-
-1. 先 `git diff` 备份到 `preexisting-worktree-backup/`（**未丢失，可随时恢复**）；
-2. `git checkout -- src/` 回到 `2026.3.0`；
-3. 重编 GPU plugin，以此为唯一基线。
+历史 2026.3.0 实验曾记录在 `preexisting-worktree-backup/`。当前 2026.4.1
+复测使用干净 release-tag 源码，并按 patch 阶段应用后反向还原；历史工作区说明不代表
+当前 patch 基线。不要对共享工作区运行 `git checkout -- src/`。
 
 `benchmark/openvino.genai` **未做任何修改**，其工作区改动也已备份。恢复方式：
 

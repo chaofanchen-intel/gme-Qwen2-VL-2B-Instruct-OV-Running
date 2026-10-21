@@ -21,9 +21,10 @@ latency，并且以 gs128 / gs64 为主**（`int4_per_oc` 已在 docs/08 因精�
 
 ### 9.0.1 测量口径
 
-开工时 `benchmark/openvino` 工作区 applied 着 qwen3.5 的 opt3/4/5/6/7（未提交）。三个本地
-commit（`c2638477a6`/`32f59cd819`/`09c4cc4117`）**只加 patch 文件和报告、不碰 `src/`**，所以
-`git checkout -- src/` 即可回到 `2026.3.0` tag。原工作区已备份到
+本节记录的是历史 2026.3.0 实验。当时三个本地 commit（`c2638477a6`/`32f59cd819`/`09c4cc4117`）
+**只加 patch 文件和报告、不碰 `src/`**，并在隔离的实验环境恢复到 2026.3.0 tag；不要在共享
+工作区执行 `git checkout -- src/`。当前 2026.4.1 patch sweep 使用独立 release-tag 源码状态，
+结果见 [`docs/18`](18_openvino_2026.4.1_revalidation.md)。原工作区已备份到
 `preexisting-worktree-backup/openvino-worktree-before-round3.diff`（opt6 的两个 untracked
 文件另存 `round3-untracked/`）。
 

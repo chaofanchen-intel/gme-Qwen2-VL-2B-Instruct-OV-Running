@@ -2,10 +2,10 @@
 
 ## Base
 
-所有 patch 均基于 **OpenVINO 官方 release tag `2026.3.0`**：
+所有当前可交付 patch 均基于 **OpenVINO 官方 release tag `2026.4.1`**：
 
 ```
-commit 8a17657b995fd3b4a52f8484acfcf2bb61214623 (tag: 2026.3.0)
+commit e213a14725769a6a2bf86fc86650aa78a9c05d3e (tag: 2026.4.1)
 ```
 
 **不包含**本仓库工作区里既有的任何本地改动（`qwen3.5_patch` 的 5 个 patch、
@@ -16,28 +16,31 @@ cd "$OPENVINO_ROOT"
 git diff 8a17657b99 -- src/ > "$HOTSPOT_ROOT/patches/all_gme_int4_gpu_opts.patch"
 ```
 
-已在 `git worktree add --detach <tmp> 2026.3.0` 出来的**纯净 tag checkout** 上验证过
+已在 `git worktree add --detach <tmp> 2026.4.1` 出来的**纯净 tag checkout** 上验证过
 `git apply --check` 通过（单独 apply、顺序 apply、合并 apply 三种方式都验证）。
+2026.4.1 逐 patch 性能复测见
+[`../docs/18`](../docs/18_openvino_2026.4.1_revalidation.md)；其余性能表仍按各轮原始
+运行时版本记录，不追溯改写。
 
 ## 文件
 
 | 文件 | 内容 | 改动量 |
 | --- | --- | --- |
-| `opt1_sdpa_gqa_broadcast_stateless.patch` | GQA `repeat_kv` 的 `Unsqueeze→Broadcast→Reshape` 融合支持无状态模型 | 1 file, +13 −5 |
-| `opt2_sdpa_output_transpose_fusion.patch` | 新增 `TransposeSDPATransposeMatcher`；修复 `sdpa_gen_micro` 的 dispatch 与 canonicalization；修复 `calc_output_layout()` 漏用 `output_transpose_order` | 4 files, +257 −11 |
-| `opt3_int4_wide_fc_ncontiguous_weights.patch` | 宽 INT4 投影（`N ≥ 4K` 且 ≥128 行）的权重重排成 N 连续，matmul 描述符改用 `abc` | 3 files, +115 −3 |
-| `all_gme_int4_gpu_opts.patch` | 以上三者合并 | 8 files, +385 −19 |
-| `opt4_dq_reuse_rms_fusion.patch` | sibling FC 共享相同 DynamicQuantize；新增 GME 1536-wide RMSNorm→per-token symmetric INT8 DQ 融合；暴露已有 DQ threshold property | 14 files, +320 −10 |
-| `all_gme_int4_gpu_opts_round6.patch` | opt-1/2/3 + opt-4 合并 | 22 files, +705 −29 |
+| `opt1_sdpa_gqa_broadcast_stateless.patch` | GQA `repeat_kv` 的 `Unsqueeze→Broadcast→Reshape` 融合支持无状态模型 | 1 file, +5 −6 |
+| `opt2_sdpa_output_transpose_fusion.patch` | 新增 `TransposeSDPATransposeMatcher`；修复 `sdpa_gen_micro` 的 dispatch 与 canonicalization；修复 `calc_output_layout()` 漏用 `output_transpose_order` | 3 files, +246 −13 |
+| `opt3_int4_wide_fc_ncontiguous_weights.patch` | 宽 INT4 投影（`N ≥ 4K` 且 ≥128 行）的权重重排成 N 连续，matmul 描述符改用 `abc` | 3 files, +113 −3 |
+| `all_gme_int4_gpu_opts.patch` | 以上三者合并 | 7 files, +364 −22 |
+| `opt4_dq_reuse_rms_fusion.patch` | sibling FC 共享相同 DynamicQuantize；新增 GME 1536-wide RMSNorm→per-token symmetric INT8 DQ 融合；暴露已有 DQ threshold property | 14 files, +313 −5 |
+| `all_gme_int4_gpu_opts_round6.patch` | opt-1/2/3 + opt-4 合并 | 21 files, +677 −27 |
 | `opt5_visual_mvn_dq_fusion.patch` | 视觉 hidden=1280 的 `MVN + gamma + beta → per-token DQ` 融合 | 11 files, +219 −10 |
-| `all_gme_int4_gpu_opts_round7.patch` | opt-1/2/3/4 + opt-5 合并 | 22 files, +914 −29 |
+| `all_gme_int4_gpu_opts_round7.patch` | opt-1/2/3/4 + opt-5 合并 | 21 files, +886 −27 |
 | `opt6_qkv_headfirst_permute.patch` | GME visual `[L,3,16,80]→[3,16,L,80]` 专用 half8 transpose kernel | 4 files, +126 |
-| `all_gme_int4_gpu_opts_round8.patch` | opt-1/2/3/4/5 + opt-6 合并 | 26 files, +1040 −29 |
+| `all_gme_int4_gpu_opts_round8.patch` | opt-1/2/3/4/5 + opt-6 合并 | 25 files, +1012 −27 |
 
 前三个 patch 相互独立，可单独 apply；但 **opt-2 单独用时依赖它自带的运行时修复**
 （否则一旦融合触发就会 GPU 挂死），这些修复已包含在 opt-2 内。
 
-opt-4 也可从纯净 `2026.3.0` 单独 apply，或者顺序 apply 在旧
+opt-4 也可从纯净 `2026.4.1` 单独 apply，或者顺序 apply 在旧
 `all_gme_int4_gpu_opts.patch` 之后。两种方式以及新的 round-6 combined patch 都已在
 detached clean tag worktree 上通过 `git apply --check`。opt-4 里的 DQ reuse 默认生效；
 RMS→DQ 融合只有显式设置 `GPU_DYNAMIC_QUANTIZATION_THRESHOLD=0` 才生效，默认短 query
@@ -50,6 +53,8 @@ opt-5 是 **round-6 之上的增量 patch**，不能单独 apply 到纯净 tag�
 opt-6 是 **round-7 之上的增量 patch**。使用 round-7 combined 后追加 opt-6，或者直接
 使用 round-8 combined。两种方式都已在 clean tag worktree 上通过 `git apply --check`；
 主工作树的相同最终源码已完整构建 GPU plugin。
+由于 opt-6 增加了新的 C++ kernel 源文件，在复用已有 build 目录时，应用 patch 后先运行
+`cmake -S "$OPENVINO_ROOT" -B <build-dir>` 以刷新 source list，再构建 GPU plugin。
 
 `superseded/` 下是 2026-08-13 版本的 opt-2 / 合并 patch，它们在 Qwen3-VL-Embedding-2B
 的 vision 路径上会导致 `CL_OUT_OF_RESOURCES`，**不要再使用**；根因和修复见
@@ -58,8 +63,8 @@ opt-6 是 **round-7 之上的增量 patch**。使用 round-7 combined 后追加 
 ## 应用
 
 ```bash
-cd "$OPENVINO_ROOT"
-git checkout 2026.3.0            # 或任何 src/ 与该 tag 一致的 checkout
+git -C "$OPENVINO_ROOT" worktree add --detach "$OPENVINO_ROOT_2026_4_1" 2026.4.1
+cd "$OPENVINO_ROOT_2026_4_1"
 git apply "$HOTSPOT_ROOT/patches/all_gme_int4_gpu_opts.patch"
 
 cmake --build <build-dir> --target openvino_intel_gpu_plugin -j

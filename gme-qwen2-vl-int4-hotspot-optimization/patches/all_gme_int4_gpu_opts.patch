@@ -1,16 +1,11 @@
 diff --git a/src/plugins/intel_gpu/src/graph/impls/ocl_v2/sdpa/sdpa_gen_micro.cpp b/src/plugins/intel_gpu/src/graph/impls/ocl_v2/sdpa/sdpa_gen_micro.cpp
-index e786e30fe0..41ba4657b0 100644
+index b866d0de69..158596bed8 100644
 --- a/src/plugins/intel_gpu/src/graph/impls/ocl_v2/sdpa/sdpa_gen_micro.cpp
 +++ b/src/plugins/intel_gpu/src/graph/impls/ocl_v2/sdpa/sdpa_gen_micro.cpp
-@@ -143,6 +143,22 @@ inline size_t micro_get_num_heads(const kernel_impl_params& params, size_t qkv_i
-     return -1;
+@@ -149,6 +149,17 @@ inline size_t micro_get_num_heads(const kernel_impl_params& params, size_t qkv_i
+     OPENVINO_THROW("[GPU] Invalid qkv index in micro_get_num_heads");
  }
  
-+// [batch, num_heads] of the SDPA result in logical (untransposed) order.
-+//
-+// The output layout already has output_transpose_order baked into it, so reading dims 0 and 1 off
-+// it positionally only happens to be correct for the default order. Anything that sizes the
-+// dispatch or the micro-kernel batch has to go through the order, exactly like the input side does.
 +inline std::pair<int64_t, int64_t> micro_get_output_batch_and_num_heads(const kernel_impl_params& params) {
 +    const auto& out = params.output_layouts[0];
 +    if (params.is_type<scaled_dot_product_attention>()) {
@@ -25,7 +20,7 @@ index e786e30fe0..41ba4657b0 100644
  inline size_t micro_get_head_size(const kernel_impl_params& params, size_t qkv_idx) {
      if (params.is_type<paged_attention>()) {
          const auto desc = params.typed_desc<paged_attention>();
-@@ -1038,14 +1054,14 @@ JitConstants SDPAMicroGenerator::get_jit_constants(const kernel_impl_params& par
+@@ -1057,15 +1068,14 @@ JitConstants SDPAMicroGenerator::get_jit_constants(const kernel_impl_params& par
      const auto& K = (config.is_paged_attention && !m_is_prefill) ? params.input_layouts[3] : params.input_layouts[1];
      const auto& V = (config.is_paged_attention && !m_is_prefill) ? params.input_layouts[4] : params.input_layouts[2];
      const auto& out = params.output_layouts[0];
@@ -36,13 +31,14 @@ index e786e30fe0..41ba4657b0 100644
      const auto v_head_size = micro_get_head_size(params, 2);
  
      const auto d_max = get_d_max(k_head_size);
--    const auto batch = out_ps[0] * out_ps[1];
+-    const auto head_num = micro_get_num_heads(params, 0);
+-    const auto batch = out_ps[0] * static_cast<ov::Dimension>(head_num);
 +    const auto out_batch_heads = micro_get_output_batch_and_num_heads(params);
 +    const auto batch = ov::Dimension(out_batch_heads.first) * ov::Dimension(out_batch_heads.second);
  
      auto ldq = k_head_size * ov::element::Type(Q.data_type).size();
      auto ldk = k_head_size * ov::element::Type(K.data_type).size();
-@@ -1416,15 +1432,16 @@ DispatchDataFunc SDPAMicroGenerator::get_dispatch_data_func() const {
+@@ -1437,15 +1447,16 @@ DispatchDataFunc SDPAMicroGenerator::get_dispatch_data_func() const {
          scalars.clear();
          scalars.reserve(3);
  
@@ -63,11 +59,11 @@ index e786e30fe0..41ba4657b0 100644
              const auto v_head_size = micro_get_head_size(params, 2);
              auto head_num = micro_get_num_heads(params, 0);
  
-@@ -1448,8 +1465,9 @@ DispatchDataFunc SDPAMicroGenerator::get_dispatch_data_func() const {
+@@ -1469,8 +1480,9 @@ DispatchDataFunc SDPAMicroGenerator::get_dispatch_data_func() const {
                  wgs.global[1] *= head_num;
                  wgs.global[2] *= 1;
              } else {
--                wgs.global[1] *= out_ps[1].get_length();
+-                wgs.global[1] *= head_num;
 -                wgs.global[2] *= out_ps[0].get_length();
 +                const auto out_batch_heads = micro_get_output_batch_and_num_heads(params);
 +                wgs.global[1] *= out_batch_heads.second;
@@ -75,27 +71,28 @@ index e786e30fe0..41ba4657b0 100644
              }
  
              auto to_int32 = [](size_t value) {
-@@ -1499,8 +1517,6 @@ void SDPAMicroGenerator::init_microkernels(const kernel_impl_params& params,
+@@ -1518,8 +1530,6 @@ void SDPAMicroGenerator::init_microkernels(const kernel_impl_params& params,
      const auto& Q = params.input_layouts[0];
      const auto& K = (is_paged_attention && !is_prefill) ? params.input_layouts[3] : params.input_layouts[1];
      const auto& V = (is_paged_attention && !is_prefill) ? params.input_layouts[4] : params.input_layouts[2];
--    auto& out = params.output_layouts[0];
+-    const auto& out = params.output_layouts[0];
 -    const auto& out_ps = out.get_partial_shape();
      const auto& device_info = params.get_device_info();
  
      const auto k_head_size = micro_get_head_size(params, 1);
-@@ -1510,7 +1526,8 @@ void SDPAMicroGenerator::init_microkernels(const kernel_impl_params& params,
+@@ -1529,8 +1539,8 @@ void SDPAMicroGenerator::init_microkernels(const kernel_impl_params& params,
      const ov::Dimension n_keys = micro_get_seq_length(params, 1);
      const ov::Dimension n_queries = micro_get_seq_length(params, 0);
      const ov::Dimension n_values = ov::Dimension(v_head_size);
--    const auto batch = out_ps[0] * out_ps[1];
+-    const auto head_num = micro_get_num_heads(params, 0);
+-    const auto batch = out_ps[0] * static_cast<ov::Dimension>(head_num);
 +    const auto out_batch_heads = micro_get_output_batch_and_num_heads(params);
 +    const auto batch = ov::Dimension(out_batch_heads.first) * ov::Dimension(out_batch_heads.second);
  
      GPU_DEBUG_TRACE_DETAIL << "\nconfiguration.is_kv_compressed = " << configuration.is_kv_compressed << std::endl;
      GPU_DEBUG_TRACE_DETAIL << "k_head_size = " << k_head_size << ", v_head_size = " << v_head_size << ", d_max = " << d_max << ", batch = " << batch << "\n";
 diff --git a/src/plugins/intel_gpu/src/graph/impls/onednn/fully_connected_onednn.cpp b/src/plugins/intel_gpu/src/graph/impls/onednn/fully_connected_onednn.cpp
-index 92cc2bdb1c..47c87bb267 100644
+index 65d0a917d3..b44227845b 100644
 --- a/src/plugins/intel_gpu/src/graph/impls/onednn/fully_connected_onednn.cpp
 +++ b/src/plugins/intel_gpu/src/graph/impls/onednn/fully_connected_onednn.cpp
 @@ -98,6 +98,72 @@ protected:
@@ -189,20 +186,18 @@ index 92cc2bdb1c..47c87bb267 100644
              && format::is_default_format(weights_layout.format)
              && (weights_layout.data_type == data_types::i4 || weights_layout.data_type == data_types::u4)) {
              weights_md = onednn::layout_to_memory_desc_strides(weights_layout, weights_fmt);
-@@ -354,6 +429,12 @@ public:
+@@ -358,6 +433,10 @@ public:
          dnnl::memory::data_type dzp_data_type = dnnl::memory::data_type::undef;
          int idx = !arg.bias_term() ? 1 : 2;
  
-+        // Must be decided from the same inputs as the matmul descriptor: the reorder rewrites
-+        // the weights layout, so the two have to be kept in agreement.
 +        std::shared_ptr<WeightsReorderParams> weights_reorder = nullptr;
 +        if (use_n_contiguous_weights(impl_params, prim->input_size, prim->weights_transposed))
 +            weights_reorder = get_weights_reorder(impl_params);
 +
          if (prim->compressed_weights) {
              const auto input_dt = impl_params.get_input_layout(0).data_type;
-             const bool is_dyn_quan_input = cldnn::one_of(input_dt, {data_types::i8, data_types::u8, data_types::f8e4m3, data_types::f8e5m2});
-@@ -444,7 +525,7 @@ public:
+             const bool is_dyn_quan_input = cldnn::one_of(input_dt, {data_types::i8, data_types::u8, data_types::f4e2m1, data_types::f8e4m3, data_types::f8e5m2});
+@@ -451,7 +530,7 @@ public:
              auto prim_desc = get_matmul_primitive_descriptor(impl_params, impl_params.prog->get_engine(),
                                                               prim->input_size, prim->weights_rank, prim->bias.is_valid(), *attr);
  
@@ -211,32 +206,15 @@ index 92cc2bdb1c..47c87bb267 100644
              prim_onednn->_ds_group_size = group_size;
              prim_onednn->_ds_data_type = ds_data_type;
              prim_onednn->_dzp_data_type = dzp_data_type;
-@@ -453,7 +534,7 @@ public:
-             auto prim_desc = get_matmul_primitive_descriptor(impl_params, impl_params.prog->get_engine(),
-                                                              prim->input_size, prim->weights_rank, prim->bias.is_valid(), *attr);
+@@ -460,7 +539,7 @@ public:
+         auto prim_desc =
+             get_matmul_primitive_descriptor(impl_params, impl_params.prog->get_engine(), prim->input_size, prim->weights_rank, prim->bias.is_valid(), *attr);
  
--            return std::make_unique<fully_connected_onednn>(engine, config, attr, *prim_desc);
+-        return std::make_unique<fully_connected_onednn>(engine, config, attr, *prim_desc);
 +            return std::make_unique<fully_connected_onednn>(engine, config, attr, *prim_desc, weights_reorder);
-         }
      }
  };
-diff --git a/src/plugins/intel_gpu/src/graph/scaled_dot_product_attention.cpp b/src/plugins/intel_gpu/src/graph/scaled_dot_product_attention.cpp
-index 828ddff651..3b01a06f16 100644
---- a/src/plugins/intel_gpu/src/graph/scaled_dot_product_attention.cpp
-+++ b/src/plugins/intel_gpu/src/graph/scaled_dot_product_attention.cpp
-@@ -46,6 +46,12 @@ layout scaled_dot_product_attention_inst::calc_output_layout(scaled_dot_product_
-     auto v_shape = transpose_shape(input2_layout.get_partial_shape(),
-                                 desc->input_v_transpose_order);
-     output_shape[output_shape.size() - 1] = v_shape[v_shape.size() - 1];
-+    // output_transpose_order describes the permutation the SDPA applies on the way out, so the
-+    // layout has to describe the permuted shape, exactly as calc_output_layouts() does through
-+    // ov::intel_gpu::op::shape_infer(). Skipping it here left the legacy (static shape inference)
-+    // path reporting the un-permuted shape, from which the SDPA implementations then read
-+    // batch/num_heads off the wrong axes.
-+    output_shape = transpose_shape(output_shape, desc->output_transpose_order);
  
-     return { layout{output_shape, output_type, output_format, desc->output_paddings[0]} };
- }
 diff --git a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/reorder_weights_int4.cl b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/reorder_weights_int4.cl
 index 9332c491b3..0388a46b77 100644
 --- a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/reorder_weights_int4.cl
@@ -304,8 +282,44 @@ index 079da26f0a..325849b617 100644
      supported_case |= input.GetLayout() == WeightsLayout::ioyx && output.GetLayout() == WeightsLayout::os_iyx_osv32;
      return supported_case;
  }
+diff --git a/src/plugins/intel_gpu/src/plugin/transformations/expand_broadcast_reshape_sdpa_fusion.cpp b/src/plugins/intel_gpu/src/plugin/transformations/expand_broadcast_reshape_sdpa_fusion.cpp
+index 72b44c72cd..737a1616d1 100644
+--- a/src/plugins/intel_gpu/src/plugin/transformations/expand_broadcast_reshape_sdpa_fusion.cpp
++++ b/src/plugins/intel_gpu/src/plugin/transformations/expand_broadcast_reshape_sdpa_fusion.cpp
+@@ -5,7 +5,6 @@
+ #include "expand_broadcast_reshape_sdpa_fusion.hpp"
+ 
+ #include "intel_gpu/op/sdpa.hpp"
+-#include "intel_gpu/op/kv_cache.hpp"
+ 
+ #include "openvino/core/rt_info.hpp"
+ #include "openvino/op/broadcast.hpp"
+@@ -43,9 +42,9 @@ ExpandBroadcastReshapeSDPAFusion::ExpandBroadcastReshapeSDPAFusion() {
+     auto input_a_m = any_input();
+     auto input_attn_mask_m = any_input();
+     auto input_scale_m = any_input();
+-    // ── Pattern A: KVCache → [Unsqueeze|Reshape](5D) → Broadcast(BIDIRECTIONAL) → Reshape(4D) → [Convert] ──
+-    auto input_b_kvcache_m = wrap_type<ov::intel_gpu::op::KVCache>({any_input(), any_input()});
+-    auto input_c_kvcache_m = wrap_type<ov::intel_gpu::op::KVCache>({any_input(), any_input()});
++    // ── Pattern A: stateless or stateful KV producer → [Unsqueeze|Reshape](5D) → Broadcast(BIDIRECTIONAL) → Reshape(4D) ──
++    auto input_b_kv_producer_m = any_input();
++    auto input_c_kv_producer_m = any_input();
+ 
+     auto input_b_rope_m = wrap_type<ov::op::internal::RoPE>({any_input(), any_input(), any_input()});
+     auto concat_b_m = optional<ov::op::v0::Concat>({any_input(), any_input()});
+@@ -59,8 +58,8 @@ ExpandBroadcastReshapeSDPAFusion::ExpandBroadcastReshapeSDPAFusion() {
+     auto axes_const_b_m = wrap_type<ov::op::v0::Constant>();
+     auto axes_const_c_m = wrap_type<ov::op::v0::Constant>();
+ 
+-    auto unsqueeze_b_m = wrap_type<ov::op::v0::Unsqueeze>({input_b_kvcache_m, axes_const_b_m}, unsqueeze_predicate);
+-    auto unsqueeze_c_m = wrap_type<ov::op::v0::Unsqueeze>({input_c_kvcache_m, axes_const_c_m}, unsqueeze_predicate);
++    auto unsqueeze_b_m = wrap_type<ov::op::v0::Unsqueeze>({input_b_kv_producer_m, axes_const_b_m}, unsqueeze_predicate);
++    auto unsqueeze_c_m = wrap_type<ov::op::v0::Unsqueeze>({input_c_kv_producer_m, axes_const_c_m}, unsqueeze_predicate);
+ 
+     auto pre_reshape_b_m = wrap_type<ov::op::v1::Reshape>({pre_reshape_input_b_m, any_input()}, unsqueeze_predicate);
+     auto pre_reshape_c_m = wrap_type<ov::op::v1::Reshape>({pre_reshape_input_c_m, any_input()}, unsqueeze_predicate);
 diff --git a/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.cpp b/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.cpp
-index 11ec247ffa..868d6a51ec 100644
+index 7dd6774b0e..391f2dbe52 100644
 --- a/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.cpp
 +++ b/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.cpp
 @@ -3,6 +3,7 @@
@@ -316,15 +330,15 @@ index 11ec247ffa..868d6a51ec 100644
  #include "intel_gpu/op/sdpa.hpp"
  #include "intel_gpu/runtime/utils.hpp"
  #include "openvino/core/node_vector.hpp"
-@@ -77,6 +78,7 @@ bool has_optimized_version(const ov::Output<ov::Node>& output, bool supports_imm
+@@ -78,6 +79,7 @@ bool has_optimized_version(const ov::Output<ov::Node>& output, bool supports_imm
  TransposeFusion::TransposeFusion(bool supports_immad) {
      add_matcher<TransposeMatMulTransposeMatcher>(supports_immad);
      add_matcher<TransposeMatMulMatcher>(supports_immad);
 +    add_matcher<TransposeSDPATransposeMatcher>(supports_immad);
      add_matcher<TransposeSDPAMatcher>();
      add_matcher<TransposeVLSDPAMatcher>();
- }
-@@ -310,6 +312,221 @@ TransposeSDPAMatcher::TransposeSDPAMatcher() {
+     add_matcher<TransposeSplitMatcher>();
+@@ -312,6 +314,221 @@ TransposeSDPAMatcher::TransposeSDPAMatcher() {
      this->register_matcher(m, callback);
  }
  
@@ -547,7 +561,7 @@ index 11ec247ffa..868d6a51ec 100644
      auto not_transpose = [](const ov::Output<ov::Node>& output) -> bool {
          return ov::as_type_ptr<ov::op::v1::Transpose>(output.get_node_shared_ptr()) == nullptr
 diff --git a/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.hpp b/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.hpp
-index 2f0b45db43..2b2d4f5e76 100644
+index 6611206140..8ed304c833 100644
 --- a/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.hpp
 +++ b/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.hpp
 @@ -32,6 +32,12 @@ public:
@@ -563,46 +577,3 @@ index 2f0b45db43..2b2d4f5e76 100644
  class TransposeVLSDPAMatcher : public ov::pass::MatcherPass {
  public:
      OPENVINO_MATCHER_PASS_RTTI("TransposeVLSDPAMatcher");
-diff --git a/src/plugins/intel_gpu/src/plugin/transformations/unsqueeze_broadcast_reshape_sdpa_fusion.cpp b/src/plugins/intel_gpu/src/plugin/transformations/unsqueeze_broadcast_reshape_sdpa_fusion.cpp
-index 6e92271998..c16d7c72ff 100644
---- a/src/plugins/intel_gpu/src/plugin/transformations/unsqueeze_broadcast_reshape_sdpa_fusion.cpp
-+++ b/src/plugins/intel_gpu/src/plugin/transformations/unsqueeze_broadcast_reshape_sdpa_fusion.cpp
-@@ -5,7 +5,6 @@
- #include "unsqueeze_broadcast_reshape_sdpa_fusion.hpp"
- 
- #include "intel_gpu/op/sdpa.hpp"
--#include "intel_gpu/op/kv_cache.hpp"
- 
- #include "openvino/core/rt_info.hpp"
- #include "openvino/op/broadcast.hpp"
-@@ -40,8 +39,17 @@ UnsqueezeBroadcastReshapeSDPAFusion::UnsqueezeBroadcastReshapeSDPAFusion() {
-     auto input_a_m = any_input();
-     auto input_attn_mask_m = any_input();
-     auto input_scale_m = any_input();
--    auto input_b_kvcache_m = wrap_type<ov::intel_gpu::op::KVCache>({any_input(), any_input()});
--    auto input_c_kvcache_m = wrap_type<ov::intel_gpu::op::KVCache>({any_input(), any_input()});
-+    // The producer of the GQA repeat_kv expansion is a KVCache only in stateful generative
-+    // models. A stateless graph -- an embedding/encoder forward pass, or any model compiled
-+    // without a KV cache -- feeds the Unsqueeze straight from RoPE / Transpose / FullyConnected,
-+    // so restricting it to KVCache leaves the whole Unsqueeze->Broadcast->Reshape chain in the
-+    // runtime graph. The chain is materialized as a real `broadcast` primitive that writes an
-+    // (num_heads / num_kv_heads)x larger K and V, which SDPA can broadcast internally for free.
-+    // Everything the fusion actually depends on is verified in the callback below (bidirectional
-+    // broadcast on exactly one axis, identical target shape for K and V), so the producer type
-+    // itself carries no information and is left unconstrained.
-+    auto input_b_kv_producer_m = any_input();
-+    auto input_c_kv_producer_m = any_input();
- 
-     auto input_b_rope_m = wrap_type<ov::op::internal::RoPE>({any_input(), any_input(), any_input()});
-     auto concat_b_m = optional<ov::op::v0::Concat>({any_input(), any_input()});
-@@ -55,8 +63,8 @@ UnsqueezeBroadcastReshapeSDPAFusion::UnsqueezeBroadcastReshapeSDPAFusion() {
-     auto axes_const_b_m = wrap_type<ov::op::v0::Constant>();
-     auto axes_const_c_m = wrap_type<ov::op::v0::Constant>();
- 
--    auto unsqueeze_b_m = wrap_type<ov::op::v0::Unsqueeze>({input_b_kvcache_m, axes_const_b_m}, unsqueeze_predicate);
--    auto unsqueeze_c_m = wrap_type<ov::op::v0::Unsqueeze>({input_c_kvcache_m, axes_const_c_m}, unsqueeze_predicate);
-+    auto unsqueeze_b_m = wrap_type<ov::op::v0::Unsqueeze>({input_b_kv_producer_m, axes_const_b_m}, unsqueeze_predicate);
-+    auto unsqueeze_c_m = wrap_type<ov::op::v0::Unsqueeze>({input_c_kv_producer_m, axes_const_c_m}, unsqueeze_predicate);
- 
-     auto pre_reshape_b_m = wrap_type<ov::op::v1::Reshape>({pre_reshape_input_b_m, any_input()}, unsqueeze_predicate);
-     auto pre_reshape_c_m = wrap_type<ov::op::v1::Reshape>({pre_reshape_input_c_m, any_input()}, unsqueeze_predicate);
